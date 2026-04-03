@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: barbie-makoi-audit
+    env: ruby
+    buildCommand: "./bin/render-build.sh"
+    startCommand: "bundle exec puma -C config/puma.rb"
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: barbie-audit-db
+          property: connectionString
+      - key: RAILS_MASTER_KEY
+        sync: false
+
+databases:
+  - name: barbie-audit-db
+    plan: free
