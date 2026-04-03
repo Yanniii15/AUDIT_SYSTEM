@@ -68,3 +68,7 @@ end
 gem "devise", "~> 5.0"
 
 gem 'google-cloud-ai_platform'
+
+group :production do
+  gem 'pg'
+end

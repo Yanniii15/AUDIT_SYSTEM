@@ -1,107 +1,144 @@
-<%# Mobile Dashboard Header %>
-<div style="display: flex; flex-direction: column; gap: 10px; margin-bottom: 25px; font-family: sans-serif;">
-  
-  <%# Total Spent Card %>
-  <div style="background: #dc3545; color: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-    <p style="margin: 0; font-size: 0.8em; text-transform: uppercase; opacity: 0.9;">Total Spent Today</p>
-    <h1 style="margin: 5px 0;">₱<%= number_with_precision(@total_amount, precision: 2) %></h1>
-  </div>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 
-  <%# Audit Card %>
-  <div style="background: #007bff; color: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-    <p style="margin: 0; font-size: 0.8em; text-transform: uppercase; opacity: 0.9;">Expected Cash in Drawer</p>
-    <h1 style="margin: 5px 0;">₱<%= number_with_precision(@expected_cash, precision: 2) %></h1>
-    <small>Starting: ₱<%= number_with_precision(@starting_cash, precision: 2) %></small>
-  </div>
+<div style="font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; min-height: 100vh; padding: 20px;">
+  <div style="max-width: 1100px; margin: 0 auto;">
 
-</div>
+    <%# --- TOP NAVIGATION BAR --- %>
+    <div style="display: flex; justify-content: space-between; align-items: center; background: white; padding: 16px 24px; border-radius: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); margin-bottom: 30px; border: 1px solid #f1f5f9;">
+      <div>
+        <h2 style="margin: 0; color: #0f172a; font-size: 1.25rem; letter-spacing: -0.025em;">Barbie - Makoi Auditing System <span style="color: #0ea5e9; font-weight: 800;">Pro</span></h2>
+        <p style="margin: 0; color: #64748b; font-size: 0.875rem;"><%= Date.today.strftime("%A, %B %d, %Y") %></p>
+      </div>
+      <div style="display: flex; align-items: center; gap: 15px;">
+        <div style="text-align: right;">
+          <span style="display: block; font-size: 0.875rem; font-weight: 600; color: #1e293b;"><%= current_user.email.split('@').first.capitalize %></span>
+          <span style="font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; font-weight: 700;"><%= current_user.role.gsub('_', ' ') %></span>
+        </div>
+        <%= button_to "Logout", destroy_user_session_path, method: :delete, style: "background: #fff1f2; color: #e11d48; border: 1px solid #ffe4e6; padding: 8px 16px; border-radius: 10px; cursor: pointer; font-weight: 600; font-size: 0.813rem;" %>
+      </div>
+    </div>
 
-<hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
-
-<%# Your Table goes here - wrap it in a div for mobile scrolling %>
-<div style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
-  <%# Existing Table Code... %>
-</div>
-<p style="color: green"><%= notice %></p>
-<div style="text-align: right; margin-bottom: 10px; font-family: sans-serif;">
-  Logged in as: <strong><%= current_user.name %></strong> 
-  (<%= current_user.role %>) |
-  <%= button_to "Logout", destroy_user_session_path, method: :delete, style: "background: none; border: none; color: #d9534f; cursor: pointer; text-decoration: underline; display: inline;" %>
-</div>
-<div style="display: flex; justify-content: space-between; align-items: center;">
-  <h1>Daily Audit Dashboard</h1>
-  <% if current_user.role == 'admin' %>
-    <%= link_to "View History / Reports 📅", report_expenses_path, style: "text-decoration: none; color: #555; border: 1px solid #ccc; padding: 5px 10px; border-radius: 4px;" %>
-  <% end %>
-</div>
-
-<p style="color: #666;">Showing audit for: <strong><%= Date.today.strftime("%B %d, %Y") %></strong></p>
-
-<div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #ddd; display: flex; justify-content: space-around; box-shadow: 2px 2px 5px rgba(0,0,0,0.05);">
-  <div style="text-align: center;">
-    <small style="text-transform: uppercase; color: #888;">Starting Float</small><br>
-    <strong style="font-size: 1.4em;"><%= number_to_currency(@starting_cash, unit: "₱") %></strong>
-  </div>
-  
-  <div style="text-align: center;">
-    <small style="text-transform: uppercase; color: #888;">Total Expenses Today</small><br>
-    <strong style="font-size: 1.4em; color: #d9534f;"><%= number_to_currency(@total_amount, unit: "₱") %></strong>
-  </div>
-  
-  <div style="text-align: center; border-left: 2px solid #ddd; padding-left: 30px;">
-    <small style="text-transform: uppercase; color: #888;">Expected Cash in Box</small><br>
-    <strong style="font-size: 1.6em; color: #5cb85c;"><%= number_to_currency(@expected_cash, unit: "₱") %></strong>
-  </div>
-</div>
-
-<table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
-  <thead>
-    <tr style="background-color: #333; color: white; text-align: left;">
-      <th style="padding: 12px;">Description</th>
-      <th style="padding: 12px;">Amount</th>
-      <th style="padding: 12px;">Dept</th>
-      <th style="padding: 12px;">Source</th>
-      <th style="padding: 12px;">Verified</th>
-      <th style="padding: 12px;">Actions</th>
-      <th style="padding: 12px;">Auditor</th>
-      <th style="padding: 12px;">Notes</th>
-    </tr>
-  </thead>
-
-  <tbody>
-    <% if @expenses.any? %>
-      <% @expenses.each do |expense| %>
-        <tr style="border-bottom: 1px solid #eee;">
-          <td style="padding: 12px;"><%= expense.description %></td>
-          <td style="padding: 12px; font-weight: bold;"><%= number_to_currency(expense.amount, unit: "₱") %></td>
-          <td style="padding: 12px;"><%= expense.department %></td>
-          <td style="padding: 12px;"><%= expense.pcf_source %></td>
-          <td style="padding: 12px; text-align: center;"><%= expense.is_verified ? "✅" : "❌" %></td>
-          <td style="padding: 12px;"><%= link_to "Edit", edit_expense_path(expense), style: "color: #0275d8;" %></td>
-          <td style="padding: 12px;"><%= expense.user.name %></td>
-          <td style="padding: 12px; font-size: 0.85em; color: #555;"><%= expense.notes %></td>
-        </tr>
-      <% end %>
-    <% else %>
-      <tr>
-        <td colspan="6" style="padding: 30px; text-align: center; color: #999;">
-          No expenses recorded yet for today.
-        </td>
-      </tr>
+    <%# --- ALERTS --- %>
+    <% if notice %>
+      <div style="background: #f0fdf4; color: #166534; padding: 14px 20px; border-radius: 12px; margin-bottom: 25px; border-left: 5px solid #22c55e; font-weight: 500; font-size: 0.9rem;"><%= notice %></div>
     <% end %>
-  </tbody>
-  
-  <tfoot>
-    <tr style="background-color: #e6f7ff; font-weight: bold;">
-      <td style="padding: 12px; text-align: right;">TODAY'S TOTAL:</td>
-      <td style="padding: 12px;"><%= number_to_currency(@total_amount, unit: "₱") %></td>
-      <td colspan="4"></td>
-    </tr>
-  </tfoot>
-</table>
 
-<br>
+    <%# --- QUICK ACTIONS --- %>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+      <div style="display: flex; gap: 12px;">
+        <% if current_user.admin? || current_user.co_admin? %>
+          <%= link_to manage_staff_path, style: "background: white; color: #1e293b; padding: 12px 20px; text-decoration: none; border-radius: 14px; font-weight: 600; font-size: 0.875rem; border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);" do %>
+            <span>👥</span> Manage Staff & Vault
+          <% end %>
+        <% end %>
+        
+        <% if current_user.admin? %>
+          <%= link_to report_expenses_path, style: "background: white; color: #1e293b; padding: 12px 20px; text-decoration: none; border-radius: 14px; font-weight: 600; font-size: 0.875rem; border: 1px solid #e2e8f0; display: flex; align-items: center; gap: 8px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);" do %>
+            <span>📊</span> Reports
+          <% end %>
+        <% end %>
+      </div>
 
-<div style="text-align: center; margin-top: 20px;">
-  <%= link_to "➕ RECORD NEW EXPENSE", new_expense_path, style: "padding: 15px 30px; background: #0275d8; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 1.1em;" %>
+      <%= link_to new_expense_path, style: "background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%); color: white; padding: 14px 24px; text-decoration: none; border-radius: 14px; font-weight: 700; font-size: 0.875rem; box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.3); display: flex; align-items: center; gap: 8px;" do %>
+        <span style="font-size: 1.2rem;">+</span> NEW EXPENSE
+      <% end %>
+    </div>
+
+    <%# --- STATS GRID --- %>
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-bottom: 40px;">
+      <%# Card 1 %>
+      <div style="background: white; padding: 24px; border-radius: 24px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); position: relative; overflow: hidden;">
+        <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: #3b82f6;"></div>
+        <p style="margin: 0; color: #64748b; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;">Total Starting Float</p>
+        <h2 style="margin: 12px 0 0 0; color: #1e293b; font-size: 2rem; font-weight: 700; letter-spacing: -0.05em;"><%= number_to_currency(@starting_float, unit: "₱") %></h2>
+      </div>
+
+      <%# Card 2 %>
+      <div style="background: white; padding: 24px; border-radius: 24px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); position: relative; overflow: hidden;">
+        <div style="position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: #ef4444;"></div>
+        <p style="margin: 0; color: #64748b; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;">Expenses Today</p>
+        <h2 style="margin: 12px 0 0 0; color: #b91c1c; font-size: 2rem; font-weight: 700; letter-spacing: -0.05em;"><%= number_to_currency(@total_spent_today, unit: "₱") %></h2>
+      </div>
+
+      <%# Card 3 %>
+      <div style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); padding: 24px; border-radius: 24px; box-shadow: 0 20px 25px -5px rgba(16, 185, 129, 0.2); color: white;">
+        <p style="margin: 0; color: rgba(255,255,255,0.8); font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;">Expected Cash in Box</p>
+        <h2 style="margin: 12px 0 0 0; font-size: 2.25rem; font-weight: 800; letter-spacing: -0.05em;"><%= number_to_currency(@current_wallet, unit: "₱") %></h2>
+      </div>
+    </div>
+
+    <%# --- ADMIN MONEY MAP --- %>
+    <% if current_user.admin? %>
+      <div style="margin-bottom: 30px;">
+        <h3 style="margin: 0 0 15px 0; color: #475569; font-size: 0.75rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1px;">Current Cash Distribution</h3>
+        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 15px;">
+          <% @staff_balances.each do |user| %>
+            <div style="background: white; padding: 15px; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.02); display: flex; flex-direction: column; align-items: center; text-align: center;">
+              <div style="width: 32px; height: 32px; background: #f0f9ff; color: #0ea5e9; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.7rem; margin-bottom: 8px;">
+                <%= user.email[0..1].upcase %>
+              </div>
+              <p style="margin: 0; font-size: 0.85rem; font-weight: 700; color: #1e293b;"><%= user.email.split('@').first.capitalize %></p>
+              <h4 style="margin: 4px 0 0 0; color: #10b981; font-size: 1.1rem; font-weight: 800;"><%= number_to_currency(user.pcf_balance || 0, unit: "₱") %></h4>
+              <span style="font-size: 0.6rem; color: #94a3b8; font-weight: 700; text-transform: uppercase; margin-top: 4px;"><%= user.role.gsub('_', ' ') %></span>
+            </div>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+
+    <%# --- RECENT TRANSACTIONS TABLE --- %>
+    <div style="background: white; border-radius: 24px; border: 1px solid #e2e8f0; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); overflow: hidden;">
+      <div style="padding: 20px 24px; border-bottom: 1px solid #f1f5f9; background: #fafafa;">
+        <h3 style="margin: 0; color: #1e293b; font-size: 1rem; font-weight: 700;">Recent Expenses</h3>
+      </div>
+      <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr style="text-align: left;">
+              <th style="padding: 16px 24px; color: #94a3b8; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;">Details</th>
+              <th style="padding: 16px 24px; color: #94a3b8; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;">Amount</th>
+              <th style="padding: 16px 24px; color: #94a3b8; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;">Department</th>
+              <th style="padding: 16px 24px; color: #94a3b8; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;">Custodian</th>
+              <th style="padding: 16px 24px; color: #94a3b8; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; text-align: center;">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if @expenses.any? %>
+              <% @expenses.each do |expense| %>
+                <tr style="border-top: 1px solid #f1f5f9; transition: background 0.2s;">
+                  <td style="padding: 20px 24px;">
+                    <span style="display: block; color: #1e293b; font-weight: 700; font-size: 0.938rem;"><%= expense.description %></span>
+                    <%= link_to "Edit Transaction", edit_expense_path(expense), style: "color: #3b82f6; text-decoration: none; font-size: 0.75rem; font-weight: 600;" %>
+                  </td>
+                  <td style="padding: 20px 24px; color: #1e293b; font-weight: 800; font-size: 1rem;"><%= number_to_currency(expense.amount, unit: "₱") %></td>
+                  <td style="padding: 20px 24px;">
+                    <span style="background: #f1f5f9; color: #475569; padding: 4px 10px; border-radius: 8px; font-size: 0.75rem; font-weight: 700;"><%= expense.department %></span>
+                  </td>
+                  <td style="padding: 20px 24px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <div style="width: 32px; height: 32px; background: #e2e8f0; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; color: #475569; font-size: 0.7rem;">
+                        <%= expense.user.email[0..1].upcase %>
+                      </div>
+                      <span style="font-weight: 600; color: #334155; font-size: 0.875rem;"><%= expense.user.email.split('@').first.capitalize %></span>
+                    </div>
+                  </td>
+                  <td style="padding: 20px 24px; text-align: center;">
+                    <span style="background: <%= expense.is_verified ? '#dcfce7' : '#fee2e2' %>; color: <%= expense.is_verified ? '#166534' : '#991b1b' %>; padding: 6px 14px; border-radius: 10px; font-size: 0.688rem; font-weight: 800; letter-spacing: 0.025em;">
+                      <%= expense.is_verified ? 'VERIFIED' : 'PENDING' %>
+                    </span>
+                  </td>
+                </tr>
+              <% end %>
+            <% else %>
+              <tr>
+                <td colspan="5" style="padding: 60px; text-align: center;">
+                  <div style="color: #94a3b8; font-size: 0.9rem;">No transactions recorded today.</div>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </div>

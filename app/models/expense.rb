@@ -1,41 +1,41 @@
-require 'base64'
-
 class Expense < ApplicationRecord
   belongs_to :user
-  has_one_attached :receipt_photo
 
-  def analyze_receipt
-    return unless receipt_photo.attached?
+  # SAFETY CHECK: Don't let them save if they don't have the cash
+  validate :check_user_balance, on: :create
 
-    # PASTE YOUR KEY DIRECTLY HERE FOR NOW
-    api_key = "YOUR_ACTUAL_KEY_FROM_AI_STUDIO"
-    client = Gemini::Client.new(api_key: api_key)
+  # These are the "tripwires"
+  after_create :deduct_from_user_wallet
+  after_destroy :refund_to_user_wallet
+  before_update :adjust_user_wallet_on_update
 
-    image_data = {
-      inline_data: {
-        data: Base64.strict_encode64(receipt_photo.download),
-        mime_type: receipt_photo.content_type
-      }
-    }
+  private
 
-    # Precise prompt for Gemini 1.5 Flash
-    prompt = "Return ONLY a JSON object from this receipt with: { \"total\": number, \"description\": \"string summary\" }"
+  # 0. The Gatekeeper: Prevents negative balances
+  def check_user_balance
+    if (user.pcf_balance || 0) < self.amount
+      errors.add(:amount, "exceeds your current wallet balance (₱#{user.pcf_balance || 0})")
+    end
+  end
 
-    begin
-      response = client.generate_content([prompt, image_data])
-      
-      # Extract text and strip markdown if Gemini adds it
-      raw_text = response.dig("candidates", 0, "content", "parts", 0, "text")
-      clean_json = raw_text.gsub(/```json|```/, "").strip
-      
-      result = JSON.parse(clean_json)
+  # 1. When a new expense is made
+  def deduct_from_user_wallet
+    new_balance = (user.pcf_balance || 0) - self.amount
+    user.update_column(:pcf_balance, new_balance)
+  end
 
-      # Auto-fill the fields
-      self.amount = result["total"]
-      self.description = result["description"]
-      self.notes = "AI Scan Completed at #{Time.now.strftime('%I:%M %p')}"
-    rescue => e
-      self.notes = "AI Error: #{e.message}"
+  # 2. If an expense is deleted, give the money back
+  def refund_to_user_wallet
+    new_balance = (user.pcf_balance || 0) + self.amount_was
+    user.update_column(:pcf_balance, new_balance)
+  end
+
+  # 3. If an expense is edited
+  def adjust_user_wallet_on_update
+    if amount_changed?
+      diff = self.amount - self.amount_was
+      new_balance = (user.pcf_balance || 0) - diff
+      user.update_column(:pcf_balance, new_balance)
     end
   end
 end

@@ -26,15 +26,43 @@
     <%= form.text_field :amount %>
   </div>
 
-  <div>
-    <%= form.label :department, style: "display: block" %>
-    <%= form.text_field :department %>
-  </div>
+  <div class="field" style="margin-bottom: 15px;">
+     <%= form.label :department, style: "display: block; font-weight: bold; margin-bottom: 5px;" %>
+     
+     <%# 1. We added "Others" to the list, and gave the select an ID %>
+     <%= form.select :department, 
+           ["Dayo", "CKR Main", "CKR Branch 2", "CKR Branch 4", "Others"], 
+           { prompt: "Select a Department..." }, 
+           { id: "department_dropdown", style: "width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-size: 1em;" } 
+     %>
+     
+     <%# 2. This is the hidden text box that will pop up %>
+     <input type="text" id="custom_department_input" placeholder="Please specify the department..." style="display: none; width: 100%; padding: 10px; border-radius: 6px; border: 1px solid #ccc; font-size: 1em; margin-top: 10px; box-sizing: border-box;">
+   </div>
 
-  <div>
-    <%= form.label :pcf_source, style: "display: block" %>
-    <%= form.text_field :pcf_source %>
-  </div>
+   <%# 3. The JavaScript logic to handle the toggle %>
+   <script>
+     document.addEventListener("DOMContentLoaded", function() {
+       const dropdown = document.getElementById("department_dropdown");
+       const customInput = document.getElementById("custom_department_input");
+
+       dropdown.addEventListener("change", function() {
+         if (this.value === "Others") {
+           // Show the text box
+           customInput.style.display = "block";
+           // Hijack the database name so the custom text gets saved instead of the word "Others"
+           customInput.name = "expense[department]";
+           dropdown.name = ""; 
+         } else {
+           // Hide the text box
+           customInput.style.display = "none";
+           // Give the name back to the dropdown
+           dropdown.name = "expense[department]";
+           customInput.name = "";
+         }
+       });
+     });
+   </script>
 
   <div>
     <%= form.label :is_verified, style: "display: block" %>

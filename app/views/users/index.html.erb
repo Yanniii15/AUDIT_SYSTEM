@@ -1,0 +1,79 @@
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+
+<div style="font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; min-height: 100vh; padding: 30px 15px;">
+  <div style="max-width: 750px; margin: 0 auto;">
+    
+    <%# --- HEADER --- %>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; border-bottom: 2px solid #e2e8f0; padding-bottom: 20px;">
+      <div>
+        <h1 style="margin: 0; font-size: 1.8rem; font-weight: 800; color: #0f172a; letter-spacing: -1px;">Vault <span style="color: #0ea5e9;">Control</span></h1>
+        <p style="margin: 5px 0 0 0; color: #64748b; font-size: 0.9rem; font-weight: 500;">Barbie - Makoi Auditing System</p>
+      </div>
+      <%= link_to "← Dashboard", root_path, style: "background: white; color: #475569; padding: 10px 20px; text-decoration: none; border-radius: 12px; font-weight: 700; font-size: 0.85rem; border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(0,0,0,0.05);" %>
+    </div>
+
+    <%# --- ALERTS --- %>
+    <% if notice %>
+      <div style="background: #f0fdf4; color: #166534; padding: 15px; border-radius: 12px; margin-bottom: 25px; border: 1px solid #bbf7d0; font-weight: 600;"><%= notice %></div>
+    <% end %>
+    <% if alert %>
+      <div style="background: #fef2f2; color: #991b1b; padding: 15px; border-radius: 12px; margin-bottom: 25px; border: 1px solid #fecdd3; font-weight: 600;"><%= alert %></div>
+    <% end %>
+
+    <% @staff_members.each do |staff| %>
+      <%# Card Container %>
+      <div style="background: white; border-radius: 20px; padding: 25px; margin-bottom: 20px; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); position: relative;">
+        
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
+          <div>
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
+               <h3 style="margin: 0; font-size: 1.2rem; color: #1e293b; font-weight: 700;"><%= staff.email %></h3>
+               <% if staff == current_user %>
+                 <span style="background: #e0f2fe; color: #0369a1; font-size: 0.65rem; padding: 3px 10px; border-radius: 20px; font-weight: 800; letter-spacing: 0.5px;">MASTER VAULT</span>
+               <% end %>
+            </div>
+            <span style="color: #94a3b8; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;"><%= staff.role.gsub('_', ' ') %></span>
+          </div>
+          
+          <div style="text-align: right;">
+            <p style="margin: 0; font-size: 0.7rem; color: #94a3b8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Available Balance</p>
+            <h2 style="margin: 0; color: #0ea5e9; font-size: 2rem; font-weight: 800;"><%= number_to_currency(staff.pcf_balance || 0, unit: "₱") %></h2>
+          </div>
+        </div>
+
+        <%# Transaction Section %>
+        <div style="background: #f8fafc; padding: 20px; border-radius: 16px; border: 1px solid #f1f5f9;">
+          <%= form_with url: add_pcf_path(staff), method: :patch, local: true do |f| %>
+            <div style="display: flex; flex-direction: column; gap: 15px;">
+              <div style="position: relative;">
+                <span style="position: absolute; left: 15px; top: 50%; transform: translateY(-50%); color: #0ea5e9; font-weight: 800; font-size: 1.1rem;">₱</span>
+                <%= f.number_field :amount, placeholder: "0.00", step: "0.01", required: true, 
+                    style: "width: 100%; background: white; border: 1px solid #cbd5e1; color: #1e293b; padding: 14px 14px 14px 35px; border-radius: 12px; font-size: 1.1rem; font-weight: 600; box-sizing: border-box; outline-color: #0ea5e9;" %>
+              </div>
+              
+              <div style="display: flex; gap: 12px;">
+                <%= f.submit "+ Add Funds", name: "commit", style: "flex: 1; background: #10b981; color: white; border: none; padding: 14px; border-radius: 12px; font-weight: 800; cursor: pointer; text-transform: uppercase; font-size: 0.85rem; box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.2);" %>
+                <%= f.submit "- Subtract", name: "commit", style: "flex: 1; background: #ef4444; color: white; border: none; padding: 14px; border-radius: 12px; font-weight: 800; cursor: pointer; text-transform: uppercase; font-size: 0.85rem; box-shadow: 0 4px 6px -1px rgba(239, 68, 68, 0.2);" %>
+              </div>
+            </div>
+          <% end %>
+        </div>
+
+        <%# Hierarchy Assignment %>
+        <% if current_user.admin? && staff.staff? && staff != current_user %>
+          <div style="margin-top: 20px; padding-top: 15px; border-top: 1px dashed #e2e8f0;">
+            <p style="margin: 0 0 10px 0; font-size: 0.7rem; color: #64748b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">Reporting To</p>
+            <%= form_with url: assign_manager_path(staff), method: :patch, local: true, style: "display: flex; gap: 10px;" do |f| %>
+              <%= f.collection_select :manager_id, @managers, :id, :email, 
+                  { include_blank: "No Manager Assigned", selected: staff.manager_id }, 
+                  { style: "flex: 1; background: white; border: 1px solid #e2e8f0; color: #475569; padding: 10px; border-radius: 10px; font-size: 0.85rem;" } %>
+              <%= f.submit "Update", style: "background: #1e293b; color: white; border: none; padding: 10px 20px; border-radius: 10px; font-weight: 700; cursor: pointer; font-size: 0.85rem;" %>
+            <% end %>
+          </div>
+        <% end %>
+
+      </div>
+    <% end %>
+
+  </div>
+</div>
