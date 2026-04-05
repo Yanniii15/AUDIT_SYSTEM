@@ -48,14 +48,19 @@ def index
   end
 
   def report
-    # Capture dates from the form, or default to the beginning of the month
+    # 1. Keep your awesome date filtering logic
     @start_date = params[:start_date].presence || Date.today.beginning_of_month.to_s
     @end_date = params[:end_date].presence || Date.today.to_s
 
+    # 2. Grab the expenses for that date range
     @expenses = Expense.where(entry_date: @start_date..@end_date).order(entry_date: :desc)
-    @total_amount = @expenses.sum(:amount)
+    
+    # 3. 🟢 ADDED FOR PRO UI: Group them by user so the UI can build the cards safely
+    @expenses_by_user = @expenses.group_by(&:user)
+    
+    # 4. 🟢 ADDED FOR PRO UI: Set the specific total variable the new UI expects
+    @total_audited = @expenses.sum(:amount)
   end
-
   # GET /expenses/1/edit
   def edit
   end
