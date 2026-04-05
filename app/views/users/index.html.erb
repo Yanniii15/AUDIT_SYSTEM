@@ -72,6 +72,15 @@
           </div>
         <% end %>
 
+        <%# NEW: Admin Account Actions (Edit/Delete) %>
+        <% if current_user.admin? && staff != current_user %>
+          <div style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed #e2e8f0; display: flex; justify-content: flex-end; gap: 10px;">
+            <%= link_to "✏️ Edit Role", edit_user_path(staff), style: "background: #f8fafc; color: #475569; border: 1px solid #cbd5e1; padding: 8px 15px; border-radius: 8px; font-weight: 700; text-decoration: none; font-size: 0.8rem;" %>
+            
+            <%= button_to "🗑️ Delete", user_path(staff), method: :delete, data: { turbo_confirm: "Are you sure you want to completely delete #{staff.email}?" }, style: "background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; padding: 8px 15px; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 0.8rem; display: inline-block;" %>
+          </div>
+        <% end %>
+
       </div>
     <% end %>
 

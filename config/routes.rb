@@ -20,34 +20,16 @@ Rails.application.routes.draw do
   get "service-worker" => "rails/pwa#service_worker", as: :pwa_service_worker
   get "manifest" => "rails/pwa#manifest", as: :pwa_manifest
   
+  # ==========================================
+  # USER & STAFF MANAGEMENT ROUTES
+  # ==========================================
   get 'manage_staff', to: 'users#index'
   
-  # Route to handle adding money to a staff member's wallet
+  # Routes to handle PCF and Managers
   patch 'users/:id/add_pcf', to: 'users#add_pcf', as: :add_pcf
   patch 'users/:id/assign_manager', to: 'users#assign_manager', as: :assign_manager
   
-  # -----------------------------------------------------------------
-  # NEW: Route to handle locking in the morning float from the dashboard
-  # -----------------------------------------------------------------
-  # Temporary route to upgrade a specific user to Admin
-  get '/upgrade_my_account', to: proc {
-    # Replace 'admin@example.com' with the email you used to log in!
-    user = User.find_by(email: 'admin@example.com')
+  # NEW: Routes for Admin to Edit and Delete accounts
+  resources :users, only: [:edit, :update, :destroy]
 
-    if user
-      # 1. Try to set a 'role' column if it exists (covers string or enum)
-      if user.respond_to?(:role=)
-        user.update(role: 'admin') # Try string
-        user.update(role: 0) if user.role != 'admin' # Try integer/enum if string failed
-      end
-
-      # 2. Try common boolean columns
-      user.update(admin: true) if user.respond_to?(:admin=)
-      user.update(is_admin: true) if user.respond_to?(:is_admin=)
-
-      [200, {'Content-Type' => 'text/plain'}, ["Success! User #{user.email} is now an ADMIN. Refresh your dashboard!"]]
-    else
-      [200, {'Content-Type' => 'text/plain'}, ["User not found. Check the email in routes.rb!"]]
-    end
-  }
 end

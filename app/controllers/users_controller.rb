@@ -1,9 +1,11 @@
 class UsersController < ApplicationController
   before_action :authenticate_user!
+  
+  # 🔒 NEW: Protect the edit/delete actions so only admins/co-admins can use them
+  before_action :authorize_admin!, only: [:edit, :update, :destroy]
 
-def index
+  def index
     if current_user.admin?
-      # REMOVED: .where.not(id: current_user.id)
       # This allows the Admin to see themselves and use their own row as the "Bank"
       @staff_members = User.all.order(:role)
       @managers = User.where(role: ["admin", "co_admin"])
@@ -80,5 +82,43 @@ def index
     else
       redirect_to manage_staff_path, alert: "Failed to assign manager."
     end
+  end
+
+  # ==========================================
+  # 🛠️ NEW METHODS FOR MANAGING ACCOUNTS
+  # ==========================================
+
+  def edit
+    @user = User.find(params[:id])
+  end
+
+  def update
+    @user = User.find(params[:id])
+    if @user.update(user_params)
+      # I am assuming 'manage_staff_path' is where your users index lives!
+      redirect_to manage_staff_path, notice: "Account updated successfully."
+    else
+      render :edit, status: :unprocessable_entity
+    end
+  end
+
+  def destroy
+    @user = User.find(params[:id])
+    @user.destroy
+    redirect_to manage_staff_path, notice: "Account was successfully deleted."
+  end
+
+  private
+
+  # 🔒 Security check to prevent basic staff from editing/deleting accounts
+  def authorize_admin!
+    unless current_user.admin? || current_user.co_admin? 
+      redirect_to root_path, alert: "Access Denied: You do not have permission to view this page."
+    end
+  end
+
+  # ✅ Whitelist the data we allow the admin to edit
+  def user_params
+    params.require(:user).permit(:name, :email, :role, :manager_id)
   end
 end
