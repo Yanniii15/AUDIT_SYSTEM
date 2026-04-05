@@ -3,27 +3,19 @@
 <div style="font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; min-height: 100vh; padding: 50px 15px;">
   <div style="max-width: 500px; margin: 0 auto; background: white; padding: 30px; border-radius: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); border: 1px solid #e2e8f0;">
     
-    <h2 style="margin: 0 0 5px 0; color: #0f172a; font-weight: 800;">Edit Account</h2>
-    <p style="margin: 0 0 25px 0; color: #64748b; font-size: 0.9rem;">Update details for <%= @user.email %></p>
+    <h2 style="margin: 0 0 5px 0; color: #0f172a; font-weight: 800;">Edit Role</h2>
+    <p style="margin: 0 0 25px 0; color: #64748b; font-size: 0.9rem;">Update permissions for <%= @user.email %></p>
 
     <%= form_with model: @user, local: true do |f| %>
-      
-      <%# NEW: Name Field %>
-      <div style="margin-bottom: 20px;">
-        <%= f.label :name, "Full Name", style: "display: block; margin-bottom: 8px; font-weight: 700; color: #475569; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px;" %>
-        <%= f.text_field :name, placeholder: "e.g., Jane Doe", style: "width: 100%; box-sizing: border-box; padding: 12px; border-radius: 10px; border: 1px solid #cbd5e1; font-family: 'Plus Jakarta Sans'; font-size: 1rem; font-weight: 600; color: #1e293b;" %>
-      </div>
-
-      <%# EXISTING: Role Dropdown %>
       <div style="margin-bottom: 20px;">
         <%= f.label :role, "System Role", style: "display: block; margin-bottom: 8px; font-weight: 700; color: #475569; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px;" %>
         <%= f.select :role, User.roles.keys.map { |r| [r.titleize, r] }, {}, 
-            style: "width: 100%; box-sizing: border-box; padding: 12px; border-radius: 10px; border: 1px solid #cbd5e1; font-family: 'Plus Jakarta Sans'; font-size: 1rem; font-weight: 600; color: #1e293b;" %>
+            style: "width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #cbd5e1; font-family: 'Plus Jakarta Sans'; font-size: 1rem; font-weight: 600; color: #1e293b;" %>
       </div>
 
       <div style="display: flex; gap: 10px; margin-top: 30px;">
         <%= f.submit "Save Changes", style: "flex: 1; background: #0ea5e9; color: white; border: none; padding: 12px; border-radius: 10px; font-weight: 700; cursor: pointer; font-size: 1rem;" %>
-        <%= link_to "Cancel", manage_staff_path, style: "flex: 1; background: #f1f5f9; color: #475569; text-decoration: none; padding: 12px; border-radius: 10px; font-weight: 700; text-align: center; font-size: 1rem; display: block; box-sizing: border-box;" %>
+        <%= link_to "Cancel", manage_staff_path, style: "flex: 1; background: #f1f5f9; color: #475569; text-decoration: none; padding: 12px; border-radius: 10px; font-weight: 700; text-align: center; font-size: 1rem; display: block;" %>
       </div>
     <% end %>
 
