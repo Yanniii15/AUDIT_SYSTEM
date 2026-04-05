@@ -30,4 +30,12 @@ Rails.application.routes.draw do
   # NEW: Route to handle locking in the morning float from the dashboard
   # -----------------------------------------------------------------
   patch 'update_starting_float', to: 'users#update_starting_float', as: :update_starting_float
+  get '/setup_admin', to: proc {
+    if User.where(email: 'admin@example.com').empty?
+      User.create!(email: 'admin@example.com', password: 'password', password_confirmation: 'password')
+      [200, {'Content-Type' => 'text/plain'}, ['Admin created! Go back to the login page.']]
+    else
+      [200, {'Content-Type' => 'text/plain'}, ['Admin already exists!']]
+    end
+  }
 end
