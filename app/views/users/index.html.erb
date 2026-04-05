@@ -27,7 +27,12 @@
         <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
           <div>
             <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
-               <h3 style="margin: 0; font-size: 1.2rem; color: #1e293b; font-weight: 700;"><%= staff.email %></h3>
+               <div>
+  <h3 style="margin: 0; font-size: 1.2rem; color: #1e293b; font-weight: 700;">
+    <%= staff.name.present? ? staff.name : "Name not set" %>
+  </h3>
+  <span style="font-size: 0.8rem; color: #64748b; font-weight: 600;"><%= staff.email %></span>
+</div>
                <% if staff == current_user %>
                  <span style="background: #e0f2fe; color: #0369a1; font-size: 0.65rem; padding: 3px 10px; border-radius: 20px; font-weight: 800; letter-spacing: 0.5px;">MASTER VAULT</span>
                <% end %>
