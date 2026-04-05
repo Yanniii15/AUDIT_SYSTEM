@@ -1,12 +1,120 @@
-<% content_for :title, "Editing expense" %>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
-<h1>Editing expense</h1>
+<div style="font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; min-height: 100vh; padding: 30px 15px;">
+  <div style="max-width: 600px; margin: 0 auto;">
 
-<%= render "form", expense: @expense %>
+    <%# --- HEADER --- %>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; background: white; padding: 20px 24px; border-radius: 20px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05); border: 1px solid #f1f5f9;">
+      <div>
+        <h2 style="margin: 0; color: #0f172a; font-size: 1.5rem; letter-spacing: -0.025em;">Edit <span style="color: #0ea5e9; font-weight: 800;">Transaction</span></h2>
+        <p style="margin: 0; color: #64748b; font-size: 0.875rem;">Update details for this entry</p>
+      </div>
+      <%= link_to root_path, style: "background: #f1f5f9; color: #475569; padding: 10px 18px; text-decoration: none; border-radius: 12px; font-weight: 600; font-size: 0.875rem; border: 1px solid #e2e8f0;" do %>
+        <span>×</span> Cancel
+      <% end %>
+    </div>
 
-<br>
+    <%# --- FORM CARD --- %>
+    <div style="background: white; padding: 35px; border-radius: 24px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.04); border: 1px solid #e2e8f0;">
+      
+      <%= form_with(model: @expense, local: true) do |f| %>
+        <% if @expense.errors.any? %>
+          <div style="background: #fef2f2; color: #991b1b; padding: 15px; border-radius: 12px; margin-bottom: 25px; border: 1px solid #fecdd3; font-size: 0.9rem;">
+            <p style="font-weight: 800; margin: 0 0 5px 0;"><%= pluralize(@expense.errors.count, "error") %> prohibited this expense from being saved:</p>
+            <ul style="margin: 0; padding-left: 20px;">
+              <% @expense.errors.full_messages.each do |message| %>
+                <li><%= message %></li>
+              <% end %>
+            </ul>
+          </div>
+        <% end %>
 
-<div>
-  <%= link_to "Show this expense", @expense %> |
-  <%= link_to "Back to expenses", expenses_path %>
+        <%# Amount Field (Big & Clear) %>
+        <div style="margin-bottom: 25px;">
+          <%= f.label :amount, "TRANSACTION AMOUNT", style: "display: block; font-size: 0.75rem; font-weight: 800; color: #94a3b8; margin-bottom: 10px; letter-spacing: 1px;" %>
+          <div style="position: relative;">
+            <span style="position: absolute; left: 18px; top: 50%; transform: translateY(-50%); color: #0ea5e9; font-weight: 800; font-size: 1.5rem;">₱</span>
+            <%= f.number_field :amount, step: :any, placeholder: "0.00", required: true,
+                style: "width: 100%; padding: 18px 18px 18px 45px; border-radius: 16px; border: 2px solid #e2e8f0; font-size: 1.8rem; font-weight: 800; color: #1e293b; box-sizing: border-box; background: #f8fafc; outline-color: #0ea5e9;" %>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 25px;">
+          <%# Date Field %>
+          <div>
+            <%= f.label :entry_date, "DATE", style: "display: block; font-size: 0.75rem; font-weight: 800; color: #94a3b8; margin-bottom: 8px; letter-spacing: 1px;" %>
+            <%= f.date_field :entry_date, 
+                style: "width: 100%; padding: 12px; border-radius: 12px; border: 1px solid #cbd5e1; font-size: 1rem; color: #475569; box-sizing: border-box; background: #f8fafc;" %>
+          </div>
+
+          <%# Department Field w/ Logic %>
+          <div>
+            <%= f.label :department, "DEPARTMENT", style: "display: block; font-size: 0.75rem; font-weight: 800; color: #94a3b8; margin-bottom: 8px; letter-spacing: 1px;" %>
+            
+            <%# Check if the current department is one of the defaults, if not, set it to "Others" so the text box opens %>
+            <% is_custom = !["Dayo", "CKR Main", "CKR Branch 2", "CKR Branch 4"].include?(@expense.department) && @expense.department.present? %>
+            
+            <%= select_tag "department_dropdown", options_for_select(["Dayo", "CKR Main", "CKR Branch 2", "CKR Branch 4", "Others"], is_custom ? "Others" : @expense.department), 
+                prompt: "Select...", 
+                id: "department_dropdown",
+                name: is_custom ? "" : "expense[department]",
+                style: "width: 100%; padding: 12px; border-radius: 12px; border: 1px solid #cbd5e1; font-size: 1rem; color: #475569; box-sizing: border-box; background: #f8fafc; cursor: pointer;" %>
+
+            <input type="text" id="custom_department_input" 
+                   name="<%= is_custom ? 'expense[department]' : '' %>" 
+                   value="<%= is_custom ? @expense.department : '' %>"
+                   placeholder="Specify..." 
+                   style="display: <%= is_custom ? 'block' : 'none' %>; width: 100%; padding: 12px; border-radius: 12px; border: 1px solid #0ea5e9; font-size: 1rem; color: #1e293b; box-sizing: border-box; background: #f0f9ff; margin-top: 10px;">
+          </div>
+        </div>
+
+        <%# Description Field %>
+        <div style="margin-bottom: 25px;">
+          <%= f.label :description, "DESCRIPTION / PURPOSE", style: "display: block; font-size: 0.75rem; font-weight: 800; color: #94a3b8; margin-bottom: 8px; letter-spacing: 1px;" %>
+          <%= f.text_area :description, placeholder: "What was this for? (e.g., Gas, Water, Cleaning supplies)", rows: 3, required: true,
+              style: "width: 100%; padding: 14px; border-radius: 12px; border: 1px solid #cbd5e1; font-size: 1rem; color: #1e293b; box-sizing: border-box; background: #f8fafc; outline-color: #0ea5e9; font-family: inherit;" %>
+        </div>
+
+        <%# Verification (Admin Only) %>
+        <% if current_user.admin? || current_user.co_admin? %>
+          <div style="margin-bottom: 30px; background: <%= @expense.is_verified ? '#dcfce7' : '#fef9c3' %>; padding: 16px; border-radius: 12px; border: 1px solid <%= @expense.is_verified ? '#bbf7d0' : '#fef08a' %>; display: flex; align-items: center; gap: 12px;">
+            <%= f.check_box :is_verified, style: "width: 22px; height: 22px; cursor: pointer; accent-color: #166534;" %>
+            <div style="display: flex; flex-direction: column;">
+              <%= f.label :is_verified, "Mark as Verified", style: "font-weight: 800; color: #{@expense.is_verified ? '#166534' : '#854d0e'}; font-size: 1rem; cursor: pointer; margin: 0;" %>
+              <span style="font-size: 0.75rem; font-weight: 600; color: #{@expense.is_verified ? '#166534' : '#854d0e'};">(Admin / Manager Auth Only)</span>
+            </div>
+          </div>
+        <% else %>
+          <div style="margin-bottom: 30px;"></div>
+        <% end %>
+
+        <%# Submit Button %>
+        <%= f.submit "UPDATE TRANSACTION", style: "width: 100%; background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%); color: white; padding: 16px; border: none; border-radius: 16px; font-weight: 800; font-size: 1rem; cursor: pointer; box-shadow: 0 10px 15px -3px rgba(37, 99, 235, 0.3); letter-spacing: 1px; transition: transform 0.2s;" %>
+
+      <% end %>
+    </div>
+  </div>
 </div>
+
+<%# --- JAVASCRIPT FOR "OTHERS" DEPARTMENT --- %>
+<script>
+  document.addEventListener("turbo:load", function() {
+    const dropdown = document.getElementById("department_dropdown");
+    const customInput = document.getElementById("custom_department_input");
+
+    if (!dropdown || !customInput) return;
+
+    dropdown.addEventListener("change", function() {
+      if (this.value === "Others") {
+        customInput.style.display = "block";
+        customInput.name = "expense[department]";
+        dropdown.name = ""; 
+        customInput.focus();
+      } else {
+        customInput.style.display = "none";
+        dropdown.name = "expense[department]";
+        customInput.name = "";
+      }
+    });
+  });
+</script>

@@ -1,32 +1,41 @@
-<div id="<%= dom_id expense %>">
-  <div>
-    <strong>Entry date:</strong>
-    <%= expense.entry_date %>
+<div id="<%= dom_id expense %>" style="background: white; border-radius: 16px; padding: 20px; margin-bottom: 15px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.02); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+
+  <%# 1. Left Section: Avatar, Name & Date %>
+  <div style="display: flex; align-items: center; gap: 12px; min-width: 200px;">
+    <div style="width: 42px; height: 42px; background: #f1f5f9; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; color: #475569; font-size: 0.9rem; border: 1px solid #e2e8f0;">
+      <%= expense.user ? expense.user.email[0..1].upcase : "??" %>
+    </div>
+    <div>
+      <span style="display: block; font-weight: 800; color: #1e293b; font-size: 0.95rem;">
+        <%= expense.user ? expense.user.email.split('@').first.capitalize : "Deleted Account" %>
+      </span>
+      <span style="color: #64748b; font-size: 0.75rem; font-weight: 600;">
+        <%= expense.entry_date ? expense.entry_date.strftime("%B %d, %Y") : "No Date" %>
+      </span>
+    </div>
   </div>
 
-  <div>
-    <strong>Description:</strong>
-    <%= expense.description %>
+  <%# 2. Middle Section: Description & Department %>
+  <div style="flex: 1; min-width: 200px;">
+    <strong style="display: block; color: #0f172a; font-size: 1rem; margin-bottom: 5px;">
+      <%= expense.description.present? ? expense.description : "No description provided" %>
+    </strong>
+    <span style="background: #f8fafc; color: #64748b; padding: 4px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 800; border: 1px solid #e2e8f0; text-transform: uppercase; letter-spacing: 0.5px;">
+      📂 <%= expense.department.present? ? expense.department : "GENERAL" %>
+    </span>
   </div>
 
-  <div>
-    <strong>Amount:</strong>
-    <%= expense.amount %>
-  </div>
-
-  <div>
-    <strong>Department:</strong>
-    <%= expense.department %>
-  </div>
-
-  <div>
-    <strong>Pcf source:</strong>
-    <%= expense.pcf_source %>
-  </div>
-
-  <div>
-    <strong>Is verified:</strong>
-    <%= expense.is_verified %>
+  <%# 3. Right Section: Amount & Status Badge %>
+  <div style="text-align: right; min-width: 120px;">
+    <span style="display: block; color: #ef4444; font-weight: 800; font-size: 1.25rem; margin-bottom: 5px;">
+      - <%= number_to_currency(expense.amount || 0, unit: "₱") %>
+    </span>
+    
+    <% if expense.is_verified %>
+      <span style="background: #dcfce7; color: #166534; padding: 5px 12px; border-radius: 20px; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.5px; border: 1px solid #bbf7d0;">✓ VERIFIED</span>
+    <% else %>
+      <span style="background: #fef9c3; color: #854d0e; padding: 5px 12px; border-radius: 20px; font-size: 0.7rem; font-weight: 800; letter-spacing: 0.5px; border: 1px solid #fef08a;">⏳ PENDING</span>
+    <% end %>
   </div>
 
 </div>
