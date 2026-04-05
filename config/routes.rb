@@ -29,13 +29,25 @@ Rails.application.routes.draw do
   # -----------------------------------------------------------------
   # NEW: Route to handle locking in the morning float from the dashboard
   # -----------------------------------------------------------------
-  patch 'update_starting_float', to: 'users#update_starting_float', as: :update_starting_float
-  get '/setup_admin', to: proc {
-    if User.where(email: 'admin@example.com').empty?
-      User.create!(email: 'admin@example.com', password: 'password', password_confirmation: 'password')
-      [200, {'Content-Type' => 'text/plain'}, ['Admin created! Go back to the login page.']]
+  # Temporary route to upgrade a specific user to Admin
+  get '/upgrade_my_account', to: proc {
+    # Replace 'admin@example.com' with the email you used to log in!
+    user = User.find_by(email: 'admin@example.com')
+
+    if user
+      # 1. Try to set a 'role' column if it exists (covers string or enum)
+      if user.respond_to?(:role=)
+        user.update(role: 'admin') # Try string
+        user.update(role: 0) if user.role != 'admin' # Try integer/enum if string failed
+      end
+
+      # 2. Try common boolean columns
+      user.update(admin: true) if user.respond_to?(:admin=)
+      user.update(is_admin: true) if user.respond_to?(:is_admin=)
+
+      [200, {'Content-Type' => 'text/plain'}, ["Success! User #{user.email} is now an ADMIN. Refresh your dashboard!"]]
     else
-      [200, {'Content-Type' => 'text/plain'}, ['Admin already exists!']]
+      [200, {'Content-Type' => 'text/plain'}, ["User not found. Check the email in routes.rb!"]]
     end
   }
 end
