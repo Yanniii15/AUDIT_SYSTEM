@@ -132,8 +132,8 @@
             </tr>
           </thead>
           <tbody>
-            <% if @expenses.any? %>
-              <% @expenses.each do |expense| %>
+            <% if @today_expenses.any? %>
+              <% @today_expenses.each do |expense| %>
                 <tr style="border-bottom: 1px solid #f1f5f9;">
                   <td style="padding: 20px;">
                     <span style="display: block; color: #0f172a; font-weight: 800; font-size: 0.95rem; margin-bottom: 4px;"><%= expense.description %></span>
