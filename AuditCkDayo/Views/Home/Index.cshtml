@@ -1,8 +1,193 @@
-﻿@{
-    ViewData["Title"] = "Home Page";
+@model AuditCkDayo.ViewModels.DashboardViewModel
+@{
+    ViewData["Title"] = "Dashboard";
+    var role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+<div class="container-fluid py-4">
+    <div class="row mb-4 align-items-center">
+        <div class="col-md-8">
+            <h1 class="h2 mb-0 text-gray-800">Audit Dashboard</h1>
+            <p class="text-muted">Welcome, you are logged in as <strong>@role</strong>.</p>
+        </div>
+        <div class="col-md-4 text-md-end">
+            @if (User.IsInRole("Buyer"))
+            {
+                <a asp-controller="Audits" asp-action="Upload" class="btn btn-primary shadow-sm">
+                    <i class="bi bi-upload"></i> Upload New Receipt
+                </a>
+            }
+            else if (User.IsInRole("Owner") || User.IsInRole("Manager"))
+            {
+                <a asp-controller="Audits" asp-action="VerifyList" class="btn btn-outline-primary shadow-sm">
+                    <i class="bi bi-check-circle"></i> Verification Queue
+                </a>
+            }
+        </div>
+    </div>
+
+    <!-- Total Amount KPI -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card border-left-primary shadow-sm h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2 text-center text-md-start">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                Filtered Total Audited Amount
+                            </div>
+                            <div class="h1 mb-0 font-weight-bold text-gray-800">
+                                ₱@Model.TotalAmount.ToString("N2")
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Filtering Sidebar -->
+        <div class="col-lg-3 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-dark text-white fw-bold">
+                    Filter Audits
+                </div>
+                <div class="card-body">
+                    <form asp-controller="Home" asp-action="Index" method="get">
+                        <!-- Date Range -->
+                        <div class="mb-3">
+                            <label asp-for="StartDate" class="form-label fw-semibold">Start Date</label>
+                            <input asp-for="StartDate" type="date" class="form-control" />
+                        </div>
+                        <div class="mb-3">
+                            <label asp-for="EndDate" class="form-label fw-semibold">End Date</label>
+                            <input asp-for="EndDate" type="date" class="form-control" />
+                        </div>
+
+                        <!-- Status -->
+                        <div class="mb-3">
+                            <label asp-for="Status" class="form-label fw-semibold">Status</label>
+                            <select asp-for="Status" class="form-select" asp-items="ViewBag.Statuses">
+                                <option value="">-- All Statuses --</option>
+                            </select>
+                        </div>
+
+                        <!-- Establishment -->
+                        <div class="mb-3">
+                            <label asp-for="EstablishmentId" class="form-label fw-semibold">Establishment</label>
+                            <select asp-for="EstablishmentId" class="form-select" asp-items="ViewBag.Establishments">
+                                <option value="">-- All Establishments --</option>
+                            </select>
+                        </div>
+
+                        <!-- Buyer -->
+                        @if (User.IsInRole("Owner") || User.IsInRole("Manager"))
+                        {
+                            <div class="mb-3">
+                                <label asp-for="BuyerId" class="form-label fw-semibold">Buyer</label>
+                                <select asp-for="BuyerId" class="form-select" asp-items="ViewBag.Buyers">
+                                    <option value="">-- All Buyers --</option>
+                                </select>
+                            </div>
+                        }
+                        else
+                        {
+                            <input type="hidden" asp-for="BuyerId" value="@Model.BuyerId" />
+                        }
+
+                        <div class="d-grid gap-2 mt-4">
+                            <button type="submit" class="btn btn-primary">
+                                Apply Filters
+                            </button>
+                            <a asp-controller="Home" asp-action="Index" class="btn btn-outline-secondary">
+                                Clear Filters
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filtered Audits List -->
+        <div class="col-lg-9 mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white fw-bold d-flex justify-content-between align-items-center">
+                    <span>Audits List</span>
+                    <span class="badge bg-light text-primary">@Model.Audits.Count record(s)</span>
+                </div>
+                <div class="card-body p-0">
+                    @if (Model.Audits == null || !Model.Audits.Any())
+                    {
+                        <div class="p-4 text-center text-muted">
+                            <i class="bi bi-inbox fs-2 d-block mb-2"></i>
+                            No audits found matching the selected criteria.
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-hover table-striped align-middle mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th class="ps-3">Date</th>
+                                        @if (User.IsInRole("Owner") || User.IsInRole("Manager"))
+                                        {
+                                            <th>Buyer</th>
+                                        }
+                                        <th>Establishment</th>
+                                        <th>Description</th>
+                                        <th class="text-end">Amount</th>
+                                        <th class="text-center">Status</th>
+                                        <th class="text-center pe-3">Receipt</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var audit in Model.Audits)
+                                    {
+                                        <tr>
+                                            <td class="ps-3">@audit.EntryDate.ToShortDateString()</td>
+                                            @if (User.IsInRole("Owner") || User.IsInRole("Manager"))
+                                            {
+                                                <td>@audit.Buyer.Name</td>
+                                            }
+                                            <td>@audit.Establishment.Name</td>
+                                            <td>@audit.Description</td>
+                                            <td class="text-end fw-semibold">₱@audit.Amount.ToString("N2")</td>
+                                            <td class="text-center">
+                                                @if (audit.Status == AuditStatus.Pending)
+                                                {
+                                                    <span class="badge bg-warning text-dark">Pending</span>
+                                                }
+                                                else if (audit.Status == AuditStatus.Approved)
+                                                {
+                                                    <span class="badge bg-success">Approved</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-danger">Rejected</span>
+                                                }
+                                            </td>
+                                            <td class="text-center pe-3">
+                                                @if (!string.IsNullOrEmpty(audit.ReceiptImageUrl))
+                                                {
+                                                    <a href="@audit.ReceiptImageUrl" target="_blank" class="btn btn-sm btn-outline-info" title="View Receipt image">
+                                                        View
+                                                    </a>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted small">None</span>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
