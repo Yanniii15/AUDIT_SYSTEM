@@ -9,6 +9,7 @@
       "AuditCkDayo/1.0.0": {
         "dependencies": {
           "Azure.AI.FormRecognizer": "4.1.0",
+          "BCrypt.Net-Next": "4.2.0",
           "Microsoft.EntityFrameworkCore.Design": "9.0.0",
           "Pomelo.EntityFrameworkCore.MySql": "9.0.0"
         },
@@ -42,6 +43,14 @@
           "lib/net6.0/Azure.Core.dll": {
             "assemblyVersion": "1.34.0.0",
             "fileVersion": "1.3400.23.36203"
+          }
+        }
+      },
+      "BCrypt.Net-Next/4.2.0": {
+        "runtime": {
+          "lib/netstandard2.1/BCrypt-Net-Next.dll": {
+            "assemblyVersion": "4.2.0.0",
+            "fileVersion": "4.2.0.0"
           }
         }
       },
@@ -615,6 +624,13 @@
       "sha512": "sha512-6dNpM8OlGO+5gvt97tHXBp9qWRFkimRFulupDSGRgyT3sje1kQNza1/EMYaDcolmNARPmVJo8+wgD6ReV9wG5Q==",
       "path": "azure.core/1.34.0",
       "hashPath": "azure.core.1.34.0.nupkg.sha512"
+    },
+    "BCrypt.Net-Next/4.2.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-gwLD2KfCuwQesP17aVh4h6lpiMPEVt5Lbpndo0ej903hNUUTtyxt3ARdDjmuydBRTAUICc7OVKVbaOvc6SQYXA==",
+      "path": "bcrypt.net-next/4.2.0",
+      "hashPath": "bcrypt.net-next.4.2.0.nupkg.sha512"
     },
     "Humanizer.Core/2.14.1": {
       "type": "package",

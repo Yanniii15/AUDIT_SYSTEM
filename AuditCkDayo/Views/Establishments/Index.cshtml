@@ -1,0 +1,27 @@
+@model IEnumerable<AuditCkDayo.Models.Establishment>
+@{
+    ViewData["Title"] = "Establishments";
+}
+
+<div class="d-flex justify-content-between align-items-center my-4">
+    <h2>Establishments</h2>
+    <a asp-action="Create" class="btn btn-success">Add New Establishment</a>
+</div>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Name</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var item in Model)
+        {
+            <tr>
+                <td>@item.Id</td>
+                <td>@item.Name</td>
+            </tr>
+        }
+    </tbody>
+</table>

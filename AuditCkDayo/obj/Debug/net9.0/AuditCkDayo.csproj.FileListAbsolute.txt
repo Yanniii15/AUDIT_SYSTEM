@@ -188,3 +188,4 @@ C:\Users\John Salvamante\Desktop\FINAL AUDITING SYSTEM\AuditCkDayo\obj\Debug\net
 C:\Users\John Salvamante\Desktop\FINAL AUDITING SYSTEM\AuditCkDayo\obj\Debug\net9.0\AuditCkDayo.pdb
 C:\Users\John Salvamante\Desktop\FINAL AUDITING SYSTEM\AuditCkDayo\obj\Debug\net9.0\AuditCkDayo.genruntimeconfig.cache
 C:\Users\John Salvamante\Desktop\FINAL AUDITING SYSTEM\AuditCkDayo\obj\Debug\net9.0\ref\AuditCkDayo.dll
+C:\Users\John Salvamante\Desktop\FINAL AUDITING SYSTEM\AuditCkDayo\bin\Debug\net9.0\BCrypt-Net-Next.dll

@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("AuditCkDayo")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+316566da1e31b9f49e1743ab87a0acaae3ccb88d")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+5f5af414545a0a110955bf46ffa105c5d6c872be")]
 [assembly: System.Reflection.AssemblyProductAttribute("AuditCkDayo")]
 [assembly: System.Reflection.AssemblyTitleAttribute("AuditCkDayo")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
