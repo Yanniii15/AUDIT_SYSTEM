@@ -7,7 +7,8 @@ namespace AuditCkDayo.Models
     {
         Owner,
         Manager,
-        Buyer
+        Buyer,
+        BranchStaff
     }
 
     public class User
@@ -42,6 +43,11 @@ namespace AuditCkDayo.Models
         [Column(TypeName = "decimal(12,2)")]
         public decimal DailyStartingFloat { get; set; } = 0.00m;
 
+
+        public int? EstablishmentId { get; set; }
+
+        [ForeignKey("EstablishmentId")]
+        public virtual Establishment? Establishment { get; set; }
         public virtual ICollection<User> StaffMembers { get; set; } = new List<User>();
         public virtual ICollection<AuditItem> AuditItems { get; set; } = new List<AuditItem>();
     }

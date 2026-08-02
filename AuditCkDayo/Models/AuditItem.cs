@@ -7,7 +7,8 @@ namespace AuditCkDayo.Models
 {
     public enum AuditStatus
     {
-        Pending,
+        AwaitingBranchVerification,
+        AwaitingManagerApproval,
         Approved,
         Rejected
     }
@@ -39,7 +40,7 @@ namespace AuditCkDayo.Models
         public DateTime EntryDate { get; set; } = DateTime.Today;
 
         [Required]
-        public AuditStatus Status { get; set; } = AuditStatus.Pending;
+        public AuditStatus Status { get; set; } = AuditStatus.AwaitingBranchVerification;
 
         public string? Notes { get; set; }
 

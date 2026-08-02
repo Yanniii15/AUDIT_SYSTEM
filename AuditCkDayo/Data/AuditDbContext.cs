@@ -41,6 +41,13 @@ namespace AuditCkDayo.Data
                 .HasForeignKey(u => u.ManagerId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+            // User -> Establishment relationship
+            modelBuilder.Entity<User>()
+                .HasOne(u => u.Establishment)
+                .WithMany()
+                .HasForeignKey(u => u.EstablishmentId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             // Establishment configuration
             modelBuilder.Entity<Establishment>()
                 .HasIndex(e => e.Name)
@@ -51,7 +58,7 @@ namespace AuditCkDayo.Data
                 .Property(a => a.Status)
                 .HasConversion<string>()
                 .HasMaxLength(20)
-                .HasDefaultValue(AuditStatus.Pending);
+                .HasDefaultValue(AuditStatus.AwaitingBranchVerification);
 
             modelBuilder.Entity<AuditItem>()
                 .Property(a => a.EntryDate)

@@ -2,7 +2,7 @@
 @{
     ViewData["Title"] = "Financial Oversight";
     var currentUser = (AuditCkDayo.Models.User)ViewBag.CurrentUser;
-    var pendingCount = Model.Audits.Count(a => a.Status == AuditCkDayo.Models.AuditStatus.Pending);
+    var pendingCount = Model.Audits.Count(a => a.Status == AuditCkDayo.Models.AuditStatus.AwaitingBranchVerification || a.Status == AuditCkDayo.Models.AuditStatus.AwaitingManagerApproval);
 }
 
 <!-- Status & Summary Bar: Asymmetric Bento Grid -->

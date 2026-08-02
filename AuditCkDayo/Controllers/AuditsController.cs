@@ -182,7 +182,7 @@ namespace AuditCkDayo.Controllers
                 EntryDate = model.EntryDate,
                 Notes = model.Notes,
                 ReceiptImageUrl = model.ReceiptImageUrl,
-                Status = AuditStatus.Pending
+                Status = AuditStatus.AwaitingBranchVerification
             };
 
             // Save line items
@@ -229,7 +229,7 @@ namespace AuditCkDayo.Controllers
             IQueryable<AuditItem> query = _context.AuditItems
                 .Include(a => a.Buyer)
                 .Include(a => a.Establishment)
-                .Where(a => a.Status == AuditStatus.Pending);
+                .Where(a => a.Status == AuditStatus.AwaitingManagerApproval);
 
             if (role == "Manager")
             {
@@ -268,9 +268,9 @@ namespace AuditCkDayo.Controllers
                 return Forbid();
             }
 
-            if (audit.Status != AuditStatus.Pending)
+            if (audit.Status != AuditStatus.AwaitingManagerApproval)
             {
-                return BadRequest("This audit item has already been verified.");
+                return BadRequest("This audit item is not awaiting manager approval.");
             }
 
             audit.Status = action;
