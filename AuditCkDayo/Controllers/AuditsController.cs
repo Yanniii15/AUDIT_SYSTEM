@@ -48,6 +48,13 @@ namespace AuditCkDayo.Controllers
                 return View("Upload");
             }
 
+            var extension = Path.GetExtension(receipt.FileName)?.ToLowerInvariant();
+            if (extension != ".png" && extension != ".jpg" && extension != ".jpeg" && extension != ".webp")
+            {
+                ModelState.AddModelError("", "Invalid file format. Please upload a receipt in PNG, JPG, JPEG, or WEBP format.");
+                return View("Upload");
+            }
+
             var webRoot = _env.WebRootPath;
             if (string.IsNullOrEmpty(webRoot))
             {
@@ -132,6 +139,29 @@ namespace AuditCkDayo.Controllers
                 return View("Review", model);
             }
 
+            var establishmentExists = await _context.Establishments.AnyAsync(e => e.Id == model.EstablishmentId);
+            if (!establishmentExists)
+            {
+                ModelState.AddModelError("EstablishmentId", "The selected establishment does not exist.");
+                var establishments = await _context.Establishments.ToListAsync();
+                ViewBag.Establishments = new SelectList(establishments, "Id", "Name", model.EstablishmentId);
+                return View("Review", model);
+            }
+
+            if (model.Items != null)
+            {
+                foreach (var item in model.Items)
+                {
+                    if (item.Quantity < 0 || item.Price < 0 || item.Total < 0)
+                    {
+                        ModelState.AddModelError("", "Line item quantities, prices, and totals must be non-negative.");
+                        var establishments = await _context.Establishments.ToListAsync();
+                        ViewBag.Establishments = new SelectList(establishments, "Id", "Name", model.EstablishmentId);
+                        return View("Review", model);
+                    }
+                }
+            }
+
             if (buyer.PcfBalance < model.Amount)
             {
                 ModelState.AddModelError("", $"Insufficient Petty Cash Fund balance. Required: ₱{model.Amount:N2}, Available: ₱{buyer.PcfBalance:N2}");
@@ -155,9 +185,6 @@ namespace AuditCkDayo.Controllers
                 Status = AuditStatus.Pending
             };
 
-            _context.AuditItems.Add(auditItem);
-            await _context.SaveChangesAsync();
-
             // Save line items
             if (model.Items != null)
             {
@@ -167,16 +194,16 @@ namespace AuditCkDayo.Controllers
                     var itemName = string.IsNullOrWhiteSpace(item.Name) ? "Unknown Item" : item.Name;
                     var detail = new AuditItemDetail
                     {
-                        AuditItemId = auditItem.Id,
                         ItemName = itemName,
                         Quantity = item.Quantity,
                         Price = item.Price,
                         Total = item.Total
                     };
-                    _context.AuditItemDetails.Add(detail);
+                    auditItem.Details.Add(detail);
                 }
             }
 
+            _context.AuditItems.Add(auditItem);
             await _context.SaveChangesAsync();
 
             // Clear session data for the upload after successful submission
