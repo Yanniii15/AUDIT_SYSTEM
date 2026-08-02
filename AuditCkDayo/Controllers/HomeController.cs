@@ -35,6 +35,7 @@ public class HomeController : Controller
         var role = User.FindFirst(ClaimTypes.Role)?.Value;
 
         IQueryable<AuditItem> query = _context.AuditItems
+            .AsNoTracking()
             .Include(a => a.Buyer)
             .Include(a => a.Establishment);
 
@@ -55,7 +56,7 @@ public class HomeController : Controller
         }
         if (model.EndDate.HasValue)
         {
-            query = query.Where(a => a.EntryDate <= model.EndDate.Value);
+            query = query.Where(a => a.EntryDate < model.EndDate.Value.AddDays(1));
         }
         if (model.Status.HasValue)
         {
@@ -80,12 +81,13 @@ public class HomeController : Controller
             .ToListAsync();
 
         // Populate dropdowns based on role
-        var establishments = await _context.Establishments.OrderBy(e => e.Name).ToListAsync();
+        var establishments = await _context.Establishments.AsNoTracking().OrderBy(e => e.Name).ToListAsync();
         ViewBag.Establishments = new SelectList(establishments, "Id", "Name", model.EstablishmentId);
 
         if (role == "Owner")
         {
             var buyers = await _context.Users
+                .AsNoTracking()
                 .Where(u => u.Role == UserRole.Buyer)
                 .OrderBy(u => u.Name)
                 .ToListAsync();
@@ -94,6 +96,7 @@ public class HomeController : Controller
         else if (role == "Manager")
         {
             var buyers = await _context.Users
+                .AsNoTracking()
                 .Where(u => u.Role == UserRole.Buyer && u.ManagerId == userId)
                 .OrderBy(u => u.Name)
                 .ToListAsync();
@@ -102,6 +105,7 @@ public class HomeController : Controller
         else // Buyer
         {
             var buyers = await _context.Users
+                .AsNoTracking()
                 .Where(u => u.Id == userId)
                 .ToListAsync();
             ViewBag.Buyers = new SelectList(buyers, "Id", "Name", model.BuyerId);
