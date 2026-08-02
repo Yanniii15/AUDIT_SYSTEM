@@ -1,0 +1,49 @@
+@{
+    ViewData["Title"] = "Upload Receipt";
+}
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6 col-lg-5">
+            <div class="card shadow border-0 rounded-3">
+                <div class="card-header bg-primary text-white text-center py-3">
+                    <h4 class="mb-0 fw-bold">Upload Receipt for Auditing</h4>
+                </div>
+                <div class="card-body p-4">
+                    <p class="text-muted text-center mb-4">Upload a clear photo of your receipt to automatically extract merchant, date, amount, and items using AI.</p>
+                    
+                    <form asp-action="ProcessUpload" method="post" enctype="multipart/form-data">
+                        @Html.AntiForgeryToken()
+                        <div class="mb-3">
+                            <label for="receipt" class="form-label fw-semibold">Receipt Image</label>
+                            <input type="file" name="receipt" class="form-control" accept="image/*" required />
+                            <div class="form-text">Supported formats: JPG, PNG, GIF. Max file size: 5MB.</div>
+                        </div>
+                        <div class="d-grid mt-4">
+                            <button type="submit" class="btn btn-primary py-2 fw-bold">
+                                <span class="spinner-border spinner-border-sm me-2 d-none" role="status" id="uploadSpinner"></span>
+                                Upload and Process OCR
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.querySelector('form').addEventListener('submit', function() {
+            var spinner = document.getElementById('uploadSpinner');
+            if (spinner) {
+                spinner.classList.remove('d-none');
+            }
+            var btn = document.querySelector('button[type="submit"]');
+            if (btn) {
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Processing OCR...';
+            }
+        });
+    </script>
+}

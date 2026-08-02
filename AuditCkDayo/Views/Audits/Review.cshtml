@@ -1,0 +1,179 @@
+@model AuditCkDayo.ViewModels.AuditSubmissionViewModel
+@{
+    ViewData["Title"] = "Review Extracted Receipt Details";
+}
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Review Extracted Receipt Details</h2>
+        <a asp-action="Upload" class="btn btn-outline-secondary">← Re-upload Receipt</a>
+    </div>
+
+    @if (!ViewData.ModelState.IsValid)
+    {
+        <div class="alert alert-danger" role="alert">
+            <div asp-validation-summary="All" class="text-danger fw-bold"></div>
+        </div>
+    }
+
+    <div class="row">
+        <!-- Receipt Image View -->
+        <div class="col-lg-5 mb-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-dark text-white fw-semibold">
+                    Uploaded Receipt Image
+                </div>
+                <div class="card-body text-center d-flex align-items-center justify-content-center p-2 bg-light">
+                    @if (!string.IsNullOrEmpty(Model.ReceiptImageUrl))
+                    {
+                        <img src="@Model.ReceiptImageUrl" class="img-fluid rounded border shadow-sm" style="max-height: 75vh; object-fit: contain;" alt="Receipt Upload" />
+                    }
+                    else
+                    {
+                        <div class="text-muted p-5">No receipt image uploaded.</div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Confirmation Review Form -->
+        <div class="col-lg-7 mb-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-primary text-white fw-semibold">
+                    Audit Submission Information
+                </div>
+                <div class="card-body p-4">
+                    <form asp-action="SubmitAudit" method="post">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" asp-for="ReceiptImageUrl" />
+
+                        <!-- Establishment -->
+                        <div class="mb-3">
+                            <label asp-for="EstablishmentId" class="form-label fw-bold">Establishment <span class="text-danger">*</span></label>
+                            <select asp-for="EstablishmentId" class="form-select" asp-items="ViewBag.Establishments" required>
+                                <option value="">-- Select Establishment --</option>
+                            </select>
+                            <span asp-validation-for="EstablishmentId" class="text-danger"></span>
+                        </div>
+
+                        <!-- Date -->
+                        <div class="mb-3">
+                            <label asp-for="EntryDate" class="form-label fw-bold">Date <span class="text-danger">*</span></label>
+                            <input asp-for="EntryDate" class="form-control" type="date" required />
+                            <span asp-validation-for="EntryDate" class="text-danger"></span>
+                        </div>
+
+                        <!-- Short Description -->
+                        <div class="mb-3">
+                            <label asp-for="Description" class="form-label fw-bold">Short Description <span class="text-danger">*</span></label>
+                            <input asp-for="Description" class="form-control" placeholder="e.g. Purchase of kitchen utensils" required />
+                            <span asp-validation-for="Description" class="text-danger"></span>
+                        </div>
+
+                        <!-- Total Amount -->
+                        <div class="mb-3">
+                            <label asp-for="Amount" class="form-label fw-bold">Total Amount (₱) <span class="text-danger">*</span></label>
+                            <input asp-for="Amount" class="form-control fw-bold text-primary" step="0.01" type="number" id="txtTotalAmount" required />
+                            <span asp-validation-for="Amount" class="text-danger"></span>
+                        </div>
+
+                        <!-- Notes -->
+                        <div class="mb-3">
+                            <label asp-for="Notes" class="form-label fw-bold">Notes (Optional)</label>
+                            <textarea asp-for="Notes" class="form-control" rows="2" placeholder="Any additional context..."></textarea>
+                            <span asp-validation-for="Notes" class="text-danger"></span>
+                        </div>
+
+                        <!-- Line Items -->
+                        <div class="mt-4">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h5 class="mb-0 fw-bold">Line Items Extracted</h5>
+                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="recalculateTotal()">Recalculate Total from Items</button>
+                            </div>
+                            
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-hover align-middle" id="itemsTable">
+                                    <thead class="table-light text-center">
+                                        <tr>
+                                            <th style="min-width: 200px;">Item Name</th>
+                                            <th style="width: 90px;">Qty</th>
+                                            <th style="width: 130px;">Price (₱)</th>
+                                            <th style="width: 140px;">Total (₱)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @if (Model.Items != null && Model.Items.Count > 0)
+                                        {
+                                            @for (int i = 0; i < Model.Items.Count; i++)
+                                            {
+                                                <tr>
+                                                    <td>
+                                                        <input asp-for="Items[i].Name" class="form-control" placeholder="Item name" required />
+                                                        <span asp-validation-for="Items[i].Name" class="text-danger small"></span>
+                                                    </td>
+                                                    <td>
+                                                        <input asp-for="Items[i].Quantity" class="form-control text-center item-qty" type="number" min="1" onchange="updateItemTotal(this)" required />
+                                                    </td>
+                                                    <td>
+                                                        <input asp-for="Items[i].Price" class="form-control text-end item-price" type="number" step="0.01" min="0" onchange="updateItemTotal(this)" required />
+                                                    </td>
+                                                    <td>
+                                                        <input asp-for="Items[i].Total" class="form-control text-end item-total fw-semibold text-secondary" type="number" step="0.01" min="0" required />
+                                                    </td>
+                                                </tr>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <tr id="emptyRow">
+                                                <td colspan="4" class="text-center text-muted py-3">No line items extracted. You can submit the general amount directly.</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="d-grid gap-2 mt-4">
+                            <button type="submit" class="btn btn-success py-2 fw-bold fs-5 shadow-sm">Submit for Verification</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        function updateItemTotal(input) {
+            var row = input.closest('tr');
+            var qtyInput = row.querySelector('.item-qty');
+            var priceInput = row.querySelector('.item-price');
+            var totalInput = row.querySelector('.item-total');
+
+            if (qtyInput && priceInput && totalInput) {
+                var qty = parseInt(qtyInput.value) || 0;
+                var price = parseFloat(priceInput.value) || 0;
+                totalInput.value = (qty * price).toFixed(2);
+            }
+            recalculateTotal();
+        }
+
+        function recalculateTotal() {
+            var totals = document.querySelectorAll('.item-total');
+            var grandTotal = 0;
+            totals.forEach(function(input) {
+                grandTotal += parseFloat(input.value) || 0;
+            });
+            if (totals.length > 0) {
+                var mainAmountInput = document.getElementById('txtTotalAmount');
+                if (mainAmountInput) {
+                    mainAmountInput.value = grandTotal.toFixed(2);
+                }
+            }
+        }
+    </script>
+}
