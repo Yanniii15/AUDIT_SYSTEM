@@ -32,7 +32,7 @@ namespace AuditCkDayo.Controllers
             var isOwner = User.IsInRole("Owner");
             if (isOwner)
             {
-                var usersList = await _context.Users.ToListAsync();
+                var usersList = await _context.Users.Include(u => u.Manager).ToListAsync();
                 var sortedUsers = usersList
                     .OrderBy(u => u.Role)
                     .ThenBy(u => u.Name)
@@ -49,6 +49,7 @@ namespace AuditCkDayo.Controllers
             else // Manager
             {
                 var users = await _context.Users
+                    .Include(u => u.Manager)
                     .Where(u => u.ManagerId == userId)
                     .OrderBy(u => u.Name)
                     .ToListAsync();
