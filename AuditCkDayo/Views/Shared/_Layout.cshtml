@@ -1,90 +1,231 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - AuditCkDayo</title>
-    <script type="importmap"></script>
-    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
-    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
-    <link rel="stylesheet" href="~/AuditCkDayo.styles.css" asp-append-version="true" />
+    <title>@ViewData["Title"] - PCF Auditing Suite</title>
+    
+    <style>
+        @@layer base {
+            html, body { margin: 0; padding: 0; }
+            body { overscroll-behavior: none; }
+            main > :first-child { margin-top: 0 !important; }
+            main > :last-child { margin-bottom: 0 !important; }
+        }
+        ::-webkit-scrollbar { display: none; }
+    </style>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script id="tailwind-config">
+        tailwind.config = {
+            theme: {
+                extend: {
+                    "colors": {
+                        "tertiary-fixed-dim": "#c3c7cb",
+                        "primary-fixed-dim": "#b7c7eb",
+                        "on-tertiary-container": "#8e9397",
+                        "outline-variant": "#c5c6ce",
+                        "surface-container-highest": "#e2e2e2",
+                        "inverse-surface": "#2f3131",
+                        "audit-pending": "#F59E0B",
+                        "secondary": "#505f76",
+                        "audit-error": "#EF4444",
+                        "on-primary-fixed": "#091b37",
+                        "error": "#ba1a1a",
+                        "surface-container-low": "#f3f3f4",
+                        "surface": "#f9f9f9",
+                        "surface-bright": "#f9f9f9",
+                        "on-secondary-fixed-variant": "#38485d",
+                        "inverse-primary": "#b7c7eb",
+                        "on-primary-container": "#8393b5",
+                        "primary-container": "#1b2b48",
+                        "tertiary-fixed": "#dfe3e7",
+                        "on-primary": "#ffffff",
+                        "on-surface-variant": "#44474d",
+                        "tertiary": "#13181a",
+                        "surface-border": "#E2E8F0",
+                        "secondary-fixed": "#d3e4fe",
+                        "on-surface": "#1a1c1c",
+                        "surface-dim": "#dadada",
+                        "on-secondary": "#ffffff",
+                        "error-container": "#ffdad6",
+                        "tertiary-container": "#272c2f",
+                        "outline": "#75777e",
+                        "on-background": "#1a1c1c",
+                        "data-text": "#334155",
+                        "surface-container": "#eeeeee",
+                        "surface-tint": "#4f5e7e",
+                        "audit-success": "#10B981",
+                        "on-tertiary-fixed": "#171c1f",
+                        "background": "#f9f9f9",
+                        "on-error": "#ffffff",
+                        "on-tertiary-fixed-variant": "#43474b",
+                        "primary": "#041632",
+                        "on-tertiary": "#ffffff",
+                        "on-error-container": "#93000a",
+                        "on-primary-fixed-variant": "#374765",
+                        "secondary-container": "#d0e1fb",
+                        "on-secondary-container": "#54647a",
+                        "surface-container-high": "#e8e8e8",
+                        "surface-variant": "#e2e2e2",
+                        "primary-fixed": "#d7e2ff",
+                        "on-secondary-fixed": "#0b1c30",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary-fixed-dim": "#b7c8e1",
+                        "inverse-on-surface": "#f0f1f1"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "space-2": "0.5rem",
+                        "space-4": "1rem",
+                        "space-1": "0.25rem",
+                        "container-padding": "2rem",
+                        "gutter": "1rem",
+                        "space-3": "0.75rem",
+                        "space-6": "1.5rem",
+                        "base": "4px",
+                        "space-8": "2rem"
+                    },
+                    "fontFamily": {
+                        "headline-md": ["Hanken Grotesk"],
+                        "data-mono": ["Inter"],
+                        "headline-sm": ["Hanken Grotesk"],
+                        "body-lg": ["Inter"],
+                        "label-caps": ["Inter"],
+                        "headline-lg": ["Hanken Grotesk"],
+                        "headline-lg-mobile": ["Hanken Grotesk"],
+                        "body-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }],
+                        "data-mono": ["14px", { "lineHeight": "20px", "fontWeight": "600" }],
+                        "headline-sm": ["18px", { "lineHeight": "24px", "fontWeight": "600" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "label-caps": ["12px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "600" }],
+                        "headline-lg": ["30px", { "lineHeight": "36px", "letterSpacing": "-0.02em", "fontWeight": "700" }],
+                        "headline-lg-mobile": ["24px", { "lineHeight": "28px", "fontWeight": "700" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@100..900&family=Inter:wght@100..900&display=swap" rel="stylesheet" />
 </head>
-<body>
-    <header>
-        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
-            <div class="container-fluid">
-                <a class="navbar-brand" asp-area="" asp-controller="Home" asp-action="Index">AuditCkDayo</a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
-                        aria-expanded="false" aria-label="Toggle navigation">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
-                    <ul class="navbar-nav flex-grow-1">
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-controller="Home" asp-action="Index">Dashboard</a>
-                        </li>
-                        @if (User.Identity?.IsAuthenticated == true)
-                        {
-                            @if (User.IsInRole("Buyer"))
-                            {
-                                <li class="nav-item">
-                                    <a class="nav-link text-dark" asp-controller="Audits" asp-action="Upload">Upload Receipt</a>
-                                </li>
-                            }
-                            @if (User.IsInRole("Owner") || User.IsInRole("Manager"))
-                            {
-                                <li class="nav-item">
-                                    <a class="nav-link text-dark" asp-controller="Audits" asp-action="VerifyList">Verify Audits</a>
-                                </li>
-                                <li class="nav-item">
-                                    <a class="nav-link text-dark" asp-controller="Establishments" asp-action="Index">Establishments</a>
-                                </li>
-                                <li class="nav-item">
-                                    <a class="nav-link text-dark" asp-controller="Users" asp-action="Index">Vault Control</a>
-                                </li>
-                            }
-                        }
-                    </ul>
-                    <ul class="navbar-nav">
-                        @if (User.Identity?.IsAuthenticated == true)
-                        {
-                            <li class="nav-item d-flex align-items-center me-3">
-                                <span class="text-dark">Hello, <strong>@User.Identity.Name</strong>!</span>
-                            </li>
-                            <li class="nav-item">
-                                <form asp-controller="Account" asp-action="Logout" method="post" class="form-inline">
-                                    <button type="submit" class="btn btn-link nav-link text-dark" style="border:none; background:none;">Logout</button>
-                                </form>
-                            </li>
-                        }
-                        else
-                        {
-                            <li class="nav-item">
-                                <a class="nav-link text-dark" asp-controller="Account" asp-action="Login">Login</a>
-                            </li>
-                            <li class="nav-item">
-                                <a class="nav-link text-dark" asp-controller="Account" asp-action="Register">Register</a>
-                            </li>
-                        }
-                    </ul>
+<body class="bg-background font-body-md text-on-surface">
+    @if (User.Identity?.IsAuthenticated == true)
+    {
+        <!-- Sidebar Navigation -->
+        <aside class="fixed left-0 top-0 h-full w-72 bg-primary z-50 flex flex-col">
+            <div class="h-16 flex items-center px-space-8 border-b border-on-primary/10">
+                <span class="text-headline-sm font-headline-sm text-on-primary tracking-tight">AuditCkDayo</span>
+            </div>
+            
+            <nav class="flex-1 py-space-6 px-space-4 space-y-space-1">
+                <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
+                   asp-controller="Home" asp-action="Index">
+                    <span class="material-symbols-outlined mr-space-3">dashboard</span>
+                    <span class="font-label-caps uppercase">Dashboard</span>
+                </a>
+                
+                @if (User.IsInRole("Buyer"))
+                {
+                    <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
+                       asp-controller="Audits" asp-action="Upload">
+                        <span class="material-symbols-outlined mr-space-3">upload_file</span>
+                        <span class="font-label-caps uppercase">Upload Receipt</span>
+                    </a>
+                }
+                
+                @if (User.IsInRole("Owner") || User.IsInRole("Manager"))
+                {
+                    <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
+                       asp-controller="Audits" asp-action="VerifyList">
+                        <span class="material-symbols-outlined mr-space-3">pending_actions</span>
+                        <span class="font-label-caps uppercase">Pending Verifications</span>
+                    </a>
+                    
+                    <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
+                       asp-controller="Establishments" asp-action="Index">
+                        <span class="material-symbols-outlined mr-space-3">domain</span>
+                        <span class="font-label-caps uppercase">Establishments</span>
+                    </a>
+                    <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
+                       asp-controller="Users" asp-action="Index">
+                        <span class="material-symbols-outlined mr-space-3">account_balance_wallet</span>
+                        <span class="font-label-caps uppercase">Vault Control</span>
+                    </a>
+
+                    @if (User.IsInRole("Owner"))
+                    {
+                        <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
+                           asp-controller="Account" asp-action="Register">
+                            <span class="material-symbols-outlined mr-space-3">person_add</span>
+                            <span class="font-label-caps uppercase">User Registration</span>
+                        </a>
+                    }
+                }
+            </nav>
+            
+            <div class="p-space-6 border-t border-on-primary/10">
+                <div class="flex items-center gap-space-3 text-primary-fixed-dim/50 text-label-caps">
+                    <span class="material-symbols-outlined text-[16px]">verified_user</span>
+                    <span>SYSTEM ENFORCED</span>
                 </div>
             </div>
-        </nav>
-    </header>
-    <div class="container">
-        <main role="main" class="pb-3">
+        </aside>
+
+        <div class="pl-72">
+            <!-- Top Header -->
+            <header class="fixed top-0 left-72 right-0 h-16 bg-surface-container-lowest/80 backdrop-blur-xl border-b border-surface-border z-40 flex items-center justify-between px-space-8">
+                <div class="flex items-center gap-space-4">
+                    <div class="h-8 w-[2px] bg-surface-border"></div>
+                    <span class="text-label-caps text-on-surface-variant font-medium uppercase tracking-widest">PCF Auditing Suite</span>
+                </div>
+                
+                <div class="flex items-center gap-space-6">
+                    <div class="flex items-center gap-space-3 pl-space-4">
+                        <div class="flex flex-col items-end">
+                            <span class="text-body-md font-semibold text-on-surface">@User.Identity.Name</span>
+                            <span class="text-label-caps text-on-surface-variant">@(User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value)</span>
+                        </div>
+                        <div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
+                            <span class="material-symbols-outlined text-on-primary text-[18px]">person</span>
+                        </div>
+                        
+                        <form asp-controller="Account" asp-action="Logout" method="post" class="d-inline">
+                            <button type="submit" class="material-symbols-outlined text-on-surface-variant hover:text-error transition-colors bg-transparent border-0 p-0" title="Logout">
+                                logout
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Main Workspace -->
+            <main class="relative pt-16 min-h-screen bg-surface-container-low">
+                <div class="flex flex-col w-full p-space-8 gap-space-8">
+                    @RenderBody()
+                </div>
+            </main>
+        </div>
+    }
+    else
+    {
+        <!-- Simple wrapper for Login/Register Pages when not Authenticated -->
+        <main class="min-h-screen bg-surface-container-low flex items-center justify-center p-space-4">
             @RenderBody()
         </main>
-    </div>
+    }
 
-    <footer class="border-top footer text-muted">
-        <div class="container">
-            &copy; 2026 - AuditCkDayo - <a asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
-        </div>
-    </footer>
-    <script src="~/lib/jquery/dist/jquery.min.js"></script>
-    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="~/js/site.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

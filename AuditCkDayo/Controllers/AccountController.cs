@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -67,19 +68,31 @@ namespace AuditCkDayo.Controllers
         }
 
         [HttpGet]
+        [Authorize(Roles = "Owner")]
         public async Task<IActionResult> Register()
         {
-            var managers = await _context.Users
-                .Where(u => u.Role == UserRole.Manager)
-                .ToListAsync();
-            ViewBag.Managers = managers;
+            await PopulateRegistrationStats();
             return View();
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [Authorize(Roles = "Owner")]
         public async Task<IActionResult> Register(RegisterViewModel model)
         {
+            // Custom Password Requirements Validation
+            if (string.IsNullOrEmpty(model.Password))
+            {
+                ModelState.AddModelError("Password", "Password is required.");
+            }
+            else if (model.Password.Length < 8 ||
+                     !model.Password.Any(char.IsUpper) ||
+                     !model.Password.Any(char.IsDigit) ||
+                     !model.Password.Any(c => !char.IsLetterOrDigit(c)))
+            {
+                ModelState.AddModelError("Password", "Password must be at least 8 characters long and contain at least one uppercase letter, one number, and one special character.");
+            }
+
             if (ModelState.IsValid)
             {
                 var existingUser = await _context.Users.AnyAsync(u => u.Email == model.Email);
@@ -103,15 +116,23 @@ namespace AuditCkDayo.Controllers
                     _context.Users.Add(user);
                     await _context.SaveChangesAsync();
 
-                    return RedirectToAction(nameof(Login));
+                    TempData["Message"] = $"User '{model.Name}' registered successfully.";
+                    return RedirectToAction("Index", "Users");
                 }
             }
 
-            var managers = await _context.Users
-                .Where(u => u.Role == UserRole.Manager)
-                .ToListAsync();
-            ViewBag.Managers = managers;
+            await PopulateRegistrationStats();
             return View(model);
+        }
+
+        private async Task PopulateRegistrationStats()
+        {
+            var managers = await _context.Users.AsNoTracking().Where(u => u.Role == UserRole.Manager).ToListAsync();
+            ViewBag.Managers = managers;
+            ViewBag.TotalUsers = await _context.Users.AsNoTracking().CountAsync();
+            ViewBag.TotalManagers = managers.Count;
+            ViewBag.TotalBuyers = await _context.Users.AsNoTracking().CountAsync(u => u.Role == UserRole.Buyer);
+            ViewBag.RecentUsers = await _context.Users.AsNoTracking().OrderByDescending(u => u.Id).Take(3).ToListAsync();
         }
 
         [HttpPost]

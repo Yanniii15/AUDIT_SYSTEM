@@ -1,49 +1,113 @@
 @{
-    ViewData["Title"] = "Upload Receipt";
+    ViewData["Title"] = "Upload Invoice";
 }
 
-<div class="container mt-5">
-    <div class="row justify-content-center">
-        <div class="col-md-6 col-lg-5">
-            <div class="card shadow border-0 rounded-3">
-                <div class="card-header bg-primary text-white text-center py-3">
-                    <h4 class="mb-0 fw-bold">Upload Receipt for Auditing</h4>
-                </div>
-                <div class="card-body p-4">
-                    <p class="text-muted text-center mb-4">Upload a clear photo of your receipt to automatically extract merchant, date, amount, and items using AI.</p>
-                    
-                    <form asp-action="ProcessUpload" method="post" enctype="multipart/form-data">
-                        @Html.AntiForgeryToken()
-                        <div class="mb-3">
-                            <label for="receipt" class="form-label fw-semibold">Receipt Image</label>
-                            <input type="file" name="receipt" class="form-control" accept="image/*" required />
-                            <div class="form-text">Supported formats: JPG, PNG, GIF. Max file size: 5MB.</div>
-                        </div>
-                        <div class="d-grid mt-4">
-                            <button type="submit" class="btn btn-primary py-2 fw-bold">
-                                <span class="spinner-border spinner-border-sm me-2 d-none" role="status" id="uploadSpinner"></span>
-                                Upload and Process OCR
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
+<!-- Header Section -->
+<div class="relative flex flex-col lg:flex-row gap-space-6 items-start justify-between">
+    <div class="flex flex-col gap-space-2 max-w-2xl">
+        <div class="flex items-center gap-space-2 text-primary">
+            <span class="material-symbols-outlined text-[20px]">cloud_upload</span>
+            <span class="font-label-caps uppercase tracking-widest text-on-surface-variant">Expense Intake</span>
         </div>
+        <h1 class="font-headline-lg text-headline-lg text-on-surface">Upload Invoice</h1>
+        <p class="font-body-md text-on-surface-variant leading-relaxed">
+            Submit a new expense to the auditing system. Upload a clear photograph or PDF scan of your physical receipt.
+            The AI engine will automatically scan and extract the items and totals.
+        </p>
     </div>
 </div>
 
-@section Scripts {
-    <script>
-        document.querySelector('form').addEventListener('submit', function() {
-            var spinner = document.getElementById('uploadSpinner');
-            if (spinner) {
-                spinner.classList.remove('d-none');
-            }
-            var btn = document.querySelector('button[type="submit"]');
-            if (btn) {
-                btn.disabled = true;
-                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Processing OCR...';
-            }
-        });
-    </script>
-}
+<div class="flex justify-center my-space-6">
+    <div class="w-full max-w-2xl bg-surface-container-lowest rounded-xl shadow-sm border border-surface-border overflow-hidden">
+        <div class="bg-primary px-space-6 py-space-4 flex justify-between items-center">
+            <span class="text-on-primary font-label-caps uppercase tracking-tighter">Document Intake</span>
+            <span class="text-on-primary/60 text-[10px] font-data-mono">MODEL: RECEIPT-SCAN-v2.0</span>
+        </div>
+
+        <form asp-action="ProcessUpload" method="post" enctype="multipart/form-data" class="p-space-8 flex flex-col gap-space-6" id="uploadForm">
+            <div asp-validation-summary="ModelOnly" class="text-audit-error bg-audit-error/10 border border-audit-error/20 p-space-3 rounded-lg text-body-md text-center"></div>
+
+            <!-- Drag & Drop Zone -->
+            <div id="drop-zone" class="border-2 border-dashed border-surface-border rounded-xl p-space-8 text-center flex flex-col items-center justify-center gap-space-4 cursor-pointer hover:border-primary/40 hover:bg-primary/5 transition-all relative min-h-[220px]">
+                <input type="file" name="receipt" id="file-input" class="hidden" accept="image/*" required />
+                
+                <div id="upload-prompt" class="flex flex-col items-center gap-space-3 transition-opacity duration-300">
+                    <span class="material-symbols-outlined text-[48px] text-primary">receipt_long</span>
+                    <div>
+                        <p class="font-headline-sm text-on-surface text-[15px]">Click or drag receipt here</p>
+                        <p class="text-on-surface-variant text-body-md text-[13px] mt-1">Accepts PNG, JPG, JPEG, or WEBP up to 10MB</p>
+                    </div>
+                </div>
+
+                <!-- Preview State (Initial hidden) -->
+                <div id="preview-container" class="absolute inset-0 p-space-4 flex flex-col items-center justify-center bg-surface-container-lowest/90 backdrop-blur-sm rounded-xl opacity-0 pointer-events-none transition-opacity duration-300">
+                    <span class="material-symbols-outlined text-[48px] text-audit-success animate-bounce">task_alt</span>
+                    <p class="font-headline-sm text-on-surface text-[15px] mt-space-3" id="file-name">file_name.jpg selected</p>
+                    <p class="text-on-surface-variant text-[13px]">Ready to process and run OCR scan</p>
+                </div>
+            </div>
+
+            <!-- Action Button -->
+            <button type="submit" id="process-btn" class="w-full py-3.5 bg-primary text-on-primary font-label-caps uppercase tracking-widest rounded-lg hover:bg-primary/95 transition-all flex items-center justify-center gap-space-3 disabled:opacity-50 disabled:cursor-not-allowed group text-[12px]" disabled>
+                <span class="material-symbols-outlined group-hover:rotate-12 transition-transform">memory</span>
+                <span>Process OCR</span>
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+    const previewContainer = document.getElementById('preview-container');
+    const uploadPrompt = document.getElementById('upload-prompt');
+    const processBtn = document.getElementById('process-btn');
+    const fileNameText = document.getElementById('file-name');
+    const form = document.getElementById('uploadForm');
+
+    // Trigger file input
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    // Handle drag and drop
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.classList.add('border-primary/40', 'bg-primary/5');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+        dropZone.classList.remove('border-primary/40', 'bg-primary/5');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('border-primary/40', 'bg-primary/5');
+        if (e.dataTransfer.files.length) {
+            fileInput.files = e.dataTransfer.files;
+            handleFiles(e.dataTransfer.files[0]);
+        }
+    });
+
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length) {
+            handleFiles(e.target.files[0]);
+        }
+    });
+
+    function handleFiles(file) {
+        fileNameText.innerText = file.name;
+        previewContainer.classList.remove('opacity-0', 'pointer-events-none');
+        uploadPrompt.classList.add('opacity-0');
+        processBtn.disabled = false;
+        
+        dropZone.classList.add('border-solid', 'border-primary/20');
+        dropZone.classList.remove('border-dashed');
+    }
+
+    form.addEventListener('submit', () => {
+        processBtn.disabled = true;
+        processBtn.innerHTML = `
+            <span class="material-symbols-outlined animate-spin">sync</span>
+            <span>Running OCR Extraction...</span>
+        `;
+    });
+</script>

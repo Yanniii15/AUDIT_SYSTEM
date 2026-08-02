@@ -1,82 +1,175 @@
 @model AuditCkDayo.ViewModels.RegisterViewModel
-
 @{
-    ViewData["Title"] = "Register";
+    ViewData["Title"] = "User Registration";
+    var recentUsers = (IEnumerable<AuditCkDayo.Models.User>)ViewBag.RecentUsers;
 }
 
-<div class="row justify-content-center">
-    <div class="col-md-6">
-        <div class="card mt-5 shadow">
-            <div class="card-body">
-                <h3 class="card-title text-center mb-4">Create a New Account</h3>
-                <form asp-action="Register" method="post">
-                    <div asp-validation-summary="ModelOnly" class="text-danger mb-3" role="alert"></div>
+<!-- Header Section with Stats Overlay -->
+<div class="relative flex flex-col lg:flex-row gap-space-6 items-start justify-between">
+    <div class="flex flex-col gap-space-2 max-w-2xl">
+        <div class="flex items-center gap-space-2 text-primary">
+            <span class="material-symbols-outlined text-[20px]">person_add</span>
+            <span class="font-label-caps uppercase tracking-widest text-on-surface-variant">Access Management</span>
+        </div>
+        <h1 class="font-headline-lg text-headline-lg text-on-surface">User Registration</h1>
+        <p class="font-body-md text-on-surface-variant leading-relaxed">
+            Provision new accounts and define hierarchical permissions within the auditing ecosystem. 
+            Ensure all roles are assigned with precise budgetary constraints for automated compliance tracking.
+        </p>
+    </div>
+    
+    <!-- Quick Stats Cards -->
+    <div class="grid grid-cols-2 sm:grid-cols-3 gap-space-4 w-full lg:w-auto">
+        <div class="bg-surface-container-lowest p-space-4 rounded-xl shadow-sm border border-surface-border flex flex-col gap-space-1 min-w-[140px]">
+            <span class="font-label-caps text-on-surface-variant uppercase text-[10px]">Total Users</span>
+            <div class="flex items-baseline gap-space-2">
+                <span class="font-headline-md text-headline-md text-primary">@ViewBag.TotalUsers</span>
+            </div>
+        </div>
+        <div class="bg-surface-container-lowest p-space-4 rounded-xl shadow-sm border border-surface-border flex flex-col gap-space-1 min-w-[140px]">
+            <span class="font-label-caps text-on-surface-variant uppercase text-[10px]">Managers</span>
+            <span class="font-headline-md text-headline-md text-primary">@ViewBag.TotalManagers</span>
+        </div>
+        <div class="bg-surface-container-lowest p-space-4 rounded-xl shadow-sm border border-surface-border flex flex-col gap-space-1 min-w-[140px]">
+            <span class="font-label-caps text-on-surface-variant uppercase text-[10px]">Active Buyers</span>
+            <span class="font-headline-md text-headline-md text-primary">@ViewBag.TotalBuyers</span>
+        </div>
+    </div>
+</div>
 
-                    <div class="form-group mb-3">
-                        <label asp-for="Name" class="control-label mb-1"></label>
-                        <input asp-for="Name" class="form-control" placeholder="Enter Name" />
-                        <span asp-validation-for="Name" class="text-danger"></span>
-                    </div>
+<div class="flex flex-col lg:flex-row gap-space-8 items-start">
+    <!-- Registration Form -->
+    <div class="w-full lg:flex-1 bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden border border-surface-border">
+        <div class="bg-primary px-space-6 py-space-4 flex justify-between items-center">
+            <span class="text-on-primary font-label-caps uppercase tracking-tighter text-[11px]">Registration Form</span>
+            <span class="text-on-primary/60 text-[10px] font-data-mono">FORM_ID: REG-2026-001</span>
+        </div>
+        
+        <form asp-action="Register" method="post" class="p-space-8 grid grid-cols-1 md:grid-cols-2 gap-x-space-8 gap-y-space-6" id="registrationForm">
+            <div asp-validation-summary="ModelOnly" class="md:col-span-2 text-audit-error bg-audit-error/10 border border-audit-error/20 p-space-4 rounded-lg text-body-md text-center"></div>
 
-                    <div class="form-group mb-3">
-                        <label asp-for="Email" class="control-label mb-1"></label>
-                        <input asp-for="Email" class="form-control" placeholder="name@example.com" />
-                        <span asp-validation-for="Email" class="text-danger"></span>
-                    </div>
-
-                    <div class="form-group mb-3">
-                        <label asp-for="Password" class="control-label mb-1"></label>
-                        <input asp-for="Password" class="form-control" type="password" placeholder="Password" />
-                        <span asp-validation-for="Password" class="text-danger"></span>
-                    </div>
-
-                    <div class="form-group mb-3">
-                        <label asp-for="Role" class="control-label mb-1"></label>
-                        <select asp-for="Role" class="form-select" id="role-select">
-                            <option value="Owner">Owner</option>
-                            <option value="Manager">Manager</option>
-                            <option value="Buyer">Buyer</option>
-                        </select>
-                        <span asp-validation-for="Role" class="text-danger"></span>
-                    </div>
-
-                    <div class="form-group mb-3" id="manager-group" style="display: none;">
-                        <label asp-for="ManagerId" class="control-label mb-1"></label>
-                        <select asp-for="ManagerId" class="form-select" asp-items="@(new SelectList(ViewBag.Managers, "Id", "Name"))">
-                            <option value="">-- Select Manager --</option>
-                        </select>
-                        <span asp-validation-for="ManagerId" class="text-danger"></span>
-                    </div>
-
-                    <button type="submit" class="w-100 btn btn-primary mt-2">Register</button>
-                    
-                    <div class="mt-3 text-center">
-                        <p>
-                            Already have an account? <a asp-action="Login">Log in here</a>
-                        </p>
-                    </div>
-                </form>
+            <!-- Full Name -->
+            <div class="flex flex-col gap-space-2">
+                <label asp-for="Name" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Full Name</label>
+                <input asp-for="Name" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-space-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" placeholder="e.g. Alexander Sterling" required />
+                <span asp-validation-for="Name" class="text-audit-error text-[11px]"></span>
+            </div>
+            
+            <!-- Email -->
+            <div class="flex flex-col gap-space-2">
+                <label asp-for="Email" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Email Address</label>
+                <input asp-for="Email" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-space-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" placeholder="sterling@auditck.com" required />
+                <span asp-validation-for="Email" class="text-audit-error text-[11px]"></span>
+            </div>
+            
+            <!-- Password -->
+            <div class="flex flex-col gap-space-2">
+                <label asp-for="Password" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Password</label>
+                <div class="relative">
+                    <input asp-for="Password" type="password" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-space-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" id="passInput" placeholder="••••••••" required />
+                    <button class="absolute right-space-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50 hover:text-primary" onclick="togglePass()" type="button">
+                        <span class="material-symbols-outlined text-[20px]" id="eyeIcon">visibility</span>
+                    </button>
+                </div>
+                <span asp-validation-for="Password" class="text-audit-error text-[11px]"></span>
+            </div>
+            
+            <!-- Role -->
+            <div class="flex flex-col gap-space-2">
+                <label asp-for="Role" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">System Role</label>
+                <select asp-for="Role" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-space-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all appearance-none cursor-pointer text-on-surface" id="roleSelect">
+                    @foreach (var val in Enum.GetValues(typeof(AuditCkDayo.Models.UserRole)))
+                    {
+                        <option value="@val">@val</option>
+                    }
+                </select>
+                <span asp-validation-for="Role" class="text-audit-error text-[11px]"></span>
+            </div>
+            
+            <!-- Manager (Conditional, only shown for Buyers) -->
+            <div class="flex flex-col gap-space-2 opacity-30 pointer-events-none transition-all duration-300" id="managerField">
+                <label asp-for="ManagerId" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Assigned Manager</label>
+                <select asp-for="ManagerId" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-space-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all appearance-none cursor-pointer text-on-surface">
+                    <option value="">Select reporting manager...</option>
+                    @if (ViewBag.Managers != null)
+                    {
+                        foreach (var mgr in (IEnumerable<AuditCkDayo.Models.User>)ViewBag.Managers)
+                        {
+                            <option value="@mgr.Id">@mgr.Name</option>
+                        }
+                    }
+                </select>
+                <span asp-validation-for="ManagerId" class="text-audit-error text-[11px]"></span>
+            </div>
+            
+            <div class="md:col-span-2 pt-space-6 flex flex-col sm:flex-row gap-space-4 border-t border-surface-border mt-space-4">
+                <button class="bg-primary text-on-primary px-space-8 py-space-3 rounded-lg font-label-caps uppercase tracking-widest hover:bg-on-primary-fixed-variant transition-colors flex items-center justify-center gap-space-2 shadow-md text-[12px]" type="submit">
+                    <span class="material-symbols-outlined text-[18px]">how_to_reg</span>
+                    Create User Account
+                </button>
+                <button class="bg-surface-container text-on-surface-variant border border-surface-border px-space-8 py-space-3 rounded-lg font-label-caps uppercase tracking-widest hover:bg-surface-container-high transition-colors text-[12px]" type="reset">
+                    Reset Form
+                </button>
+            </div>
+        </form>
+    </div>
+    
+    <!-- Side Panel: Recent Registrations -->
+    <div class="w-full lg:w-96 flex flex-col gap-space-6">
+        <div class="bg-surface-container-lowest rounded-xl shadow-sm p-space-6 border border-surface-border">
+            <div class="flex items-center justify-between mb-space-6">
+                <h3 class="font-headline-sm text-headline-sm text-on-surface">Recent Registrations</h3>
+                <span class="font-label-caps text-[10px] text-audit-success bg-audit-success/10 px-space-2 py-0.5 rounded-full font-bold">LIVE</span>
+            </div>
+            
+            <div class="flex flex-col gap-space-4">
+                @if (recentUsers != null)
+                {
+                    foreach (var user in recentUsers)
+                    {
+                        <div class="flex items-center gap-space-4 pb-space-4 border-b border-surface-border last:border-0">
+                            <div class="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center text-primary font-bold">
+                                @user.Name.Substring(0, Math.Min(2, user.Name.Length)).ToUpper()
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <p class="font-body-md font-semibold text-on-surface truncate">@user.Name</p>
+                                <p class="font-label-caps text-[10px] text-on-surface-variant uppercase">@user.Role • Ref: #@user.Id</p>
+                            </div>
+                        </div>
+                    }
+                }
             </div>
         </div>
     </div>
 </div>
 
-@section Scripts {
-    <partial name="_ValidationScriptsPartial" />
-    <script>
-        $(document).ready(function () {
-            function toggleManagerSelect() {
-                var selectedRole = $('#role-select').val();
-                if (selectedRole === 'Buyer') {
-                    $('#manager-group').show();
-                } else {
-                    $('#manager-group').hide();
-                    $('#manager-group select').val('');
-                }
-            }
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const roleSelect = document.getElementById("roleSelect");
+        const managerField = document.getElementById("managerField");
 
-            $('#role-select').change(toggleManagerSelect);
-            toggleManagerSelect();
-        });
-    </script>
-}
+        const updateManagerVisibility = () => {
+            if (roleSelect.value === "Buyer") {
+                managerField.classList.remove("opacity-30", "pointer-events-none");
+            } else {
+                managerField.classList.add("opacity-30", "pointer-events-none");
+                managerField.querySelector("select").value = "";
+            }
+        };
+
+        roleSelect.addEventListener("change", updateManagerVisibility);
+        updateManagerVisibility(); // Initial check
+    });
+
+    function togglePass() {
+        const passInput = document.getElementById('passInput');
+        const eyeIcon = document.getElementById('eyeIcon');
+        if (passInput.type === 'password') {
+            passInput.type = 'text';
+            eyeIcon.innerText = 'visibility_off';
+        } else {
+            passInput.type = 'password';
+            eyeIcon.innerText = 'visibility';
+        }
+    }
+</script>

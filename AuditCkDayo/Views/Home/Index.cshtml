@@ -1,193 +1,229 @@
 @model AuditCkDayo.ViewModels.DashboardViewModel
 @{
-    ViewData["Title"] = "Dashboard";
-    var role = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+    ViewData["Title"] = "Financial Oversight";
+    var currentUser = (AuditCkDayo.Models.User)ViewBag.CurrentUser;
+    var pendingCount = Model.Audits.Count(a => a.Status == AuditCkDayo.Models.AuditStatus.Pending);
 }
 
-<div class="container-fluid py-4">
-    <div class="row mb-4 align-items-center">
-        <div class="col-md-8">
-            <h1 class="h2 mb-0 text-gray-800">Audit Dashboard</h1>
-            <p class="text-muted">Welcome, you are logged in as <strong>@role</strong>.</p>
+<!-- Status & Summary Bar: Asymmetric Bento Grid -->
+<section class="grid grid-cols-12 gap-space-6 items-end">
+    <div class="col-span-12 lg:col-span-4 space-y-space-4">
+        <div class="flex items-center gap-space-2 text-primary">
+            <span class="material-symbols-outlined text-[20px]">analytics</span>
+            <span class="font-label-caps uppercase tracking-widest text-on-surface-variant">Performance Snapshot</span>
         </div>
-        <div class="col-md-4 text-md-end">
-            @if (User.IsInRole("Buyer"))
-            {
-                <a asp-controller="Audits" asp-action="Upload" class="btn btn-primary shadow-sm">
-                    <i class="bi bi-upload"></i> Upload New Receipt
-                </a>
-            }
-            else if (User.IsInRole("Owner") || User.IsInRole("Manager"))
-            {
-                <a asp-controller="Audits" asp-action="VerifyList" class="btn btn-outline-primary shadow-sm">
-                    <i class="bi bi-check-circle"></i> Verification Queue
-                </a>
-            }
-        </div>
+        <h1 class="font-headline-lg text-headline-lg text-on-surface">Financial Oversight</h1>
+        <p class="font-body-md text-on-surface-variant max-w-md">
+            Real-time reconciliation of Petty Cash Fund expenditures across all regional establishments.
+        </p>
     </div>
-
-    <!-- Total Amount KPI -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card border-left-primary shadow-sm h-100 py-2">
-                <div class="card-body">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2 text-center text-md-start">
-                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
-                                Filtered Total Audited Amount
-                            </div>
-                            <div class="h1 mb-0 font-weight-bold text-gray-800">
-                                ₱@Model.TotalAmount.ToString("N2")
-                            </div>
-                        </div>
-                    </div>
+    
+    <div class="col-span-12 lg:col-span-8 grid grid-cols-1 md:grid-cols-3 gap-space-4">
+        <!-- Total Audited Amount -->
+        <div class="relative overflow-hidden bg-surface-container-lowest p-space-6 rounded-xl shadow-sm group hover:shadow-md transition-all duration-300 border border-surface-border">
+            <div class="absolute top-0 right-0 p-space-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                <span class="material-symbols-outlined text-[64px]">account_balance_wallet</span>
+            </div>
+            <div class="relative z-10">
+                <span class="font-label-caps text-on-surface-variant uppercase text-[10px]">Filtered Total Audited</span>
+                <div class="flex items-baseline gap-space-2 mt-space-2">
+                    <span class="font-headline-lg text-headline-lg text-primary">₱@Model.TotalAmount.ToString("N2")</span>
+                </div>
+                <div class="mt-space-4 h-1 w-full bg-surface-container rounded-full overflow-hidden">
+                    <div class="h-full bg-primary w-[75%] transition-all duration-1000 ease-out"></div>
                 </div>
             </div>
         </div>
-    </div>
-
-    <div class="row">
-        <!-- Filtering Sidebar -->
-        <div class="col-lg-3 mb-4">
-            <div class="card shadow-sm">
-                <div class="card-header bg-dark text-white fw-bold">
-                    Filter Audits
+        
+        <!-- Pending Audits -->
+        <div class="relative overflow-hidden bg-surface-container-lowest p-space-6 rounded-xl shadow-sm group hover:shadow-md transition-all duration-300 border border-surface-border">
+            <div class="absolute top-0 right-0 p-space-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                <span class="material-symbols-outlined text-[64px]">pending_actions</span>
+            </div>
+            <div class="relative z-10">
+                <span class="font-label-caps text-on-surface-variant uppercase text-[10px]">Pending Verification</span>
+                <div class="flex items-baseline gap-space-2 mt-space-2">
+                    <span class="font-headline-lg text-headline-lg text-audit-pending">@pendingCount</span>
+                    <span class="font-body-md text-on-surface-variant">items</span>
                 </div>
-                <div class="card-body">
-                    <form asp-controller="Home" asp-action="Index" method="get">
-                        <!-- Date Range -->
-                        <div class="mb-3">
-                            <label asp-for="StartDate" class="form-label fw-semibold">Start Date</label>
-                            <input asp-for="StartDate" type="date" class="form-control" />
-                        </div>
-                        <div class="mb-3">
-                            <label asp-for="EndDate" class="form-label fw-semibold">End Date</label>
-                            <input asp-for="EndDate" type="date" class="form-control" />
-                        </div>
-
-                        <!-- Status -->
-                        <div class="mb-3">
-                            <label asp-for="Status" class="form-label fw-semibold">Status</label>
-                            <select asp-for="Status" class="form-select" asp-items="ViewBag.Statuses">
-                                <option value="">-- All Statuses --</option>
-                            </select>
-                        </div>
-
-                        <!-- Establishment -->
-                        <div class="mb-3">
-                            <label asp-for="EstablishmentId" class="form-label fw-semibold">Establishment</label>
-                            <select asp-for="EstablishmentId" class="form-select" asp-items="ViewBag.Establishments">
-                                <option value="">-- All Establishments --</option>
-                            </select>
-                        </div>
-
-                        <!-- Buyer -->
-                        @if (User.IsInRole("Owner") || User.IsInRole("Manager"))
-                        {
-                            <div class="mb-3">
-                                <label asp-for="BuyerId" class="form-label fw-semibold">Buyer</label>
-                                <select asp-for="BuyerId" class="form-select" asp-items="ViewBag.Buyers">
-                                    <option value="">-- All Buyers --</option>
-                                </select>
-                            </div>
-                        }
-                        else
-                        {
-                            <input type="hidden" asp-for="BuyerId" value="@Model.BuyerId" />
-                        }
-
-                        <div class="d-grid gap-2 mt-4">
-                            <button type="submit" class="btn btn-primary">
-                                Apply Filters
-                            </button>
-                            <a asp-controller="Home" asp-action="Index" class="btn btn-outline-secondary">
-                                Clear Filters
-                            </a>
-                        </div>
-                    </form>
+                <div class="mt-space-4 flex gap-space-1">
+                    <div class="h-1 flex-1 bg-audit-pending rounded-full"></div>
+                    <div class="h-1 flex-1 bg-audit-pending/30 rounded-full"></div>
+                    <div class="h-1 flex-1 bg-audit-pending/30 rounded-full"></div>
                 </div>
             </div>
         </div>
-
-        <!-- Filtered Audits List -->
-        <div class="col-lg-9 mb-4">
-            <div class="card shadow-sm">
-                <div class="card-header bg-primary text-white fw-bold d-flex justify-content-between align-items-center">
-                    <span>Audits List</span>
-                    <span class="badge bg-light text-primary">@Model.Audits.Count record(s)</span>
+        
+        <!-- Current PCF Balance -->
+        <div class="relative overflow-hidden bg-primary p-space-6 rounded-xl shadow-sm group hover:shadow-md transition-all duration-300">
+            <div class="absolute -bottom-4 -right-4 w-32 h-32 bg-on-primary/5 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700"></div>
+            <div class="relative z-10">
+                <span class="font-label-caps text-primary-fixed-dim uppercase text-[10px]">Your PCF Balance</span>
+                <div class="flex items-baseline gap-space-2 mt-space-2">
+                    <span class="font-headline-lg text-headline-lg text-on-primary">₱@currentUser.PcfBalance.ToString("N2")</span>
                 </div>
-                <div class="card-body p-0">
-                    @if (Model.Audits == null || !Model.Audits.Any())
+                <button onclick="location.reload()" class="mt-space-4 flex items-center gap-space-2 text-[10px] text-label-caps text-on-primary bg-on-primary/10 px-space-3 py-space-1 rounded-full hover:bg-on-primary/20 transition-colors">
+                    REFRESH POOL <span class="material-symbols-outlined text-[14px]">sync</span>
+                </button>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Filter Controls -->
+<section class="mb-space-4">
+    <div class="bg-surface-container-low/50 backdrop-blur-md p-space-4 rounded-xl flex flex-wrap items-center gap-space-4 shadow-sm border border-surface-border">
+        <div class="flex items-center gap-space-3 px-space-3 border-r border-surface-border">
+            <span class="material-symbols-outlined text-on-surface-variant">filter_list</span>
+            <span class="font-label-caps text-on-surface text-[12px]">Filters</span>
+        </div>
+        
+        <form method="get" asp-controller="Home" asp-action="Index" class="flex-1 flex flex-wrap gap-space-4 items-end">
+            <!-- Start Date -->
+            <div class="flex flex-col min-w-[160px]">
+                <span class="font-label-caps text-[10px] text-on-surface-variant mb-1 ml-1 uppercase">Start Date</span>
+                <input asp-for="StartDate" class="w-full bg-surface-container-lowest border border-surface-border rounded-lg px-space-3 py-2 font-body-md text-on-surface focus:outline-none focus:border-primary/50 transition-colors cursor-pointer" type="date" />
+            </div>
+            
+            <!-- End Date -->
+            <div class="flex flex-col min-w-[160px]">
+                <span class="font-label-caps text-[10px] text-on-surface-variant mb-1 ml-1 uppercase">End Date</span>
+                <input asp-for="EndDate" class="w-full bg-surface-container-lowest border border-surface-border rounded-lg px-space-3 py-2 font-body-md text-on-surface focus:outline-none focus:border-primary/50 transition-colors cursor-pointer" type="date" />
+            </div>
+            
+            <!-- Status -->
+            <div class="flex flex-col min-w-[140px]">
+                <span class="font-label-caps text-[10px] text-on-surface-variant mb-1 ml-1 uppercase">Status</span>
+                <select asp-for="Status" class="w-full bg-surface-container-lowest border border-surface-border rounded-lg px-space-3 py-2 font-body-md text-on-surface focus:outline-none focus:border-primary/50 appearance-none cursor-pointer" asp-items="ViewBag.Statuses">
+                    <option value="">All Statuses</option>
+                </select>
+            </div>
+            
+            <!-- Establishment -->
+            <div class="flex flex-col min-w-[160px]">
+                <span class="font-label-caps text-[10px] text-on-surface-variant mb-1 ml-1 uppercase">Establishment</span>
+                <select asp-for="EstablishmentId" class="w-full bg-surface-container-lowest border border-surface-border rounded-lg px-space-3 py-2 font-body-md text-on-surface focus:outline-none focus:border-primary/50 appearance-none cursor-pointer" asp-items="ViewBag.Establishments">
+                    <option value="">All Locations</option>
+                </select>
+            </div>
+            
+            <!-- Buyer (Visible to Owners & Managers) -->
+            @if (User.IsInRole("Owner") || User.IsInRole("Manager"))
+            {
+                <div class="flex flex-col min-w-[160px]">
+                    <span class="font-label-caps text-[10px] text-on-surface-variant mb-1 ml-1 uppercase">Buyer / Auditor</span>
+                    <select asp-for="BuyerId" class="w-full bg-surface-container-lowest border border-surface-border rounded-lg px-space-3 py-2 font-body-md text-on-surface focus:outline-none focus:border-primary/50 appearance-none cursor-pointer" asp-items="ViewBag.Buyers">
+                        <option value="">All Buyers</option>
+                    </select>
+                </div>
+            }
+            
+            <button type="submit" class="bg-primary text-on-primary px-space-6 py-2 rounded-lg font-label-caps hover:bg-primary/90 transition-all flex items-center gap-space-2 shadow-sm text-[12px] uppercase">
+                APPLY <span class="material-symbols-outlined text-[18px]">done_all</span>
+            </button>
+            <a asp-action="Index" class="bg-surface-container text-on-surface-variant border border-surface-border px-space-6 py-2 rounded-lg font-label-caps hover:bg-surface-container-high transition-all text-[12px] uppercase text-center decoration-none">
+                Clear
+            </a>
+        </form>
+    </div>
+</section>
+
+<!-- Data Table Section -->
+<section class="pb-space-8">
+    <div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden border border-surface-border/50">
+        <div class="p-space-6 border-b border-surface-border flex items-center justify-between">
+            <h3 class="font-headline-sm text-headline-sm text-on-surface">Recent Audit Items</h3>
+        </div>
+        
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-surface-container-low border-b border-surface-border">
+                        <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">ID</th>
+                        <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">Buyer</th>
+                        <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">Establishment</th>
+                        <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">Description</th>
+                        <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">Date</th>
+                        <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px] text-right">Amount</th>
+                        <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px] text-center">Status</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-surface-border">
+                    @if (!Model.Audits.Any())
                     {
-                        <div class="p-4 text-center text-muted">
-                            <i class="bi bi-inbox fs-2 d-block mb-2"></i>
-                            No audits found matching the selected criteria.
-                        </div>
+                        <tr>
+                            <td colspan="7" class="px-space-6 py-space-8 text-center text-on-surface-variant font-body-md">
+                                No audited items found matching criteria.
+                            </td>
+                        </tr>
                     }
                     else
                     {
-                        <div class="table-responsive">
-                            <table class="table table-hover table-striped align-middle mb-0">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th class="ps-3">Date</th>
-                                        @if (User.IsInRole("Owner") || User.IsInRole("Manager"))
-                                        {
-                                            <th>Buyer</th>
-                                        }
-                                        <th>Establishment</th>
-                                        <th>Description</th>
-                                        <th class="text-end">Amount</th>
-                                        <th class="text-center">Status</th>
-                                        <th class="text-center pe-3">Receipt</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @foreach (var audit in Model.Audits)
-                                    {
-                                        <tr>
-                                            <td class="ps-3">@audit.EntryDate.ToShortDateString()</td>
-                                            @if (User.IsInRole("Owner") || User.IsInRole("Manager"))
-                                            {
-                                                <td>@audit.Buyer.Name</td>
-                                            }
-                                            <td>@audit.Establishment.Name</td>
-                                            <td>@audit.Description</td>
-                                            <td class="text-end fw-semibold">₱@audit.Amount.ToString("N2")</td>
-                                            <td class="text-center">
-                                                @if (audit.Status == AuditStatus.Pending)
-                                                {
-                                                    <span class="badge bg-warning text-dark">Pending</span>
-                                                }
-                                                else if (audit.Status == AuditStatus.Approved)
-                                                {
-                                                    <span class="badge bg-success">Approved</span>
-                                                }
-                                                else
-                                                {
-                                                    <span class="badge bg-danger">Rejected</span>
-                                                }
-                                            </td>
-                                            <td class="text-center pe-3">
-                                                @if (!string.IsNullOrEmpty(audit.ReceiptImageUrl))
-                                                {
-                                                    <a href="@audit.ReceiptImageUrl" target="_blank" class="btn btn-sm btn-outline-info" title="View Receipt image">
-                                                        View
-                                                    </a>
-                                                }
-                                                else
-                                                {
-                                                    <span class="text-muted small">None</span>
-                                                }
-                                            </td>
-                                        </tr>
+                        @foreach (var item in Model.Audits)
+                        {
+                            <tr class="hover:bg-surface-container-low/30 transition-colors group">
+                                <td class="px-space-6 py-space-4">
+                                    <span class="font-data-mono text-on-surface-variant text-[13px]">#AUD-@item.Id</span>
+                                </td>
+                                <td class="px-space-6 py-space-4">
+                                    <div class="flex items-center gap-space-3">
+                                        <div class="w-8 h-8 rounded-full bg-secondary-container text-secondary flex items-center justify-center font-bold text-[12px]">
+                                            @item.Buyer.Name.Substring(0, Math.Min(2, item.Buyer.Name.Length)).ToUpper()
+                                        </div>
+                                        <div>
+                                            <div class="font-body-md font-semibold text-on-surface">@item.Buyer.Name</div>
+                                            <div class="text-[9px] text-on-surface-variant font-label-caps uppercase">@item.Buyer.Role</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="px-space-6 py-space-4">
+                                    <div class="flex items-center gap-space-2 text-on-surface">
+                                        <span class="material-symbols-outlined text-[16px] text-primary">location_on</span>
+                                        <span class="font-body-md">@item.Establishment.Name</span>
+                                    </div>
+                                </td>
+                                <td class="px-space-6 py-space-4">
+                                    <p class="font-body-md text-on-surface-variant truncate max-w-[240px]">@item.Description</p>
+                                </td>
+                                <td class="px-space-6 py-space-4">
+                                    <span class="font-body-md text-on-surface">@item.EntryDate.ToString("MMM dd, yyyy")</span>
+                                </td>
+                                <td class="px-space-6 py-space-4 text-right">
+                                    <span class="font-data-mono text-primary font-bold">₱@item.Amount.ToString("N2")</span>
+                                </td>
+                                <td class="px-space-6 py-space-4 text-center">
+                                    @{
+                                        var statusBg = item.Status == AuditCkDayo.Models.AuditStatus.Approved ? "bg-audit-success/10 text-audit-success border-audit-success/20" : 
+                                                       (item.Status == AuditCkDayo.Models.AuditStatus.Rejected ? "bg-audit-error/10 text-audit-error border-audit-error/20" : 
+                                                       "bg-audit-pending/10 text-audit-pending border-audit-pending/20");
                                     }
-                                </tbody>
-                            </table>
-                        </div>
+                                    <span class="px-space-3 py-1 @statusBg rounded-full text-[10px] font-label-caps uppercase border">
+                                        @item.Status
+                                    </span>
+                                </td>
+                            </tr>
+                        }
                     }
-                </div>
-            </div>
+                </tbody>
+            </table>
         </div>
     </div>
+</section>
+
+<!-- Decorative Analytics Layer (Floaters) -->
+<div class="fixed bottom-space-8 right-space-8 pointer-events-none opacity-10">
+    <svg class="animate-pulse" fill="none" height="160" viewbox="0 0 200 200" width="160" xmlns="http://www.w3.org/2000/svg">
+        <circle class="text-primary" cx="100" cy="100" r="80" stroke="currentColor" stroke-dasharray="8 8" stroke-width="1"></circle>
+        <circle class="text-primary" cx="100" cy="100" r="60" stroke="currentColor" stroke-width="0.5"></circle>
+        <path class="text-primary" d="M100 40V20M100 180V160M40 100H20M180 100H160" stroke="currentColor" stroke-width="1"></path>
+    </svg>
 </div>
+
+<script>
+    // Simple micro-interaction for rows
+    document.querySelectorAll('tbody tr').forEach(row => {
+        row.addEventListener('click', () => {
+            row.classList.toggle('bg-primary/5');
+        });
+    });
+</script>

@@ -1,52 +1,202 @@
 @model IEnumerable<AuditCkDayo.Models.AuditItem>
 @{
     ViewData["Title"] = "Pending Verifications";
+    var firstAudit = Model.FirstOrDefault();
 }
 
-<h2 class="my-4">Pending Audit Verifications</h2>
+<!-- Header Section -->
+<div class="relative flex flex-col lg:flex-row gap-space-6 items-start justify-between">
+    <div class="flex flex-col gap-space-2 max-w-2xl">
+        <div class="flex items-center gap-space-2 text-primary">
+            <span class="material-symbols-outlined text-[20px]">pending_actions</span>
+            <span class="font-label-caps uppercase tracking-widest text-on-surface-variant">Quality Control</span>
+        </div>
+        <h1 class="font-headline-lg text-headline-lg text-on-surface">Pending Verifications</h1>
+        <p class="font-body-md text-on-surface-variant leading-relaxed">
+            Verify submitted invoices and receipts. Tap on any audit item in the queue to load the receipt image and detail scan in the inspector.
+        </p>
+    </div>
 
-@if (!Model.Any())
-{
-    <div class="alert alert-info">No pending audits for verification.</div>
-}
-else
-{
-    <table class="table table-bordered table-striped">
-        <thead>
-            <tr>
-                <th>Buyer</th>
-                <th>Establishment</th>
-                <th>Amount</th>
-                <th>Description</th>
-                <th>Date</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var audit in Model)
-            {
-                <tr>
-                    <td>@audit.Buyer.Name</td>
-                    <td>@audit.Establishment.Name</td>
-                    <td>₱@audit.Amount.ToString("N2")</td>
-                    <td>@audit.Description</td>
-                    <td>@audit.EntryDate.ToShortDateString()</td>
-                    <td>
-                        <div class="d-flex gap-2">
-                            <form asp-action="Verify" method="post">
-                                <input type="hidden" name="id" value="@audit.Id" />
-                                <input type="hidden" name="action" value="Approved" />
-                                <button type="submit" class="btn btn-success btn-sm">Approve</button>
-                            </form>
-                            <form asp-action="Verify" method="post">
-                                <input type="hidden" name="id" value="@audit.Id" />
-                                <input type="hidden" name="action" value="Rejected" />
-                                <button type="submit" class="btn btn-danger btn-sm">Reject</button>
-                            </form>
+    <!-- Quick Stats -->
+    <div class="bg-surface-container-lowest p-space-4 rounded-xl shadow-sm border border-surface-border flex flex-col gap-space-1 min-w-[180px]">
+        <span class="font-label-caps text-on-surface-variant uppercase text-[10px]">Queue Size</span>
+        <div class="flex items-baseline gap-space-2">
+            <span class="font-headline-md text-headline-md text-audit-pending">@Model.Count()</span>
+            <span class="text-on-surface-variant text-[12px]">Pending</span>
+        </div>
+    </div>
+</div>
+
+<div class="grid grid-cols-12 gap-space-8 items-start">
+    <!-- Queue List -->
+    <div class="col-span-12 lg:col-span-8">
+        <div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden border border-surface-border/50">
+            <div class="p-space-6 border-b border-surface-border flex items-center justify-between">
+                <h3 class="font-headline-sm text-headline-sm text-on-surface">Audit Queue</h3>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-surface-container-low border-b border-surface-border">
+                            <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">Buyer</th>
+                            <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">Establishment</th>
+                            <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">Date</th>
+                            <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px] text-right">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-surface-border">
+                        @if (!Model.Any())
+                        {
+                            <tr>
+                                <td colspan="4" class="px-space-6 py-space-8 text-center text-on-surface-variant font-body-md">
+                                    No pending audits for verification.
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var audit in Model)
+                            {
+                                <tr class="hover:bg-surface-container-low/30 transition-colors cursor-pointer group @(audit.Id == firstAudit?.Id ? "bg-primary/5" : "")" 
+                                    onclick="selectAudit(this)"
+                                    data-id="@audit.Id"
+                                    data-buyer="@audit.Buyer.Name"
+                                    data-establishment="@audit.Establishment.Name"
+                                    data-amount="₱@audit.Amount.ToString("N2")"
+                                    data-description="@audit.Description"
+                                    data-notes="@audit.Notes"
+                                    data-receipt-url="@(string.IsNullOrEmpty(audit.ReceiptImageUrl) ? "https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?q=80&w=600" : audit.ReceiptImageUrl)">
+                                    <td class="px-space-6 py-space-4">
+                                        <div class="flex items-center gap-space-3">
+                                            <div class="w-8 h-8 rounded-full bg-secondary-container text-secondary flex items-center justify-center font-bold text-[12px]">
+                                                @audit.Buyer.Name.Substring(0, Math.Min(2, audit.Buyer.Name.Length)).ToUpper()
+                                            </div>
+                                            <div>
+                                                <div class="font-body-md font-semibold text-on-surface">@audit.Buyer.Name</div>
+                                                <div class="text-[9px] text-on-surface-variant font-label-caps uppercase">Buyer</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-space-6 py-space-4">
+                                        <div class="flex items-center gap-space-2 text-on-surface">
+                                            <span class="material-symbols-outlined text-[16px] text-primary">location_on</span>
+                                            <span class="font-body-md">@audit.Establishment.Name</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-space-6 py-space-4">
+                                        <span class="font-body-md text-on-surface">@audit.EntryDate.ToString("MMM dd, yyyy")</span>
+                                    </td>
+                                    <td class="px-space-6 py-space-4 text-right">
+                                        <span class="font-data-mono text-primary font-bold">₱@audit.Amount.ToString("N2")</span>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Detail Inspection Panel -->
+    <div class="col-span-12 lg:col-span-4 sticky top-24 h-fit">
+        @if (firstAudit != null)
+        {
+            <div class="bg-surface-container-lowest rounded-xl shadow-sm border border-surface-border overflow-hidden" id="detail-panel">
+                <div class="aspect-[4/3] relative bg-surface-container-highest overflow-hidden">
+                    <img class="w-full h-full object-cover" id="receipt-preview" src="@(string.IsNullOrEmpty(firstAudit.ReceiptImageUrl) ? "https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?q=80&w=600" : firstAudit.ReceiptImageUrl)" alt="Receipt Scan" />
+                    <div class="absolute bottom-0 left-0 right-0 p-space-6 bg-gradient-to-t from-primary/80 to-transparent">
+                        <h3 class="font-headline-sm text-on-primary text-[16px]" id="preview-buyer">@firstAudit.Buyer.Name</h3>
+                        <p class="text-on-primary/70 text-[12px]" id="preview-establishment">@firstAudit.Establishment.Name</p>
+                    </div>
+                </div>
+                
+                <div class="p-space-6 space-y-space-6">
+                    <div class="space-y-space-4">
+                        <div class="flex items-center justify-between border-b border-surface-border pb-space-2">
+                            <span class="font-label-caps text-on-surface-variant uppercase text-[10px]">Audit Inspector</span>
+                            <span class="material-symbols-outlined text-[16px] text-audit-pending">pending_actions</span>
                         </div>
-                    </td>
-                </tr>
-            }
-        </tbody>
-    </table>
-}
+                        
+                        <div class="grid grid-cols-1 gap-space-4">
+                            <div>
+                                <label class="font-label-caps text-on-surface-variant text-[10px] uppercase block mb-1">Description</label>
+                                <span class="font-body-md text-data-text block text-[13px]" id="preview-description">@firstAudit.Description</span>
+                            </div>
+                            
+                            <div class="grid grid-cols-2 gap-space-4">
+                                <div>
+                                    <label class="font-label-caps text-on-surface-variant text-[10px] uppercase block mb-1">Amount</label>
+                                    <span class="font-data-mono text-primary text-[18px] font-bold block" id="preview-amount">₱@firstAudit.Amount.ToString("N2")</span>
+                                </div>
+                                <div>
+                                    <label class="font-label-caps text-on-surface-variant text-[10px] uppercase block mb-1">Notes</label>
+                                    <span class="font-body-md text-on-surface-variant text-[12px] block" id="preview-notes">@(string.IsNullOrEmpty(firstAudit.Notes) ? "None" : firstAudit.Notes)</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="pt-space-4 border-t border-surface-border flex gap-space-3">
+                        <!-- Approve Form -->
+                        <form asp-action="Verify" method="post" class="flex-1">
+                            <input type="hidden" name="id" id="approve-id" value="@firstAudit.Id" />
+                            <input type="hidden" name="action" value="Approved" />
+                            <button type="submit" class="w-full bg-primary text-on-primary font-label-caps py-space-3 rounded-lg hover:bg-primary/90 transition-all flex items-center justify-center gap-space-2 shadow-md active:scale-95 text-[12px] uppercase">
+                                <span class="material-symbols-outlined text-[18px]">verified</span>
+                                Approve Audit
+                            </button>
+                        </form>
+                        
+                        <!-- Reject Form -->
+                        <form asp-action="Verify" method="post" class="flex-none">
+                            <input type="hidden" name="id" id="reject-id" value="@firstAudit.Id" />
+                            <input type="hidden" name="action" value="Rejected" />
+                            <button type="submit" class="w-12 bg-error/10 text-error hover:bg-error hover:text-on-primary font-label-caps py-space-3 rounded-lg transition-all flex items-center justify-center shadow-sm active:scale-95">
+                                <span class="material-symbols-outlined">flag</span>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="bg-surface-container-lowest rounded-xl shadow-sm border border-surface-border p-space-8 text-center text-on-surface-variant font-body-md">
+                No active item loaded in inspector.
+            </div>
+        }
+    </div>
+</div>
+
+<script>
+    function selectAudit(row) {
+        // Remove active class from all rows
+        document.querySelectorAll('tbody tr').forEach(r => r.classList.remove('bg-primary/5'));
+        
+        // Add active class to clicked row
+        row.classList.add('bg-primary/5');
+        
+        // Get data attributes
+        const id = row.dataset.id;
+        const buyer = row.dataset.buyer;
+        const establishment = row.dataset.establishment;
+        const amount = row.dataset.amount;
+        const description = row.dataset.description;
+        const notes = row.dataset.notes || "None";
+        const receiptUrl = row.dataset.receiptUrl;
+        
+        // Update detail panel elements
+        document.getElementById('receipt-preview').src = receiptUrl;
+        document.getElementById('preview-buyer').innerText = buyer;
+        document.getElementById('preview-establishment').innerText = establishment;
+        document.getElementById('preview-amount').innerText = amount;
+        document.getElementById('preview-description').innerText = description;
+        document.getElementById('preview-notes').innerText = notes;
+        
+        // Update hidden inputs
+        document.getElementById('approve-id').value = id;
+        document.getElementById('reject-id').value = id;
+    }
+</script>

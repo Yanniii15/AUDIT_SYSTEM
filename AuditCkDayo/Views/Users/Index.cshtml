@@ -3,118 +3,143 @@
 @using AuditCkDayo.Models
 
 @{
-    ViewData["Title"] = "Manage Staff";
+    ViewData["Title"] = "Vault Control";
     var isOwner = User.IsInRole("Owner");
 }
 
-<div class="container mt-4">
-    <div class="d-flex justify-content-between align-items-center mb-4 pb-2 border-bottom">
-        <div>
-            <h1 class="h2 text-dark font-weight-bold">Manage Staff</h1>
-            <p class="text-muted">Manage staff members, PCF balances, and manager assignments</p>
+<!-- Header Section -->
+<div class="relative flex flex-col lg:flex-row gap-space-6 items-start justify-between">
+    <div class="flex flex-col gap-space-2 max-w-2xl">
+        <div class="flex items-center gap-space-2 text-primary">
+            <span class="material-symbols-outlined text-[20px]">account_balance_wallet</span>
+            <span class="font-label-caps uppercase tracking-widest text-on-surface-variant">Capital Allocation</span>
         </div>
-        <a asp-controller="Home" asp-action="Index" class="btn btn-outline-secondary">← Dashboard</a>
-    </div>
-
-    @* Banners / Alerts *@
-    @if (TempData["Message"] != null)
-    {
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            @TempData["Message"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    }
-    @if (TempData["Error"] != null)
-    {
-        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-            @TempData["Error"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-        </div>
-    }
-
-    <div class="table-responsive">
-        <table class="table table-striped table-hover align-middle">
-            <thead class="table-dark">
-                <tr>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Role</th>
-                    <th>PCF Balance</th>
-                    <th>Daily Starting Float</th>
-                    @if (isOwner)
-                    {
-                        <th>Manager</th>
-                    }
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var staff in Model)
-                {
-                    <tr>
-                        <td><strong>@staff.Name</strong></td>
-                        <td>@staff.Email</td>
-                        <td>
-                            @if (staff.Role == UserRole.Owner)
-                            {
-                                <span class="badge bg-primary">Owner</span>
-                            }
-                            else if (staff.Role == UserRole.Manager)
-                            {
-                                <span class="badge bg-info text-dark">Manager</span>
-                            }
-                            else
-                            {
-                                <span class="badge bg-secondary">Buyer</span>
-                            }
-                        </td>
-                        <td>₱@staff.PcfBalance.ToString("N2")</td>
-                        <td>₱@staff.DailyStartingFloat.ToString("N2")</td>
-                        @if (isOwner)
-                        {
-                            <td>
-                                @if (staff.Role == UserRole.Buyer)
-                                {
-                                    <form asp-controller="Users" asp-action="AssignManager" asp-route-id="@staff.Id" method="post" class="d-flex gap-2 align-items-center">
-                                        <select name="managerId" class="form-select form-select-sm" style="max-width: 200px;">
-                                            <option value="">No Manager Assigned</option>
-                                            @if (ViewBag.Managers != null)
-                                            {
-                                                foreach (var mgr in (IEnumerable<User>)ViewBag.Managers)
-                                                {
-                                                    if (staff.ManagerId == mgr.Id)
-                                                    {
-                                                        <option value="@mgr.Id" selected="selected">@mgr.Name (@mgr.Email)</option>
-                                                    }
-                                                    else
-                                                    {
-                                                        <option value="@mgr.Id">@mgr.Name (@mgr.Email)</option>
-                                                    }
-                                                }
-                                            }
-                                        </select>
-                                        <button type="submit" class="btn btn-sm btn-dark">Update</button>
-                                    </form>
-                                }
-                                else
-                                {
-                                    <span class="text-muted">N/A</span>
-                                }
-                            </td>
-                        }
-                        <td>
-                            <form asp-controller="Users" asp-action="AddPcf" asp-route-id="@staff.Id" method="post" class="d-flex gap-2 align-items-center">
-                                <div class="input-group input-group-sm" style="max-width: 150px;">
-                                    <span class="input-group-text">₱</span>
-                                    <input type="number" name="amount" class="form-control" placeholder="0.00" step="0.01" min="0.01" required />
-                                </div>
-                                <button type="submit" name="actionType" value="Add" class="btn btn-sm btn-success">+ Add</button>
-                                <button type="submit" name="actionType" value="Subtract" class="btn btn-sm btn-danger">- Subtract</button>
-                            </form>
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
+        <h1 class="font-headline-lg text-headline-lg text-on-surface">Vault Control</h1>
+        <p class="font-body-md text-on-surface-variant leading-relaxed">
+            Manage staff balances, distribute petty cash funds, and assign reporting structures. Owners have full master vault control, while managers can allocate cash directly to their assigned buyers.
+        </p>
     </div>
 </div>
+
+<!-- Banners / Alerts -->
+@if (TempData["Message"] != null)
+{
+    <div class="p-space-4 bg-audit-success/10 border border-audit-success/20 rounded-xl text-audit-success font-body-md flex items-center justify-between shadow-sm">
+        <span>💰 @TempData["Message"]</span>
+        <button onclick="this.parentElement.remove()" class="material-symbols-outlined text-[18px] hover:scale-110 transition-transform">close</button>
+    </div>
+}
+@if (TempData["Error"] != null)
+{
+    <div class="p-space-4 bg-audit-error/10 border border-audit-error/20 rounded-xl text-audit-error font-body-md flex items-center justify-between shadow-sm">
+        <span>⚠️ @TempData["Error"]</span>
+        <button onclick="this.parentElement.remove()" class="material-symbols-outlined text-[18px] hover:scale-110 transition-transform">close</button>
+    </div>
+}
+
+<!-- Data Table Section -->
+<section class="pb-space-8">
+    <div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden border border-surface-border/50">
+        <div class="p-space-6 border-b border-surface-border">
+            <h3 class="font-headline-sm text-headline-sm text-on-surface">Staff Accounts & Disbursements</h3>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-surface-container-low border-b border-surface-border">
+                        <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">Name</th>
+                        <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">Email</th>
+                        <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">System Role</th>
+                        <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">PCF Balance</th>
+                        <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">Starting Float</th>
+                        @if (isOwner)
+                        {
+                            <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">Reporting Manager</th>
+                        }
+                        <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px] text-center">Disbursements</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-surface-border">
+                    @foreach (var staff in Model)
+                    {
+                        <tr class="hover:bg-surface-container-low/30 transition-colors group">
+                            <td class="px-space-6 py-space-4">
+                                <div class="font-body-md font-semibold text-on-surface">@staff.Name</div>
+                            </td>
+                            <td class="px-space-6 py-space-4">
+                                <span class="font-body-md text-on-surface-variant">@staff.Email</span>
+                            </td>
+                            <td class="px-space-6 py-space-4">
+                                @{
+                                    var badgeStyle = staff.Role == UserRole.Owner ? "bg-primary/10 text-primary border-primary/20" : 
+                                                     (staff.Role == UserRole.Manager ? "bg-secondary-container text-on-secondary-container border-secondary/20" : 
+                                                     "bg-surface-container text-on-surface-variant border-surface-border");
+                                }
+                                <span class="px-space-3 py-0.5 rounded-full text-[10px] font-label-caps uppercase border @badgeStyle">
+                                    @staff.Role
+                                </span>
+                            </td>
+                            <td class="px-space-6 py-space-4">
+                                <span class="font-data-mono text-primary font-bold">₱@staff.PcfBalance.ToString("N2")</span>
+                            </td>
+                            <td class="px-space-6 py-space-4">
+                                <span class="font-data-mono text-on-surface-variant">₱@staff.DailyStartingFloat.ToString("N2")</span>
+                            </td>
+                            
+                            @if (isOwner)
+                            {
+                                <td class="px-space-6 py-space-4">
+                                    @if (staff.Role == UserRole.Buyer)
+                                    {
+                                        <form asp-controller="Users" asp-action="AssignManager" asp-route-id="@staff.Id" method="post" class="flex gap-space-2 items-center">
+                                            <select name="managerId" class="bg-surface-container-low border border-surface-border rounded-lg px-2 py-1 font-body-md focus:outline-none focus:border-primary/50 text-on-surface text-[12px] cursor-pointer">
+                                                <option value="">No Manager Assigned</option>
+                                                @if (ViewBag.Managers != null)
+                                                {
+                                                    foreach (var mgr in (IEnumerable<User>)ViewBag.Managers)
+                                                    {
+                                                        if (staff.ManagerId == mgr.Id)
+                                                        {
+                                                            <option value="@mgr.Id" selected="selected">@mgr.Name</option>
+                                                        }
+                                                        else
+                                                        {
+                                                            <option value="@mgr.Id">@mgr.Name</option>
+                                                        }
+                                                    }
+                                                }
+                                            </select>
+                                            <button type="submit" class="bg-primary text-on-primary px-3 py-1 rounded font-label-caps hover:bg-primary/95 text-[10px] uppercase">
+                                                Set
+                                            </button>
+                                        </form>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-[12px] text-on-surface-variant font-label-caps">N/A</span>
+                                    }
+                                </td>
+                            }
+
+                            <td class="px-space-6 py-space-4">
+                                <form asp-controller="Users" asp-action="AddPcf" asp-route-id="@staff.Id" method="post" class="flex gap-space-2 items-center justify-center">
+                                    <div class="relative w-28">
+                                        <span class="absolute left-2 top-1/2 -translate-y-1/2 font-data-mono text-on-surface-variant text-[12px]">₱</span>
+                                        <input type="number" name="amount" class="w-full bg-surface-container-low border border-surface-border rounded-lg pl-5 pr-2 py-1 font-data-mono text-[12px] focus:outline-none focus:border-primary/50 text-on-surface text-right" placeholder="0.00" step="0.01" min="0.01" required />
+                                    </div>
+                                    <button type="submit" name="actionType" value="Add" class="bg-audit-success text-on-primary px-3 py-1 rounded font-label-caps hover:brightness-110 text-[10px] uppercase shadow-sm">
+                                        + Add
+                                    </button>
+                                    <button type="submit" name="actionType" value="Subtract" class="bg-audit-error text-on-primary px-3 py-1 rounded font-label-caps hover:brightness-110 text-[10px] uppercase shadow-sm">
+                                        - Sub
+                                    </button>
+                                </form>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>

@@ -32,8 +32,11 @@ public class HomeController : Controller
         {
             return Challenge();
         }
-        var role = User.FindFirst(ClaimTypes.Role)?.Value;
+        
+        var currentUser = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId);
+        ViewBag.CurrentUser = currentUser;
 
+        var role = User.FindFirst(ClaimTypes.Role)?.Value;
         IQueryable<AuditItem> query = _context.AuditItems
             .AsNoTracking()
             .Include(a => a.Buyer)

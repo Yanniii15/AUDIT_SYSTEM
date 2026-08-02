@@ -3,25 +3,139 @@
     ViewData["Title"] = "Establishments";
 }
 
-<div class="d-flex justify-content-between align-items-center my-4">
-    <h2>Establishments</h2>
-    <a asp-action="Create" class="btn btn-success">Add New Establishment</a>
+<!-- Header Section with Stats -->
+<div class="relative flex flex-col lg:flex-row gap-space-6 items-start justify-between">
+    <div class="flex flex-col gap-space-2 max-w-2xl">
+        <div class="flex items-center gap-space-2 text-primary">
+            <span class="material-symbols-outlined text-[20px]">domain</span>
+            <span class="font-label-caps uppercase tracking-widest text-on-surface-variant">Asset Oversight</span>
+        </div>
+        <h1 class="font-headline-lg text-headline-lg text-on-surface">Establishments</h1>
+        <p class="font-body-md text-on-surface-variant leading-relaxed">
+            Manage the active retail branches, corporate offices, and kitchens integrated with the auditing ecosystem. 
+            All submissions from buyers must be routed to one of these verified branches.
+        </p>
+    </div>
+
+    <!-- Quick Stats Card -->
+    <div class="bg-surface-container-lowest p-space-4 rounded-xl shadow-sm border border-surface-border flex flex-col gap-space-1 min-w-[180px]">
+        <span class="font-label-caps text-on-surface-variant uppercase text-[10px]">Active Locations</span>
+        <div class="flex items-baseline gap-space-2">
+            <span class="font-headline-md text-headline-md text-primary">@Model.Count()</span>
+            <span class="text-audit-success text-[12px] font-bold">Live</span>
+        </div>
+    </div>
 </div>
 
-<table class="table table-striped">
-    <thead>
-        <tr>
-            <th>ID</th>
-            <th>Name</th>
-        </tr>
-    </thead>
-    <tbody>
-        @foreach (var item in Model)
-        {
-            <tr>
-                <td>@item.Id</td>
-                <td>@item.Name</td>
-            </tr>
-        }
-    </tbody>
-</table>
+<!-- Controls -->
+<div class="flex justify-between items-center mb-space-2">
+    <h3 class="font-headline-sm text-headline-sm text-on-surface">Registered Locations</h3>
+    <button id="add-establishment-trigger" class="bg-primary text-on-primary px-space-6 py-2.5 rounded-lg font-label-caps hover:bg-primary/90 transition-all flex items-center gap-space-2 shadow-sm text-[12px] uppercase">
+        ADD NEW ESTABLISHMENT <span class="material-symbols-outlined text-[18px]">add_circle</span>
+    </button>
+</div>
+
+<!-- Data Table Section -->
+<section class="pb-space-8">
+    <div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden border border-surface-border/50">
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-surface-container-low border-b border-surface-border">
+                        <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">ID</th>
+                        <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">Establishment Name</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-surface-border">
+                    @if (!Model.Any())
+                    {
+                        <tr>
+                            <td colspan="2" class="px-space-6 py-space-8 text-center text-on-surface-variant font-body-md">
+                                No establishments registered yet.
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var item in Model)
+                        {
+                            <tr class="hover:bg-surface-container-low/30 transition-colors group">
+                                <td class="px-space-6 py-space-4 font-data-mono text-data-text text-[13px]">
+                                    #EST-@item.Id
+                                </td>
+                                <td class="px-space-6 py-space-4">
+                                    <div class="flex items-center gap-space-3">
+                                        <div class="w-8 h-8 rounded bg-primary/5 flex items-center justify-center">
+                                            <span class="material-symbols-outlined text-primary text-[18px]">store</span>
+                                        </div>
+                                        <span class="font-headline-sm text-headline-sm text-on-surface text-[14px]">@item.Name</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
+
+<!-- Modal Backdrop (Hidden by default) -->
+<div class="fixed inset-0 bg-primary/40 backdrop-blur-sm z-[100] opacity-0 pointer-events-none transition-opacity duration-300 flex items-center justify-center p-space-6" id="modal-overlay">
+    <!-- Modal Content -->
+    <div class="bg-surface-container-lowest w-full max-w-xl rounded-xl shadow-2xl overflow-hidden translate-y-8 transition-transform duration-300" id="modal-content">
+        <div class="px-space-8 py-space-6 border-b border-surface-border flex justify-between items-center bg-surface-container-low">
+            <div>
+                <h2 class="text-headline-md font-headline-md text-on-surface">Add New Establishment</h2>
+                <p class="text-label-caps text-on-surface-variant uppercase mt-1 text-[10px]">Register a new audited entity</p>
+            </div>
+            <button class="text-on-surface-variant hover:text-error transition-colors p-2" id="modal-close">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        
+        <form asp-controller="Establishments" asp-action="Create" method="post" class="p-space-8 space-y-space-6">
+            <div class="grid grid-cols-1 gap-space-6">
+                <div class="space-y-space-2">
+                    <label class="text-label-caps text-on-surface-variant uppercase tracking-wider text-[11px]">Establishment Name</label>
+                    <input name="Name" class="w-full px-space-4 py-space-3 bg-surface rounded-lg border border-surface-border focus:ring-2 focus:ring-primary/10 focus:border-primary outline-none transition-all font-body-md text-on-surface" placeholder="e.g. Dayo, Chefs Kitchen Main Branch" type="text" required />
+                </div>
+            </div>
+            
+            <div class="pt-space-4 flex gap-space-4">
+                <button class="flex-1 bg-primary text-on-primary py-space-3 rounded-lg font-label-caps uppercase tracking-widest hover:brightness-110 active:scale-[0.98] transition-all text-[12px]" type="submit">
+                    Create Establishment
+                </button>
+                <button class="px-space-8 py-space-3 text-on-surface-variant border border-surface-border rounded-lg font-label-caps uppercase tracking-widest hover:bg-surface-container-low transition-all text-[12px]" id="modal-cancel" type="button">
+                    Cancel
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    const trigger = document.getElementById('add-establishment-trigger');
+    const overlay = document.getElementById('modal-overlay');
+    const content = document.getElementById('modal-content');
+    const closeBtn = document.getElementById('modal-close');
+    const cancelBtn = document.getElementById('modal-cancel');
+
+    function openModal() {
+        overlay.classList.remove('pointer-events-none', 'opacity-0');
+        overlay.classList.add('opacity-100');
+        content.classList.remove('translate-y-8');
+        content.classList.add('translate-y-0');
+    }
+
+    function closeModal() {
+        overlay.classList.add('pointer-events-none', 'opacity-0');
+        overlay.classList.remove('opacity-100');
+        content.classList.add('translate-y-8');
+        content.classList.remove('translate-y-0');
+    }
+
+    trigger.addEventListener('click', openModal);
+    closeBtn.addEventListener('click', closeModal);
+    cancelBtn.addEventListener('click', closeModal);
+</script>
