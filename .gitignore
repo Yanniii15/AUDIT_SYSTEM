@@ -33,3 +33,13 @@
 # Ignore key files for decrypting credentials and more.
 /config/*.key
 
+# C# / .NET Ignore Patterns
+**/bin/
+**/obj/
+**/.vs/
+**/[Uu]ploads/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.[Dd]ebug.log
