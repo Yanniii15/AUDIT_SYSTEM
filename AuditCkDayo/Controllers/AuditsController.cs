@@ -268,6 +268,11 @@ namespace AuditCkDayo.Controllers
                 return Forbid();
             }
 
+            if (audit.Status != AuditStatus.Pending)
+            {
+                return BadRequest("This audit item has already been verified.");
+            }
+
             audit.Status = action;
             audit.VerifiedById = userId;
             audit.VerificationDate = DateTime.Now;
