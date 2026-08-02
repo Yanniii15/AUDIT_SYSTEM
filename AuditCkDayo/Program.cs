@@ -28,6 +28,20 @@ builder.Services.AddScoped<AuditCkDayo.Services.IOcrService, AuditCkDayo.Service
 
 var app = builder.Build();
 
+// Automatically apply EF migrations on startup (creates database and tables)
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AuditDbContext>();
+    try
+    {
+        db.Database.Migrate();
+    }
+    catch (Exception ex)
+    {
+        // Log error or ignore if db server is not running yet during compile tests
+        Console.WriteLine($"Database migration failed: {ex.Message}");
+    }
+}
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
