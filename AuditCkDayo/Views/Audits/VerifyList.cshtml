@@ -1,0 +1,52 @@
+@model IEnumerable<AuditCkDayo.Models.AuditItem>
+@{
+    ViewData["Title"] = "Pending Verifications";
+}
+
+<h2 class="my-4">Pending Audit Verifications</h2>
+
+@if (!Model.Any())
+{
+    <div class="alert alert-info">No pending audits for verification.</div>
+}
+else
+{
+    <table class="table table-bordered table-striped">
+        <thead>
+            <tr>
+                <th>Buyer</th>
+                <th>Establishment</th>
+                <th>Amount</th>
+                <th>Description</th>
+                <th>Date</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var audit in Model)
+            {
+                <tr>
+                    <td>@audit.Buyer.Name</td>
+                    <td>@audit.Establishment.Name</td>
+                    <td>₱@audit.Amount.ToString("N2")</td>
+                    <td>@audit.Description</td>
+                    <td>@audit.EntryDate.ToShortDateString()</td>
+                    <td>
+                        <div class="d-flex gap-2">
+                            <form asp-action="Verify" method="post">
+                                <input type="hidden" name="id" value="@audit.Id" />
+                                <input type="hidden" name="action" value="Approved" />
+                                <button type="submit" class="btn btn-success btn-sm">Approve</button>
+                            </form>
+                            <form asp-action="Verify" method="post">
+                                <input type="hidden" name="id" value="@audit.Id" />
+                                <input type="hidden" name="action" value="Rejected" />
+                                <button type="submit" class="btn btn-danger btn-sm">Reject</button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}

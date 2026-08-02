@@ -214,5 +214,72 @@ namespace AuditCkDayo.Controllers
 
             return RedirectToAction("Index", "Home");
         }
+
+        [HttpGet]
+        [Authorize(Roles = "Owner,Manager")]
+        public async Task<IActionResult> VerifyList()
+        {
+            var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdString) || !int.TryParse(userIdString, out var userId))
+            {
+                return Challenge();
+            }
+            var role = User.FindFirst(ClaimTypes.Role)?.Value;
+
+            IQueryable<AuditItem> query = _context.AuditItems
+                .Include(a => a.Buyer)
+                .Include(a => a.Establishment)
+                .Where(a => a.Status == AuditStatus.Pending);
+
+            if (role == "Manager")
+            {
+                // Only see assigned buyers
+                query = query.Where(a => a.Buyer.ManagerId == userId);
+            }
+
+            var pendingAudits = await query.ToListAsync();
+            return View(pendingAudits);
+        }
+
+        [HttpPost]
+        [Authorize(Roles = "Owner,Manager")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Verify(int id, [FromForm] AuditStatus action)
+        {
+            var audit = await _context.AuditItems
+                .Include(a => a.Buyer)
+                .FirstOrDefaultAsync(a => a.Id == id);
+
+            if (audit == null)
+            {
+                return NotFound();
+            }
+
+            var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdString) || !int.TryParse(userIdString, out var userId))
+            {
+                return Challenge();
+            }
+            var role = User.FindFirst(ClaimTypes.Role)?.Value;
+
+            // Access check
+            if (role == "Manager" && audit.Buyer.ManagerId != userId)
+            {
+                return Forbid();
+            }
+
+            audit.Status = action;
+            audit.VerifiedById = userId;
+            audit.VerificationDate = DateTime.Now;
+
+            if (action == AuditStatus.Rejected)
+            {
+                // Refund money to buyer wallet
+                audit.Buyer.PcfBalance += audit.Amount;
+            }
+
+            await _context.SaveChangesAsync();
+            return RedirectToAction(nameof(VerifyList));
+        }
     }
 }
