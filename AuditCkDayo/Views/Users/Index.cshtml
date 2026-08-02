@@ -25,14 +25,14 @@
 @if (TempData["Message"] != null)
 {
     <div class="p-space-4 bg-audit-success/10 border border-audit-success/20 rounded-xl text-audit-success font-body-md flex items-center justify-between shadow-sm">
-        <span>💰 @TempData["Message"]</span>
+        <span><i class="bi bi-cash-coin me-2"></i> @TempData["Message"]</span>
         <button onclick="this.parentElement.remove()" class="material-symbols-outlined text-[18px] hover:scale-110 transition-transform">close</button>
     </div>
 }
 @if (TempData["Error"] != null)
 {
     <div class="p-space-4 bg-audit-error/10 border border-audit-error/20 rounded-xl text-audit-error font-body-md flex items-center justify-between shadow-sm">
-        <span>⚠️ @TempData["Error"]</span>
+        <span><i class="bi bi-exclamation-triangle-fill me-2"></i> @TempData["Error"]</span>
         <button onclick="this.parentElement.remove()" class="material-symbols-outlined text-[18px] hover:scale-110 transition-transform">close</button>
     </div>
 }

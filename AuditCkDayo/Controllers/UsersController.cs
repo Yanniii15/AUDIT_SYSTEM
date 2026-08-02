@@ -134,7 +134,7 @@ namespace AuditCkDayo.Controllers
 
                 if (isSelfTransfer && finalAmount > 0)
                 {
-                    TempData["Message"] = $"💰 Master Vault funded with ₱{finalAmount}!";
+                    TempData["Message"] = $"Master Vault funded with ₱{finalAmount}!";
                 }
                 else
                 {
