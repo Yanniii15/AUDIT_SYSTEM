@@ -174,7 +174,7 @@ namespace AuditCkDayo.Controllers
                 return Challenge();
             }
 
-            var buyer = await _context.Users.FindAsync(buyerId);
+            var buyer = await _context.Users.FirstOrDefaultAsync(u => u.Id == buyerId && !u.IsDeleted);
             if (buyer == null)
             {
                 return Challenge();
@@ -231,6 +231,7 @@ namespace AuditCkDayo.Controllers
                     Amount = model.Amount,
                     Description = model.Description,
                     EntryDate = model.EntryDate,
+                    SubmittedAt = DateTime.Now,
                     Notes = model.Notes,
                     ReceiptImageUrl = model.ReceiptImageUrls != null && model.ReceiptImageUrls.Count > 0 ? model.ReceiptImageUrls[0] : model.ReceiptImageUrl,
                     Status = AuditStatus.AwaitingBranchVerification
@@ -285,7 +286,7 @@ namespace AuditCkDayo.Controllers
 
                 var branchStaffIds = await _context.Users
                     .AsNoTracking()
-                    .Where(u => u.Role == UserRole.BranchStaff && u.EstablishmentId == model.EstablishmentId)
+                    .Where(u => u.Role == UserRole.BranchStaff && u.EstablishmentId == model.EstablishmentId && !u.IsDeleted)
                     .Select(u => u.Id)
                     .ToListAsync();
 
@@ -441,7 +442,7 @@ namespace AuditCkDayo.Controllers
             {
                 return Challenge();
             }
-            var currentUser = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId);
+            var currentUser = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId && !u.IsDeleted);
             
             if (currentUser == null || !currentUser.EstablishmentId.HasValue) 
             {
@@ -477,7 +478,7 @@ namespace AuditCkDayo.Controllers
             {
                 return Challenge();
             }
-            var currentUser = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId);
+            var currentUser = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId && !u.IsDeleted);
 
             if (currentUser == null || audit.EstablishmentId != currentUser.EstablishmentId) return Forbid();
             if (audit.Status != AuditStatus.AwaitingBranchVerification) return BadRequest("This item is not awaiting branch verification.");
@@ -675,7 +676,7 @@ namespace AuditCkDayo.Controllers
                 return Challenge();
             }
 
-            var buyer = await _context.Users.FirstOrDefaultAsync(u => u.Id == buyerId);
+            var buyer = await _context.Users.FirstOrDefaultAsync(u => u.Id == buyerId && !u.IsDeleted);
             if (buyer == null)
             {
                 return NotFound("Buyer not found.");
@@ -708,7 +709,7 @@ namespace AuditCkDayo.Controllers
                 return Challenge();
             }
 
-            var buyer = await _context.Users.FirstOrDefaultAsync(u => u.Id == buyerId);
+            var buyer = await _context.Users.FirstOrDefaultAsync(u => u.Id == buyerId && !u.IsDeleted);
             if (buyer == null)
             {
                 return NotFound("Buyer not found.");
@@ -831,6 +832,12 @@ namespace AuditCkDayo.Controllers
                 return Forbid();
             }
 
+            var currentUser = await _context.Users.FirstOrDefaultAsync(u => u.Id == currentUserId && !u.IsDeleted);
+            if (currentUser == null)
+            {
+                return Challenge();
+            }
+
             if (actionType == "Confirm")
             {
                 using var transaction = await _context.Database.BeginTransactionAsync();
@@ -844,8 +851,10 @@ namespace AuditCkDayo.Controllers
 
                     request.Buyer.PcfBalance -= request.DeclaredAmount;
                     request.Buyer.DailyStartingFloat -= request.DeclaredAmount;
+                    currentUser.PcfBalance += request.DeclaredAmount;
+                    currentUser.DailyStartingFloat += request.DeclaredAmount;
 
-                    var ledger = new PettyCashLedger
+                    var buyerLedger = new PettyCashLedger
                     {
                         UserId = request.BuyerId,
                         TransactionType = LedgerTransactionType.CashSurrender,
@@ -857,7 +866,19 @@ namespace AuditCkDayo.Controllers
                         Notes = $"Cash surrender request confirmed. Notes: {actionNotes}"
                     };
 
-                    _context.PettyCashLedgers.Add(ledger);
+                    var receiverLedger = new PettyCashLedger
+                    {
+                        UserId = currentUserId,
+                        TransactionType = LedgerTransactionType.CashSurrender,
+                        Amount = request.DeclaredAmount,
+                        ResultingBalance = currentUser.PcfBalance,
+                        Timestamp = DateTime.Now,
+                        AssociatedRecordId = request.Id,
+                        CounterpartyUserId = request.BuyerId,
+                        Notes = $"Cash surrender received from {request.Buyer.Email}. Notes: {actionNotes}"
+                    };
+
+                    _context.PettyCashLedgers.AddRange(buyerLedger, receiverLedger);
                     await _context.SaveChangesAsync();
                     // Create notification for Buyer stating surrender request confirmed
                     var confirmNotification = new Notification

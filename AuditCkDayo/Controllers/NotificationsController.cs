@@ -92,7 +92,7 @@ namespace AuditCkDayo.Controllers
                 await _context.SaveChangesAsync();
             }
 
-            return Json(new { success = true });
+            return IsAjaxRequest() ? Json(new { success = true }) : RedirectToAction(nameof(Index));
         }
 
         [HttpPost]
@@ -123,7 +123,14 @@ namespace AuditCkDayo.Controllers
                 await _context.SaveChangesAsync();
             }
 
-            return Json(new { success = true });
+            return IsAjaxRequest() ? Json(new { success = true }) : RedirectToAction(nameof(Index));
+        }
+
+
+        private bool IsAjaxRequest()
+        {
+            return string.Equals(Request.Headers["X-Requested-With"], "XMLHttpRequest", StringComparison.OrdinalIgnoreCase)
+                || Request.Headers.Accept.Any(h => h?.Contains("application/json", StringComparison.OrdinalIgnoreCase) == true);
         }
 
         [HttpGet]

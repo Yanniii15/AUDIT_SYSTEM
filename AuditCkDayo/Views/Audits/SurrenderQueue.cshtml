@@ -23,12 +23,12 @@
         <div class="bg-surface-container-lowest rounded-xl shadow-sm border border-surface-border overflow-hidden">
             <div class="p-6 border-b border-surface-border flex items-center justify-between">
                 <h3 class="font-headline-sm text-headline-sm text-on-surface">Pending Requests</h3>
-                <span class="bg-yellow-100 text-yellow-800 text-xs font-semibold px-2.5 py-0.5 rounded-full dark:bg-yellow-900/30 dark:text-yellow-400">
+                <span class="bg-audit-pending/10 text-audit-pending border border-audit-pending/20 text-xs font-semibold px-2.5 py-0.5 rounded-full">
                     @Model.Count() Pending
                 </span>
             </div>
             
-            <div class="overflow-x-auto">
+            <div class="hidden lg:block overflow-x-auto">
                 <table class="w-full text-left border-collapse">
                     <thead>
                         <tr class="bg-surface-container-low border-b border-surface-border">
@@ -89,11 +89,71 @@
                     </tbody>
                 </table>
             </div>
+
+            <!-- Mobile Card Layout (Stitch Responsive Reference) -->
+            <div class="block lg:hidden space-y-space-4 p-space-4">
+                @if (!Model.Any())
+                {
+                    <div class="text-center text-on-surface-variant font-body-md py-space-6">
+                        No pending cash surrenders to verify.
+                    </div>
+                }
+                else
+                {
+                    @foreach (var request in Model)
+                    {
+                        <article class="bg-surface-container-lowest border border-surface-border rounded-xl p-space-4 flex flex-col gap-space-4 shadow-sm hover:bg-surface-container-low/50 transition-colors cursor-pointer group"
+                                 onclick="selectRequest(this)"
+                                 data-id="@request.Id"
+                                 data-buyer="@request.Buyer.Name"
+                                 data-amount="₱@request.DeclaredAmount.ToString("N2")"
+                                 data-date="@request.RequestDate.ToLocalTime().ToString("yyyy-MM-dd HH:mm")"
+                                 data-notes="@(string.IsNullOrEmpty(request.BuyerNotes) ? "No notes provided." : request.BuyerNotes)">
+                            
+                            <!-- Top Row: Buyer Avatar & Status -->
+                            <div class="flex justify-between items-start">
+                                <div class="flex gap-space-3 items-center">
+                                    <div class="w-10 h-10 rounded-full bg-secondary-container text-secondary flex items-center justify-center font-bold text-[12px]">
+                                        @request.Buyer.Name.Substring(0, Math.Min(2, request.Buyer.Name.Length)).ToUpper()
+                                    </div>
+                                    <div>
+                                        <div class="font-body-md font-semibold text-on-surface">@request.Buyer.Name</div>
+                                        <div class="text-[9px] text-on-surface-variant font-label-caps uppercase mt-0.5">Buyer</div>
+                                    </div>
+                                </div>
+                                <span class="px-space-3 py-1 rounded-full text-[10px] font-label-caps uppercase border bg-audit-pending/10 text-audit-pending border-audit-pending/20">Pending</span>
+                            </div>
+
+                            <!-- Bento Grid Rows (Responsive columns) -->
+                            <div class="grid grid-cols-1 gap-space-3 bg-surface-container-low rounded-lg p-space-3 border border-surface-border">
+                                <div>
+                                    <div class="text-[9px] uppercase font-bold text-on-surface-variant tracking-wider mb-1">Notes / Details</div>
+                                    <p class="text-body-md text-on-surface">@(string.IsNullOrEmpty(request.BuyerNotes) ? "No notes provided." : request.BuyerNotes)</p>
+                                </div>
+                            </div>
+
+                            <!-- Bottom Row: Amount & Actions -->
+                            <div class="flex justify-between items-end pt-space-3 border-t border-surface-border border-dashed">
+                                <div>
+                                    <div class="text-[10px] text-on-surface-variant uppercase mb-1">Declared Amount</div>
+                                    <div class="font-data-mono text-primary font-bold text-[16px]">₱@request.DeclaredAmount.ToString("N2")</div>
+                                </div>
+                                <div class="flex items-center gap-space-3">
+                                    <span class="font-data-mono text-[11px] text-on-surface-variant">@request.RequestDate.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</span>
+                                    <button type="button" class="bg-primary text-on-primary px-space-4 py-2 rounded-lg font-label-caps text-[11px] uppercase tracking-wider hover:bg-primary/95 transition-all shadow-sm">
+                                        Inspect
+                                    </button>
+                                </div>
+                            </div>
+                        </article>
+                    }
+                }
+            </div>
         </div>
     </div>
     
     <!-- Action/Detail Panel -->
-    <div class="col-span-12 lg:col-span-4 sticky top-24 h-fit">
+    <div class="col-span-12 lg:col-span-4 lg:sticky lg:top-24 h-fit">
         @if (Model.Any())
         {
             var firstRequest = Model.First();

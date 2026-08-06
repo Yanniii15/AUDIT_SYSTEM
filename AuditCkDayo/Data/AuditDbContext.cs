@@ -38,6 +38,10 @@ namespace AuditCkDayo.Data
                 .Property(u => u.DailyStartingFloat)
                 .HasDefaultValue(0.00m);
 
+            modelBuilder.Entity<User>()
+                .Property(u => u.IsDeleted)
+                .HasDefaultValue(false);
+
             // Self-referential User relationship for Manager -> Staff
             modelBuilder.Entity<User>()
                 .HasOne(u => u.Manager)

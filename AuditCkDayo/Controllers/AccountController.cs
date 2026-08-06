@@ -33,7 +33,7 @@ namespace AuditCkDayo.Controllers
             ViewData["ReturnUrl"] = returnUrl;
             if (ModelState.IsValid)
             {
-                var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == model.Email);
+                var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == model.Email && !u.IsDeleted);
                 if (user != null && BCrypt.Net.BCrypt.Verify(model.Password, user.PasswordHash))
                 {
                     var claims = new List<Claim>
@@ -76,6 +76,7 @@ namespace AuditCkDayo.Controllers
                 .Include(u => u.Establishment)
                 .Include(u => u.Manager)
                 .AsNoTracking()
+                .Where(u => !u.IsDeleted)
                 .ToListAsync();
             return View(users);
         }
@@ -145,12 +146,13 @@ namespace AuditCkDayo.Controllers
 
         private async Task PopulateRegistrationStats()
         {
-            var managers = await _context.Users.AsNoTracking().Where(u => u.Role == UserRole.Manager).ToListAsync();
+            var activeUsers = _context.Users.AsNoTracking().Where(u => !u.IsDeleted);
+            var managers = await activeUsers.Where(u => u.Role == UserRole.Manager).ToListAsync();
             ViewBag.Managers = managers;
-            ViewBag.TotalUsers = await _context.Users.AsNoTracking().CountAsync();
+            ViewBag.TotalUsers = await activeUsers.CountAsync();
             ViewBag.TotalManagers = managers.Count;
-            ViewBag.TotalBuyers = await _context.Users.AsNoTracking().CountAsync(u => u.Role == UserRole.Buyer);
-            ViewBag.RecentUsers = await _context.Users.AsNoTracking().OrderByDescending(u => u.Id).Take(3).ToListAsync();
+            ViewBag.TotalBuyers = await activeUsers.CountAsync(u => u.Role == UserRole.Buyer);
+            ViewBag.RecentUsers = await activeUsers.OrderByDescending(u => u.Id).Take(3).ToListAsync();
             ViewBag.Establishments = new Microsoft.AspNetCore.Mvc.Rendering.SelectList(await _context.Establishments.AsNoTracking().ToListAsync(), "Id", "Name");
         }
 

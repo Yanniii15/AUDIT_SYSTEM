@@ -12,13 +12,17 @@
     <div class="flex flex-col gap-space-2 max-w-2xl">
         <div class="flex items-center gap-space-2 text-primary">
             <span class="material-symbols-outlined text-[20px]">account_balance_wallet</span>
-            <span class="font-label-caps uppercase tracking-widest text-on-surface-variant">Capital Allocation</span>
+            <span class="font-label-caps uppercase tracking-widest text-on-surface-variant">Petty Cash</span>
         </div>
-        <h1 class="font-headline-lg text-headline-lg text-on-surface">Vault Control</h1>
+        <h1 class="font-headline-lg text-headline-lg text-on-surface">Petty Cash Control</h1>
         <p class="font-body-md text-on-surface-variant leading-relaxed">
-            Manage staff balances, distribute petty cash funds, and assign reporting structures. Owners have full master vault control, while managers can allocate cash directly to their assigned buyers.
+            Monitor total cash on hand, distribute petty cash funds, and review assignment logs. Owners see the full vault; managers see their assigned scope.
         </p>
     </div>
+    <article class="min-w-[260px] bg-primary text-on-primary rounded-xl shadow-sm p-space-6">
+        <span class="font-label-caps uppercase tracking-widest text-primary-fixed-dim text-[10px]">Total Cash Monitored</span>
+        <strong class="block font-headline-lg text-headline-lg mt-space-2">₱@(((decimal)(ViewBag.TotalPcfBalance ?? 0m)).ToString("N2"))</strong>
+    </article>
 </div>
 
 <!-- Banners / Alerts -->
@@ -42,9 +46,10 @@
     <div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden border border-surface-border/50">
         <div class="p-space-6 border-b border-surface-border">
             <h3 class="font-headline-sm text-headline-sm text-on-surface">Staff Accounts & Disbursements</h3>
+            <p class="font-body-md text-on-surface-variant mt-space-1">Current PCF balances update immediately after every add or subtract action.</p>
         </div>
 
-        <div class="overflow-x-auto">
+        <div class="hidden lg:block overflow-x-auto">
             <table class="w-full text-left border-collapse">
                 <thead>
                     <tr class="bg-surface-container-low border-b border-surface-border">
@@ -102,6 +107,150 @@
                     }
                 </tbody>
             </table>
+        </div>
+
+        <!-- Mobile Card Layout (Stitch Responsive Reference) -->
+        <div class="block lg:hidden space-y-space-4 p-space-4">
+            @foreach (var staff in Model)
+            {
+                var badgeStyle = staff.Role == UserRole.Owner ? "bg-primary/10 text-primary border-primary/20" : 
+                                 (staff.Role == UserRole.Manager ? "bg-secondary-container text-on-secondary-container border-secondary/20" : 
+                                 "bg-surface-container text-on-surface-variant border-surface-border");
+
+                <article class="bg-surface-container-lowest border border-surface-border rounded-xl p-space-4 flex flex-col gap-space-4 shadow-sm">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <div class="font-body-md font-semibold text-on-surface">@staff.Name</div>
+                            <div class="text-[12px] text-on-surface-variant mt-0.5">@staff.Email</div>
+                        </div>
+                        <span class="px-space-3 py-0.5 rounded-full text-[10px] font-label-caps uppercase border @badgeStyle">
+                            @staff.Role
+                        </span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-space-3">
+                        <div class="bg-surface-container-low rounded-lg p-space-3 border border-surface-border">
+                           <div class="text-[9px] uppercase font-bold text-on-surface-variant tracking-wider mb-1">PCF Balance</div>
+                           <div class="font-data-mono text-primary font-bold text-[14px]">₱@staff.PcfBalance.ToString("N2")</div>
+                        </div>
+                        <div class="bg-surface-container-low rounded-lg p-space-3 border border-surface-border">
+                           <div class="text-[9px] uppercase font-bold text-on-surface-variant tracking-wider mb-1">Starting Float</div>
+                           <div class="font-data-mono text-on-surface-variant text-[14px]">₱@staff.DailyStartingFloat.ToString("N2")</div>
+                        </div>
+                    </div>
+                    <!-- Disbursement Actions inside Card -->
+                    <div class="pt-space-3 border-t border-surface-border border-dashed">
+                        <div class="text-[10px] text-on-surface-variant uppercase mb-2">Fund / Adjust Balance</div>
+                        <form asp-controller="Users" asp-action="AddPcf" asp-route-id="@staff.Id" method="post" class="flex gap-space-2 items-center">
+                            <div class="relative flex-1">
+                                <span class="absolute left-2 top-1/2 -translate-y-1/2 font-data-mono text-on-surface-variant text-[12px]">₱</span>
+                                <input type="number" name="amount" class="w-full bg-surface-container-low border border-surface-border rounded-lg pl-5 pr-2 py-2 font-data-mono text-[12px] focus:outline-none focus:border-primary/50 text-on-surface text-right" placeholder="0.00" step="0.01" min="0.01" required />
+                            </div>
+                            <button type="submit" name="actionType" value="Add" class="bg-audit-success text-on-primary px-3 py-2 rounded-lg font-label-caps hover:brightness-110 text-[10px] uppercase shadow-sm">
+                                + Add
+                            </button>
+                            <button type="submit" name="actionType" value="Subtract" class="bg-audit-error text-on-primary px-3 py-2 rounded-lg font-label-caps hover:brightness-110 text-[10px] uppercase shadow-sm">
+                                - Sub
+                            </button>
+                        </form>
+                    </div>
+                </article>
+            }
+        </div>
+    </div>
+</section>
+
+<!-- Funding Log Section -->
+<section class="pb-space-8">
+    <div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden border border-surface-border/50">
+        <div class="p-space-6 border-b border-surface-border">
+            <h3 class="font-headline-sm text-headline-sm text-on-surface">Petty Cash Assignment Logs</h3>
+            <p class="font-body-md text-on-surface-variant mt-space-1">Latest add and subtract actions for this petty cash scope.</p>
+        </div>
+
+        <div class="hidden lg:block overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-surface-container-low border-b border-surface-border">
+                        <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">Date</th>
+                        <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">Actor</th>
+                        <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">Target</th>
+                        <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px] text-right">Amount</th>
+                        <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px] text-right">Balance After</th>
+                        <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">Notes</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-surface-border">
+                    @{
+                        var ledgerEntries = (IEnumerable<PettyCashLedger>)(ViewBag.LedgerEntries ?? Enumerable.Empty<PettyCashLedger>());
+                    }
+                    @if (!ledgerEntries.Any())
+                    {
+                        <tr>
+                            <td colspan="6" class="px-space-6 py-space-8 text-center text-on-surface-variant font-body-md">
+                                No petty cash assignment logs yet.
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var entry in ledgerEntries)
+                        {
+                            <tr class="hover:bg-surface-container-low/30 transition-colors">
+                                <td class="px-space-6 py-space-4 font-data-mono text-[12px] text-on-surface-variant">@entry.Timestamp.ToString("MMM dd, yyyy hh:mm tt")</td>
+                                <td class="px-space-6 py-space-4 font-body-md text-on-surface">@entry.User?.Name</td>
+                                <td class="px-space-6 py-space-4 font-body-md text-on-surface-variant">@(entry.CounterpartyUser?.Name ?? "Master Vault")</td>
+                                <td class="px-space-6 py-space-4 text-right">
+                                    <span class="font-data-mono font-bold @(entry.Amount >= 0 ? "text-audit-success" : "text-audit-error")">₱@entry.Amount.ToString("N2")</span>
+                                </td>
+                                <td class="px-space-6 py-space-4 text-right font-data-mono text-primary font-bold">₱@entry.ResultingBalance.ToString("N2")</td>
+                                <td class="px-space-6 py-space-4 font-body-md text-on-surface-variant">@entry.Notes</td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Mobile Card Layout (Stitch Responsive Reference) -->
+        <div class="block lg:hidden space-y-space-4 p-space-4">
+            @if (!ledgerEntries.Any())
+            {
+                <div class="text-center text-on-surface-variant font-body-md py-space-6">
+                    No petty cash assignment logs yet.
+                </div>
+            }
+            else
+            {
+                @foreach (var entry in ledgerEntries)
+                {
+                    <article class="bg-surface-container-lowest border border-surface-border rounded-xl p-space-4 flex flex-col gap-space-4 shadow-sm">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <div class="font-body-md font-semibold text-on-surface">@entry.User?.Name</div>
+                                <div class="text-[10px] text-on-surface-variant mt-0.5">Actor</div>
+                            </div>
+                            <span class="font-data-mono text-[11px] text-on-surface-variant">@entry.Timestamp.ToString("MMM dd, yyyy hh:mm tt")</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-space-3">
+                            <div class="bg-surface-container-low rounded-lg p-space-3 border border-surface-border">
+                                <div class="text-[9px] uppercase font-bold text-on-surface-variant tracking-wider mb-1">Target Counterparty</div>
+                                <div class="font-body-md text-on-surface text-[13px]">@(entry.CounterpartyUser?.Name ?? "Master Vault")</div>
+                            </div>
+                            <div class="bg-surface-container-low rounded-lg p-space-3 border border-surface-border">
+                                <div class="text-[9px] uppercase font-bold text-on-surface-variant tracking-wider mb-1">Amount</div>
+                                <span class="font-data-mono font-bold text-[14px] @(entry.Amount >= 0 ? "text-audit-success" : "text-audit-error")">₱@entry.Amount.ToString("N2")</span>
+                            </div>
+                        </div>
+                        <div class="pt-space-3 border-t border-surface-border border-dashed flex justify-between items-end">
+                            <div>
+                                <div class="text-[10px] text-on-surface-variant uppercase mb-1">Resulting Balance</div>
+                                <div class="font-data-mono text-primary font-bold text-[14px]">₱@entry.ResultingBalance.ToString("N2")</div>
+                            </div>
+                            <span class="text-[10px] text-on-surface-variant font-label-caps uppercase">@entry.Notes</span>
+                        </div>
+                    </article>
+                }
+            }
         </div>
     </div>
 </section>

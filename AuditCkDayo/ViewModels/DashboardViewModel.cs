@@ -13,6 +13,7 @@ namespace AuditCkDayo.ViewModels
         public int? BuyerId { get; set; }
 
         public List<AuditItem> Audits { get; set; } = new List<AuditItem>();
+        public List<AuditItem> TodayAudits { get; set; } = new List<AuditItem>();
         public decimal TotalAmount { get; set; }
     }
 }

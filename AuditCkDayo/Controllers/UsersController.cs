@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
@@ -14,6 +15,8 @@ namespace AuditCkDayo.Controllers
     public class UsersController : Controller
     {
         private readonly AuditDbContext _context;
+        private static readonly ConcurrentDictionary<string, SemaphoreSlim> CashTransferLocks = new();
+
 
         public UsersController(AuditDbContext context)
         {
@@ -32,17 +35,24 @@ namespace AuditCkDayo.Controllers
             var isOwner = User.IsInRole("Owner");
             if (isOwner)
             {
-                var usersList = await _context.Users.Include(u => u.Manager).ToListAsync();
+                var usersList = await _context.Users.Include(u => u.Manager).Where(u => !u.IsDeleted).ToListAsync();
                 var sortedUsers = usersList
                     .OrderBy(u => u.Role)
                     .ThenBy(u => u.Name)
                     .ToList();
 
                 var managers = await _context.Users
-                    .Where(u => u.Role == UserRole.Manager)
+                    .Where(u => u.Role == UserRole.Manager && !u.IsDeleted)
                     .OrderBy(u => u.Name)
                     .ToListAsync();
-                
+
+                ViewBag.TotalPcfBalance = await _context.Users.Where(u => !u.IsDeleted).SumAsync(u => u.PcfBalance);
+                ViewBag.LedgerEntries = await _context.PettyCashLedgers
+                    .Include(l => l.User)
+                    .Include(l => l.CounterpartyUser)
+                    .OrderByDescending(l => l.Timestamp)
+                    .Take(20)
+                    .ToListAsync();
                 ViewBag.Managers = managers;
                 return View(sortedUsers);
             }
@@ -50,10 +60,20 @@ namespace AuditCkDayo.Controllers
             {
                 var users = await _context.Users
                     .Include(u => u.Manager)
-                    .Where(u => u.ManagerId == userId)
+                    .Where(u => u.ManagerId == userId && !u.IsDeleted)
                     .OrderBy(u => u.Name)
                     .ToListAsync();
 
+                ViewBag.TotalPcfBalance = await _context.Users
+                    .Where(u => (u.Id == userId || u.ManagerId == userId) && !u.IsDeleted)
+                    .SumAsync(u => u.PcfBalance);
+                ViewBag.LedgerEntries = await _context.PettyCashLedgers
+                    .Include(l => l.User)
+                    .Include(l => l.CounterpartyUser)
+                    .Where(l => l.UserId == userId)
+                    .OrderByDescending(l => l.Timestamp)
+                    .Take(20)
+                    .ToListAsync();
                 return View(users);
             }
         }
@@ -74,13 +94,32 @@ namespace AuditCkDayo.Controllers
                 return Challenge();
             }
 
-            using var transaction = await _context.Database.BeginTransactionAsync();
+            var lockUserIds = new[] { currentUserId, id }.Distinct().OrderBy(userId => userId).ToArray();
+            var lockKey = string.Join(':', lockUserIds);
+            var transferLock = CashTransferLocks.GetOrAdd(lockKey, _ => new SemaphoreSlim(1, 1));
+
+            await transferLock.WaitAsync();
             try
             {
-                var currentUser = await _context.Users.FindAsync(currentUserId);
-                var targetUser = await _context.Users.FindAsync(id);
+                using var transaction = await _context.Database.BeginTransactionAsync();
+                try
+                {
+                    var lockSqlPlaceholders = string.Join(",", lockUserIds.Select((_, index) => $"{{{index}}}"));
+                    var lockSqlParameters = lockUserIds.Cast<object>().ToArray();
+                    var lockSql = $"SELECT * FROM `Users` WHERE `Id` IN ({lockSqlPlaceholders}) ORDER BY `Id` FOR UPDATE";
 
-                if (currentUser == null || targetUser == null)
+                    var lockedUsers = _context.Database.ProviderName?.Contains("MySql", StringComparison.OrdinalIgnoreCase) == true
+                        ? await _context.Users
+                            .FromSqlRaw(lockSql, lockSqlParameters)
+                            .ToListAsync()
+                        : await _context.Users
+                            .Where(u => lockUserIds.Contains(u.Id))
+                            .OrderBy(u => u.Id)
+                            .ToListAsync();
+
+                    var currentUser = lockedUsers.FirstOrDefault(u => u.Id == currentUserId);
+                    var targetUser = lockedUsers.FirstOrDefault(u => u.Id == id);
+                if (currentUser == null || targetUser == null || currentUser.IsDeleted || targetUser.IsDeleted)
                 {
                     TempData["Error"] = "User not found.";
                     return RedirectToAction(nameof(Index));
@@ -196,19 +235,24 @@ namespace AuditCkDayo.Controllers
 
                 if (isSelfTransfer && finalAmount > 0)
                 {
-                    TempData["Message"] = $"💰 Master Vault funded with ₱{finalAmount}!";
+                    TempData["Message"] = $"Master Vault funded with ₱{finalAmount}!";
                 }
                 else
                 {
                     string actionWord = finalAmount > 0 ? "added to" : "subtracted from";
                     TempData["Message"] = $"Successfully {actionWord} {targetUser.Email}.";
                 }
+                }
+                catch (Exception ex)
+                {
+                    await transaction.RollbackAsync();
+                    Console.WriteLine($"Error in AddPcf: {ex}");
+                    TempData["Error"] = "An error occurred while processing the transfer.";
+                }
             }
-            catch (Exception ex)
+            finally
             {
-                await transaction.RollbackAsync();
-                Console.WriteLine($"Error in AddPcf: {ex}");
-                TempData["Error"] = "An error occurred while processing the transfer.";
+                transferLock.Release();
             }
 
             return RedirectToAction(nameof(Index));
@@ -220,7 +264,7 @@ namespace AuditCkDayo.Controllers
         public async Task<IActionResult> AssignManager(int id, int? managerId)
         {
             var targetUser = await _context.Users.FindAsync(id);
-            if (targetUser == null)
+            if (targetUser == null || targetUser.IsDeleted)
             {
                 TempData["Error"] = "User not found.";
                 return RedirectToAction("Register", "Account");
@@ -239,7 +283,7 @@ namespace AuditCkDayo.Controllers
         public async Task<IActionResult> Delete(int id)
         {
             var user = await _context.Users.FindAsync(id);
-            if (user == null)
+            if (user == null || user.IsDeleted)
             {
                 TempData["Error"] = "User not found.";
                 return RedirectToAction("Register", "Account");
@@ -257,7 +301,16 @@ namespace AuditCkDayo.Controllers
             var hasSurrenders = await _context.SurrenderRequests.AnyAsync(s => s.BuyerId == id || s.ActionByUserId == id);
             if (hasAuditItems || hasLedgerEntries || hasSurrenders)
             {
-                TempData["Error"] = $"User '{user.Name}' cannot be deleted because they have associated audit, ledger, or surrender records.";
+                var archivedStaffMembers = await _context.Users.Where(u => u.ManagerId == id).ToListAsync();
+                foreach (var staff in archivedStaffMembers)
+                {
+                    staff.ManagerId = null;
+                }
+
+                user.IsDeleted = true;
+                await _context.SaveChangesAsync();
+
+                TempData["Message"] = $"User '{user.Name}' has been archived.";
                 return RedirectToAction("Register", "Account");
             }
 

@@ -42,6 +42,8 @@ namespace AuditCkDayo.Models
         [Required]
         public DateTime EntryDate { get; set; } = DateTime.Today;
 
+        public DateTime? SubmittedAt { get; set; }
+
         [Required]
         public AuditStatus Status { get; set; } = AuditStatus.AwaitingBranchVerification;
 

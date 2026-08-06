@@ -7,12 +7,17 @@
     int userId = 0;
     if (User.Identity?.IsAuthenticated == true && !string.IsNullOrEmpty(userIdStr) && int.TryParse(userIdStr, out userId))
     {
-        dbUser = dbContext.Users.AsNoTracking().FirstOrDefault(u => u.Id == userId);
+        dbUser = dbContext.Users.AsNoTracking().FirstOrDefault(u => u.Id == userId && !u.IsDeleted);
     }
 
     int pendingAuditsCount = 0;
     int pendingSurrendersCount = 0;
     int pendingBranchVerificationsCount = 0;
+
+    var currentController = ViewContext.RouteData.Values["controller"]?.ToString();
+    var isHomeActive = currentController == "Home";
+    var isAuditsActive = currentController == "Audits";
+    var isReportsActive = currentController == "Reports";
 
     if (dbUser != null)
     {
@@ -62,7 +67,7 @@
                         "outline-variant": "#c5c6ce",
                         "surface-container-highest": "#e2e2e2",
                         "inverse-surface": "#2f3131",
-                        "audit-pending": "#F59E0B",
+                        "audit-pending": "#3B5B92",
                         "secondary": "#505f76",
                         "audit-error": "#EF4444",
                         "on-primary-fixed": "#091b37",
@@ -159,9 +164,12 @@
     @if (User.Identity?.IsAuthenticated == true)
     {
         <!-- Sidebar Navigation -->
-        <aside class="fixed left-0 top-0 h-full w-72 bg-primary z-50 flex flex-col">
-            <div class="h-16 flex items-center px-space-8 border-b border-on-primary/10">
+        <aside id="sidebarNav" class="fixed left-0 top-0 h-full w-72 bg-primary z-50 flex flex-col transition-transform duration-300 -translate-x-full lg:translate-x-0">
+            <div class="h-16 flex items-center justify-between px-space-6 lg:px-space-8 border-b border-on-primary/10">
                 <span class="text-headline-sm font-headline-sm text-on-primary tracking-tight">AuditCkDayo</span>
+                <button type="button" id="sidebarCloseBtn" class="flex lg:hidden p-2 text-primary-fixed-dim/70 hover:text-on-primary transition-colors focus:outline-none bg-transparent border-0 items-center justify-center cursor-pointer" aria-label="Close Navigation">
+                    <span class="material-symbols-outlined text-[24px]">close</span>
+                </button>
             </div>
             
             <nav class="flex-1 py-space-6 px-space-4 space-y-space-1">
@@ -184,6 +192,12 @@
                        asp-controller="Home" asp-action="Index">
                         <span class="material-symbols-outlined mr-space-3">list_alt</span>
                         <span class="font-label-caps uppercase">My Audits</span>
+                    </a>
+                    
+                    <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
+                       asp-controller="Reports" asp-action="Index">
+                        <span class="material-symbols-outlined mr-space-3">assessment</span>
+                        <span class="font-label-caps uppercase">Reports</span>
                     </a>
                     
                     <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
@@ -219,11 +233,6 @@
                         }
                     </a>
                     
-                    <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
-                       asp-controller="Users" asp-action="Index">
-                        <span class="material-symbols-outlined mr-space-3">group</span>
-                        <span class="font-label-caps uppercase">Buyers</span>
-                    </a>
                     
                     <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
                        asp-controller="Users" asp-action="Index">
@@ -232,7 +241,7 @@
                     </a>
                     
                     <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
-                       href="#">
+                       asp-controller="Reports" asp-action="Index">
                         <span class="material-symbols-outlined mr-space-3">assessment</span>
                         <span class="font-label-caps uppercase">Reports</span>
                     </a>
@@ -250,12 +259,6 @@
                         {
                             <span class="badge bg-danger ml-auto bg-red-600 text-white text-[11px] font-bold px-2 py-0.5 rounded-full">@pendingAuditsCount</span>
                         }
-                    </a>
-                    
-                    <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
-                       asp-controller="Audits" asp-action="BranchVerifyList">
-                        <span class="material-symbols-outlined mr-space-3">local_shipping</span>
-                        <span class="font-label-caps uppercase">Branch Verification</span>
                     </a>
                     
                     <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary justify-between" 
@@ -289,7 +292,7 @@
                     </a>
                     
                     <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
-                       href="#">
+                       asp-controller="Reports" asp-action="Index">
                         <span class="material-symbols-outlined mr-space-3">assessment</span>
                         <span class="font-label-caps uppercase">Reports</span>
                     </a>
@@ -314,9 +317,32 @@
                             <span class="badge bg-danger ml-auto bg-red-600 text-white text-[11px] font-bold px-2 py-0.5 rounded-full">@pendingBranchVerificationsCount</span>
                         }
                     </a>
+                    
+                    <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
+                       asp-controller="Reports" asp-action="Index">
+                        <span class="material-symbols-outlined mr-space-3">assessment</span>
+                        <span class="font-label-caps uppercase">Reports</span>
+                    </a>
                 }
             </nav>
             
+            <div class="px-space-6 py-space-4 border-t border-on-primary/10 flex items-center justify-between gap-space-3 lg:hidden">
+                <div class="flex items-center gap-space-3 min-w-0">
+                    <div class="w-10 h-10 rounded-full bg-on-primary/10 text-on-primary flex items-center justify-center flex-shrink-0">
+                        <span class="material-symbols-outlined text-[20px]">person</span>
+                    </div>
+                    <div class="flex flex-col min-w-0">
+                        <span class="text-body-md font-semibold text-on-primary truncate">@User.Identity.Name</span>
+                        <span class="text-label-caps text-primary-fixed-dim/70 text-[10px] uppercase">@(User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value)</span>
+                    </div>
+                </div>
+                <form asp-controller="Account" asp-action="Logout" method="post" class="flex-none">
+                    <button type="submit" class="material-symbols-outlined text-primary-fixed-dim/70 hover:text-on-primary transition-colors bg-transparent border-0 p-2 flex items-center justify-center cursor-pointer" title="Logout">
+                        logout
+                    </button>
+                </form>
+            </div>
+
             <div class="p-space-6 border-t border-on-primary/10">
                 <div class="flex items-center gap-space-3 text-primary-fixed-dim/50 text-label-caps">
                     <span class="material-symbols-outlined text-[16px]">verified_user</span>
@@ -325,48 +351,58 @@
             </div>
         </aside>
 
-        <div class="pl-72">
+        <div id="sidebarBackdrop" class="fixed inset-0 bg-black/50 z-40 hidden lg:hidden"></div>
+
+        <div class="pl-0 lg:pl-72">
             <!-- Top Header -->
-            <header class="fixed top-0 left-72 right-0 h-16 bg-surface-container-lowest/80 backdrop-blur-xl border-b border-surface-border z-40 flex items-center justify-between px-space-8">
-                <div class="flex items-center gap-space-4">
-                    <div class="h-8 w-[2px] bg-surface-border"></div>
-                    <span class="text-label-caps text-on-surface-variant font-medium uppercase tracking-widest">PCF Auditing Suite</span>
+            <header class="fixed top-0 left-0 lg:left-72 right-0 h-16 bg-surface-container-lowest/80 backdrop-blur-xl border-b border-surface-border z-40 flex items-center justify-between px-space-4 lg:px-space-8">
+                <div class="flex items-center gap-space-2 lg:gap-space-4">
+                    <button type="button" id="sidebarToggleBtn" class="flex lg:hidden p-2 text-on-surface-variant hover:text-primary transition-colors focus:outline-none bg-transparent border-0 items-center justify-center cursor-pointer" aria-label="Toggle Navigation">
+                        <span class="material-symbols-outlined text-[24px]">menu</span>
+                    </button>
+                    <div class="h-8 w-[2px] bg-surface-border hidden lg:block"></div>
+                    <span class="text-label-caps text-on-surface-variant font-medium uppercase tracking-widest text-[11px] lg:text-[12px] truncate max-w-[150px] sm:max-w-none">PCF Auditing Suite</span>
                 </div>
-                
                 <div class="flex items-center gap-space-6">
                     <!-- Notification Bell Dropdown -->
-                    <div class="relative" id="notificationBellContainer">
+                    <div class="relative hidden lg:block" id="notificationBellContainer">
                         <button type="button" id="notificationBellBtn" class="relative p-2 text-on-surface-variant hover:text-primary transition-colors focus:outline-none bg-transparent border-0 flex items-center justify-center">
                             <span class="material-symbols-outlined text-[24px]">notifications</span>
                             <span id="notificationBadge" class="absolute top-1 right-1 hidden min-w-[16px] h-[16px] bg-red-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">0</span>
                         </button>
                         
                         <!-- Dropdown panel -->
-                        <div id="notificationDropdown" class="hidden absolute right-0 mt-2 w-80 bg-white border border-surface-border rounded-xl shadow-xl z-50 py-2">
-                            <div class="px-4 py-2 border-b border-surface-border flex justify-between items-center">
-                                <span class="font-semibold text-body-md text-on-surface">Notifications</span>
-                                <button type="button" id="markAllAsReadBtn" class="text-xs text-primary hover:underline bg-transparent border-0 p-0 font-medium">Mark all as read</button>
+                        <div id="notificationDropdown" class="hidden absolute right-0 mt-2 w-96 bg-white border border-surface-border rounded-xl shadow-xl z-50 overflow-hidden">
+                            <div class="px-4 py-3 border-b border-surface-border flex justify-between items-center bg-surface-container-lowest">
+                                <div>
+                                    <span class="font-semibold text-body-md text-on-surface block">Notifications</span>
+                                    <span class="text-[11px] text-on-surface-variant">Unread system alerts</span>
+                                </div>
+                                <button type="button" id="markAllAsReadBtn" class="text-[11px] text-primary hover:underline bg-transparent border-0 p-0 font-medium">Mark all read</button>
                             </div>
-                            <div id="notificationList" class="max-h-64 overflow-y-auto divide-y divide-surface-border">
+                            <div id="notificationList" class="max-h-72 overflow-y-auto divide-y divide-surface-border">
                                 <!-- Dynamic items loaded via JS -->
                                 <div class="px-4 py-3 text-sm text-secondary text-center">Loading...</div>
                             </div>
-                            <div class="px-4 py-2 border-t border-surface-border text-center">
-                                <a href="@Url.Action("Index", "Notifications")" class="text-xs text-primary font-medium hover:underline">View all history</a>
+                            <div class="px-4 py-3 border-t border-surface-border bg-surface-container-lowest">
+                                <a href="@Url.Action("Index", "Notifications")" class="w-full inline-flex items-center justify-center gap-space-2 px-space-4 py-2 rounded-lg bg-primary text-on-primary text-[11px] font-label-caps uppercase tracking-wider hover:brightness-110 transition-all">
+                                    <span class="material-symbols-outlined text-[16px]">inbox</span>
+                                    Notification Center
+                                </a>
                             </div>
                         </div>
                     </div>
 
-                    <div class="flex items-center gap-space-3 pl-space-4">
-                        <div class="flex flex-col items-end">
-                            <span class="text-body-md font-semibold text-on-surface">@User.Identity.Name</span>
+                    <div class="hidden lg:flex items-center gap-space-2 lg:gap-space-3 pl-space-2 lg:pl-space-4">
+                        <div class="hidden md:flex flex-col items-end">
+                            <span class="text-body-md font-semibold text-on-surface whitespace-nowrap">@User.Identity.Name</span>
                             <span class="text-label-caps text-on-surface-variant">@(User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value)</span>
                         </div>
-                        <div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
+                        <div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0">
                             <span class="material-symbols-outlined text-on-primary text-[18px]">person</span>
                         </div>
                         
-                        <form asp-controller="Account" asp-action="Logout" method="post" class="d-inline">
+                        <form asp-controller="Account" asp-action="Logout" method="post" class="hidden lg:inline">
                             <button type="submit" class="material-symbols-outlined text-on-surface-variant hover:text-error transition-colors bg-transparent border-0 p-0" title="Logout">
                                 logout
                             </button>
@@ -377,10 +413,11 @@
 
             <!-- Main Workspace -->
             <main class="relative pt-16 min-h-screen bg-surface-container-low">
-                <div class="flex flex-col w-full p-space-8 gap-space-8">
+                <div class="flex flex-col w-full p-space-4 lg:p-space-8 gap-space-4 lg:gap-space-8">
                     @RenderBody()
                 </div>
             </main>
+
         </div>
     }
     else
@@ -440,15 +477,15 @@
                 }
 
                 list.innerHTML = notifications.map(n => `
-                    <div class="px-4 py-3 hover:bg-gray-50 flex flex-col gap-1 transition-colors cursor-pointer text-left" data-id="${n.id}" data-url="${n.linkUrl}">
+                    <div class="px-4 py-3 hover:bg-surface-container-low flex flex-col gap-1 transition-colors text-left" data-id="${n.id}">
                         <div class="flex justify-between items-start gap-2">
-                            <span class="font-semibold text-xs text-primary text-left">${escapeHtml(n.title)}</span>
-                            <small class="text-gray-400 text-[10px] whitespace-nowrap">${n.createdAt}</small>
+                            <span class="font-semibold text-xs text-on-surface text-left">${escapeHtml(n.title)}</span>
+                            <small class="text-on-surface-variant text-[10px] whitespace-nowrap">${n.createdAt}</small>
                         </div>
-                        <p class="text-xs text-secondary-container text-gray-600 text-left">${escapeHtml(n.message)}</p>
+                        <p class="text-xs text-on-surface-variant text-left leading-relaxed">${escapeHtml(n.message)}</p>
                         <div class="flex justify-between items-center mt-1">
-                            <span class="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">${escapeHtml(n.category)}</span>
-                            <button type="button" class="mark-single-read-btn text-[10px] text-primary hover:underline bg-transparent border-0 p-0 font-medium" data-id="${n.id}">Mark read</button>
+                            <span class="text-[10px] bg-surface-container text-on-surface-variant px-1.5 py-0.5 rounded">${escapeHtml(n.category)}</span>
+                            <button type="button" class="mark-single-read-btn text-[10px] text-primary hover:underline bg-transparent border-0 p-0 font-semibold" data-id="${n.id}">Mark read</button>
                         </div>
                     </div>
                 `).join('');
@@ -480,19 +517,10 @@
             // Handle actions inside the dropdown list
             list.addEventListener("click", async function (e) {
                 const markBtn = e.target.closest(".mark-single-read-btn");
-                const item = e.target.closest("[data-id]");
-                
                 if (markBtn) {
                     e.stopPropagation();
                     const id = markBtn.getAttribute("data-id");
                     await markAsRead(id);
-                } else if (item) {
-                    const id = item.getAttribute("data-id");
-                    const url = item.getAttribute("data-url");
-                    await markAsRead(id);
-                    if (url) {
-                        window.location.href = url;
-                    }
                 }
             });
 
@@ -504,6 +532,7 @@
                 try {
                     const response = await fetch('/Notifications/MarkAsRead', {
                         method: 'POST',
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' },
                         body: formData
                     });
                     if (response.ok) {
@@ -522,6 +551,7 @@
                 try {
                     const response = await fetch('/Notifications/MarkAllAsRead', {
                         method: 'POST',
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' },
                         body: formData
                     });
                     if (response.ok) {
@@ -531,6 +561,26 @@
                     console.error("Error marking all notifications read:", err);
                 }
             });
+
+            // Responsive Sidebar Handlers
+            const sidebar = document.getElementById("sidebarNav");
+            const backdrop = document.getElementById("sidebarBackdrop");
+            const toggleBtn = document.getElementById("sidebarToggleBtn");
+            const closeBtn = document.getElementById("sidebarCloseBtn");
+
+            function openSidebar() {
+                sidebar?.classList.remove("-translate-x-full");
+                backdrop?.classList.remove("hidden");
+            }
+
+            function closeSidebar() {
+                sidebar?.classList.add("-translate-x-full");
+                backdrop?.classList.add("hidden");
+            }
+
+            toggleBtn?.addEventListener("click", openSidebar);
+            closeBtn?.addEventListener("click", closeSidebar);
+            backdrop?.addEventListener("click", closeSidebar);
         });
     </script>
 

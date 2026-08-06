@@ -38,7 +38,7 @@
 <!-- Data Table Section -->
 <section class="pb-space-8">
     <div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden border border-surface-border/50">
-        <div class="overflow-x-auto">
+        <div class="hidden lg:block overflow-x-auto">
             <table class="w-full text-left border-collapse">
                 <thead>
                     <tr class="bg-surface-container-low border-b border-surface-border">
@@ -76,6 +76,33 @@
                     }
                 </tbody>
             </table>
+        </div>
+
+        <!-- Mobile Card Layout (Stitch Responsive Reference) -->
+        <div class="block lg:hidden space-y-space-4 p-space-4">
+            @if (!Model.Any())
+            {
+                <div class="text-center text-on-surface-variant font-body-md py-space-6">
+                    No establishments registered yet.
+                </div>
+            }
+            else
+            {
+                @foreach (var item in Model)
+                {
+                    <article class="bg-surface-container-lowest border border-surface-border rounded-xl p-space-4 flex flex-col gap-space-4 shadow-sm">
+                        <div class="flex justify-between items-center">
+                            <div class="flex items-center gap-space-3">
+                                <div class="w-8 h-8 rounded bg-primary/5 flex items-center justify-center">
+                                    <span class="material-symbols-outlined text-primary text-[18px]">store</span>
+                                </div>
+                                <span class="font-headline-sm text-headline-sm text-on-surface text-[14px]">@item.Name</span>
+                            </div>
+                            <span class="font-data-mono text-on-surface-variant text-[12px]">#EST-@item.Id</span>
+                        </div>
+                    </article>
+                }
+            }
         </div>
     </div>
 </section>

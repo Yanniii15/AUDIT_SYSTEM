@@ -1,0 +1,263 @@
+@model AuditCkDayo.ViewModels.ReportsViewModel
+@{
+    ViewData["Title"] = "Reports";
+}
+
+<section class="space-y-space-6">
+    <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-space-4">
+        <div class="space-y-space-2 max-w-3xl">
+            <div class="flex items-center gap-space-2 text-primary">
+                <span class="material-symbols-outlined text-[20px]">assessment</span>
+                <span class="font-label-caps uppercase tracking-widest text-on-surface-variant">Role-scoped reports</span>
+            </div>
+            <h1 class="font-headline-lg text-headline-lg text-on-surface">Reports</h1>
+            <p class="font-body-md text-on-surface-variant leading-relaxed">@Model.ScopeLabel. Date and buyer filters narrow surrender and ledger activity; status filters apply to audits.</p>
+        </div>
+        <div class="shrink-0 min-w-[132px] max-w-[180px] bg-primary text-on-primary px-space-4 py-space-3 rounded-xl shadow-sm text-right">
+            <span class="block text-[10px] leading-none font-label-caps uppercase text-primary-fixed-dim whitespace-nowrap">Current role</span>
+            <span class="block font-headline-sm leading-tight mt-1 truncate">@Model.Role</span>
+        </div>
+    </div>
+
+    <form method="get" asp-controller="Reports" asp-action="Index" class="bg-surface-container-lowest border border-surface-border rounded-xl shadow-sm p-space-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[repeat(5,minmax(140px,1fr))_auto_auto] gap-space-3 items-end">
+        <div class="flex flex-col min-w-0">
+            <span class="font-label-caps text-[10px] leading-none text-on-surface-variant mb-2 uppercase tracking-wider">Start Date</span>
+            <input name="StartDate" value="@(Model.Filter.StartDate?.ToString("yyyy-MM-dd"))" class="h-11 w-full bg-surface-container-low border border-surface-border rounded-lg px-space-3 py-0 text-[14px] text-on-surface focus:outline-none focus:border-primary/50" type="date" />
+        </div>
+        <div class="flex flex-col min-w-0">
+            <span class="font-label-caps text-[10px] leading-none text-on-surface-variant mb-2 uppercase tracking-wider">End Date</span>
+            <input name="EndDate" value="@(Model.Filter.EndDate?.ToString("yyyy-MM-dd"))" class="h-11 w-full bg-surface-container-low border border-surface-border rounded-lg px-space-3 py-0 text-[14px] text-on-surface focus:outline-none focus:border-primary/50" type="date" />
+        </div>
+        <div class="flex flex-col min-w-0">
+            <span class="font-label-caps text-[10px] leading-none text-on-surface-variant mb-2 uppercase tracking-wider">Status</span>
+            <select name="Status" class="h-11 w-full bg-surface-container-low border border-surface-border rounded-lg px-space-3 py-0 text-[14px] text-on-surface focus:outline-none focus:border-primary/50" asp-items="ViewBag.Statuses">
+                <option value="">All Statuses</option>
+            </select>
+        </div>
+        <div class="flex flex-col min-w-0">
+            <span class="font-label-caps text-[10px] leading-none text-on-surface-variant mb-2 uppercase tracking-wider">Establishment</span>
+            <select name="EstablishmentId" class="h-11 w-full bg-surface-container-low border border-surface-border rounded-lg px-space-3 py-0 text-[14px] text-on-surface focus:outline-none focus:border-primary/50" asp-items="ViewBag.Establishments">
+                <option value="">All Locations</option>
+            </select>
+        </div>
+        <div class="flex flex-col min-w-0">
+            <span class="font-label-caps text-[10px] leading-none text-on-surface-variant mb-2 uppercase tracking-wider">Buyer</span>
+            <select name="BuyerId" class="h-11 w-full bg-surface-container-low border border-surface-border rounded-lg px-space-3 py-0 text-[14px] text-on-surface focus:outline-none focus:border-primary/50" asp-items="ViewBag.Buyers">
+                <option value="">All Buyers</option>
+            </select>
+        </div>
+        <button type="submit" class="h-11 min-w-[96px] bg-primary text-on-primary px-space-5 rounded-lg font-label-caps uppercase text-[11px] tracking-wider hover:brightness-110 transition-all inline-flex items-center justify-center gap-space-2 whitespace-nowrap">
+            Apply <span class="material-symbols-outlined text-[17px]">done_all</span>
+        </button>
+        <a asp-controller="Reports" asp-action="Index" class="h-11 min-w-[84px] bg-surface-container text-on-surface-variant border border-surface-border px-space-5 rounded-lg font-label-caps uppercase text-[11px] tracking-wider hover:bg-surface-container-high transition-all decoration-none inline-flex items-center justify-center whitespace-nowrap">Clear</a>
+    </form>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-space-4">
+        <article class="bg-surface-container-lowest border border-surface-border rounded-xl shadow-sm p-space-6">
+            <span class="font-label-caps uppercase text-[10px] text-on-surface-variant">Audit Spend</span>
+            <strong class="block font-headline-lg text-headline-lg text-primary mt-space-2">₱@Model.TotalAuditAmount.ToString("N2")</strong>
+            <span class="text-[12px] text-on-surface-variant">@Model.AuditCount audit records</span>
+        </article>
+        <article class="bg-surface-container-lowest border border-surface-border rounded-xl shadow-sm p-space-6">
+            <span class="font-label-caps uppercase text-[10px] text-on-surface-variant">Approved Spend</span>
+            <strong class="block font-headline-lg text-headline-lg text-audit-success mt-space-2">₱@Model.ApprovedAuditAmount.ToString("N2")</strong>
+            <span class="text-[12px] text-on-surface-variant">@Model.ApprovedAuditCount approved audits</span>
+        </article>
+        <article class="bg-surface-container-lowest border border-surface-border rounded-xl shadow-sm p-space-6">
+            <span class="font-label-caps uppercase text-[10px] text-on-surface-variant">Pending Surrenders</span>
+            <strong class="block font-headline-lg text-headline-lg text-audit-pending mt-space-2">₱@Model.PendingSurrenderAmount.ToString("N2")</strong>
+            <span class="text-[12px] text-on-surface-variant">Awaiting confirmation</span>
+        </article>
+        <article class="bg-primary border border-primary rounded-xl shadow-sm p-space-6 text-on-primary">
+            <span class="font-label-caps uppercase text-[10px] text-primary-fixed-dim">Scoped Cash Balance</span>
+            <strong class="block font-headline-lg text-headline-lg mt-space-2">₱@Model.CurrentCashBalance.ToString("N2")</strong>
+            <span class="text-[12px] text-primary-fixed-dim">Role-safe cash total</span>
+        </article>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-3 gap-space-6">
+        <section class="xl:col-span-2 bg-surface-container-lowest border border-surface-border rounded-xl shadow-sm overflow-hidden">
+            <div class="px-space-6 py-space-4 border-b border-surface-border flex items-center justify-between">
+                <h2 class="font-headline-sm text-on-surface">Recent Audits</h2>
+                <span class="text-[12px] text-on-surface-variant">Latest 25</span>
+            </div>
+            <div class="hidden lg:block overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-surface-container-low border-b border-surface-border">
+                            <th class="px-space-6 py-space-3 font-label-caps uppercase text-[11px] text-on-surface-variant">Date</th>
+                            <th class="px-space-6 py-space-3 font-label-caps uppercase text-[11px] text-on-surface-variant">Buyer</th>
+                            <th class="px-space-6 py-space-3 font-label-caps uppercase text-[11px] text-on-surface-variant">Establishment</th>
+                            <th class="px-space-6 py-space-3 font-label-caps uppercase text-[11px] text-on-surface-variant text-right">Amount</th>
+                            <th class="px-space-6 py-space-3 font-label-caps uppercase text-[11px] text-on-surface-variant text-center">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-surface-border">
+                        @if (!Model.RecentAudits.Any())
+                        {
+                            <tr><td colspan="5" class="px-space-6 py-space-8 text-center text-on-surface-variant">No audits match the selected scope.</td></tr>
+                        }
+                        else
+                        {
+                            @foreach (var audit in Model.RecentAudits)
+                            {
+                                <tr class="hover:bg-surface-container-low/50 transition-colors">
+                                    <td class="px-space-6 py-space-4 text-on-surface">@audit.EntryDate.ToString("MMM dd, yyyy")</td>
+                                    <td class="px-space-6 py-space-4 text-on-surface">@audit.Buyer.Name</td>
+                                    <td class="px-space-6 py-space-4 text-on-surface-variant">@audit.Establishment.Name</td>
+                                    <td class="px-space-6 py-space-4 text-right font-data-mono text-primary">₱@audit.Amount.ToString("N2")</td>
+                                    @{
+                                        var statusBg = audit.Status == AuditCkDayo.Models.AuditStatus.Approved ? "bg-audit-success/10 text-audit-success border-audit-success/20" :
+                                                       (audit.Status == AuditCkDayo.Models.AuditStatus.Rejected ? "bg-audit-error/10 text-audit-error border-audit-error/20" :
+                                                       "bg-audit-pending/10 text-audit-pending border-audit-pending/20");
+                                    }
+                                    <td class="px-space-6 py-space-4 text-center">
+                                        <span class="px-space-3 py-1 rounded-full text-[10px] font-label-caps uppercase border @statusBg">@audit.Status</span>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Mobile Card Layout (Stitch Responsive Reference) -->
+            <div class="block lg:hidden space-y-space-4 p-space-4">
+                @if (!Model.RecentAudits.Any())
+                {
+                    <div class="text-center text-on-surface-variant font-body-md py-space-6">
+                        No audits match the selected scope.
+                    </div>
+                }
+                else
+                {
+                    @foreach (var audit in Model.RecentAudits)
+                    {
+                        var statusBg = audit.Status == AuditCkDayo.Models.AuditStatus.Approved ? "bg-audit-success/10 text-audit-success border-audit-success/20" :
+                                       (audit.Status == AuditCkDayo.Models.AuditStatus.Rejected ? "bg-audit-error/10 text-audit-error border-audit-error/20" :
+                                       "bg-audit-pending/10 text-audit-pending border-audit-pending/20");
+
+                        <article class="bg-surface-container-lowest border border-surface-border rounded-xl p-space-4 flex flex-col gap-space-4 shadow-sm">
+                            <div class="flex justify-between items-start">
+                                <div class="flex gap-space-3 items-center">
+                                    <div class="w-10 h-10 rounded-full bg-secondary-container text-secondary flex items-center justify-center font-bold text-[12px]">
+                                        @audit.Buyer.Name.Substring(0, Math.Min(2, audit.Buyer.Name.Length)).ToUpper()
+                                    </div>
+                                    <div>
+                                        <div class="font-body-md font-semibold text-on-surface">@audit.Buyer.Name</div>
+                                        <div class="text-[9px] text-on-surface-variant font-label-caps uppercase mt-0.5">@audit.Buyer.Role</div>
+                                    </div>
+                                </div>
+                                <span class="px-space-3 py-1 rounded-full text-[10px] font-label-caps uppercase border @statusBg">@audit.Status</span>
+                            </div>
+                            <div class="grid grid-cols-2 gap-space-3">
+                                <div class="bg-surface-container-low rounded-lg p-space-3 border border-surface-border">
+                                    <div class="text-[9px] uppercase font-bold text-on-surface-variant tracking-wider mb-1">Establishment</div>
+                                    <div class="flex items-center gap-1.5 text-body-md font-body-md text-on-surface">
+                                        <span class="material-symbols-outlined text-[16px] text-primary">storefront</span>
+                                        @audit.Establishment.Name
+                                    </div>
+                                </div>
+                                <div class="bg-surface-container-low rounded-lg p-space-3 border border-surface-border">
+                                    <div class="text-[9px] uppercase font-bold text-on-surface-variant tracking-wider mb-1">Date</div>
+                                    <div class="flex items-center gap-1.5 text-body-md font-body-md text-on-surface">
+                                        <span class="material-symbols-outlined text-[16px] text-primary">calendar_today</span>
+                                        @audit.EntryDate.ToString("MMM dd, yyyy")
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="flex justify-between items-end pt-space-3 border-t border-surface-border border-dashed">
+                                <div>
+                                    <div class="text-[10px] text-on-surface-variant uppercase mb-1">Amount</div>
+                                    <div class="font-data-mono text-primary font-bold text-[16px]">₱@audit.Amount.ToString("N2")</div>
+                                </div>
+                                <div class="flex flex-col items-end">
+                                    <span class="font-data-mono text-on-surface-variant text-[12px]">#AUD-@audit.Id</span>
+                                    <span class="text-[10px] text-on-surface-variant font-label-caps uppercase">@audit.Description</span>
+                                </div>
+                            </div>
+                        </article>
+                    }
+                }
+            </div>
+        </section>
+
+        <aside class="space-y-space-6">
+            <section class="bg-surface-container-lowest border border-surface-border rounded-xl shadow-sm p-space-6">
+                <h2 class="font-headline-sm text-on-surface mb-space-4">Status Breakdown</h2>
+                <div class="space-y-space-3">
+                    @foreach (var status in Model.StatusSummaries)
+                    {
+                        <div class="flex items-center justify-between gap-space-4">
+                            <span class="text-[12px] text-on-surface-variant">@status.Status (@status.Count)</span>
+                            <span class="font-data-mono text-primary text-[13px]">₱@status.Amount.ToString("N2")</span>
+                        </div>
+                    }
+                    @if (!Model.StatusSummaries.Any())
+                    {
+                        <p class="text-[13px] text-on-surface-variant">No status data available.</p>
+                    }
+                </div>
+            </section>
+
+            <section class="bg-surface-container-lowest border border-surface-border rounded-xl shadow-sm p-space-6">
+                <h2 class="font-headline-sm text-on-surface mb-space-4">By Establishment</h2>
+                <div class="space-y-space-3">
+                    @foreach (var establishment in Model.EstablishmentSummaries.Take(5))
+                    {
+                        <div class="flex items-center justify-between gap-space-4">
+                            <span class="text-[12px] text-on-surface-variant">@establishment.Establishment (@establishment.Count)</span>
+                            <span class="font-data-mono text-primary text-[13px]">₱@establishment.Amount.ToString("N2")</span>
+                        </div>
+                    }
+                    @if (!Model.EstablishmentSummaries.Any())
+                    {
+                        <p class="text-[13px] text-on-surface-variant">No establishment data available.</p>
+                    }
+                </div>
+            </section>
+        </aside>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-space-6">
+        <section class="bg-surface-container-lowest border border-surface-border rounded-xl shadow-sm p-space-6">
+            <h2 class="font-headline-sm text-on-surface mb-space-4">Surrender Requests</h2>
+            <div class="space-y-space-3">
+                @foreach (var surrender in Model.SurrenderRequests.Take(8))
+                {
+                    <div class="flex items-center justify-between border-b border-surface-border pb-space-3 last:border-0 last:pb-0">
+                        <div>
+                            <p class="font-body-md font-semibold text-on-surface">@surrender.Buyer.Name</p>
+                            <p class="text-[11px] text-on-surface-variant">@surrender.RequestDate.ToString("MMM dd, yyyy") • @surrender.Status</p>
+                        </div>
+                        <span class="font-data-mono text-primary">₱@surrender.DeclaredAmount.ToString("N2")</span>
+                    </div>
+                }
+                @if (!Model.SurrenderRequests.Any())
+                {
+                    <p class="text-[13px] text-on-surface-variant">No surrender requests in this scope.</p>
+                }
+            </div>
+        </section>
+
+        <section class="bg-surface-container-lowest border border-surface-border rounded-xl shadow-sm p-space-6">
+            <h2 class="font-headline-sm text-on-surface mb-space-4">Cash Ledger</h2>
+            <div class="space-y-space-3">
+                @foreach (var entry in Model.LedgerEntries.Take(8))
+                {
+                    <div class="flex items-center justify-between border-b border-surface-border pb-space-3 last:border-0 last:pb-0">
+                        <div>
+                            <p class="font-body-md font-semibold text-on-surface">@entry.TransactionType</p>
+                            <p class="text-[11px] text-on-surface-variant">@entry.Timestamp.ToString("MMM dd, yyyy hh:mm tt") • @entry.User?.Name</p>
+                        </div>
+                        <span class="font-data-mono @(entry.Amount >= 0 ? "text-audit-success" : "text-audit-error")">₱@entry.Amount.ToString("N2")</span>
+                    </div>
+                }
+                @if (!Model.LedgerEntries.Any())
+                {
+                    <p class="text-[13px] text-on-surface-variant">No cash ledger entries in this scope.</p>
+                }
+            </div>
+        </section>
+    </div>
+</section>

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using System.Linq;
+using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Authorization;
@@ -33,7 +34,12 @@ public class HomeController : Controller
             return Challenge();
         }
         
-        var currentUser = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId);
+        var currentUser = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId && !u.IsDeleted);
+        if (currentUser == null)
+        {
+            return Challenge();
+        }
+
         ViewBag.CurrentUser = currentUser;
 
         var role = User.FindFirst(ClaimTypes.Role)?.Value;
@@ -62,6 +68,14 @@ public class HomeController : Controller
                 query = query.Where(a => false);
             }
         }
+
+        var today = DateTime.Today;
+        var tomorrow = today.AddDays(1);
+        model.TodayAudits = await query
+            .Where(a => (a.SubmittedAt ?? a.EntryDate) >= today && (a.SubmittedAt ?? a.EntryDate) < tomorrow)
+            .OrderByDescending(a => a.SubmittedAt ?? a.EntryDate)
+            .ThenByDescending(a => a.Id)
+            .ToListAsync();
 
         // Apply search filters
         if (model.StartDate.HasValue)
@@ -102,7 +116,7 @@ public class HomeController : Controller
         {
             var buyers = await _context.Users
                 .AsNoTracking()
-                .Where(u => u.Role == UserRole.Buyer)
+                .Where(u => u.Role == UserRole.Buyer && !u.IsDeleted)
                 .OrderBy(u => u.Name)
                 .ToListAsync();
             ViewBag.Buyers = new SelectList(buyers, "Id", "Name", model.BuyerId);
@@ -111,7 +125,7 @@ public class HomeController : Controller
         {
             var buyers = await _context.Users
                 .AsNoTracking()
-                .Where(u => u.Role == UserRole.Buyer && u.ManagerId == userId)
+                .Where(u => u.Role == UserRole.Buyer && u.ManagerId == userId && !u.IsDeleted)
                 .OrderBy(u => u.Name)
                 .ToListAsync();
             ViewBag.Buyers = new SelectList(buyers, "Id", "Name", model.BuyerId);
@@ -120,7 +134,7 @@ public class HomeController : Controller
         {
             var buyers = await _context.Users
                 .AsNoTracking()
-                .Where(u => u.Role == UserRole.Buyer)
+                .Where(u => u.Role == UserRole.Buyer && !u.IsDeleted)
                 .OrderBy(u => u.Name)
                 .ToListAsync();
             ViewBag.Buyers = new SelectList(buyers, "Id", "Name", model.BuyerId);
@@ -129,7 +143,7 @@ public class HomeController : Controller
         {
             var buyers = await _context.Users
                 .AsNoTracking()
-                .Where(u => u.Id == userId)
+                .Where(u => u.Id == userId && !u.IsDeleted)
                 .ToListAsync();
             ViewBag.Buyers = new SelectList(buyers, "Id", "Name", model.BuyerId);
         }
@@ -146,6 +160,99 @@ public class HomeController : Controller
         ViewBag.Statuses = new SelectList(statuses, "Value", "Text", model.Status?.ToString());
 
         return View(model);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> ExportHistorical(DashboardViewModel model)
+    {
+        var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userIdString) || !int.TryParse(userIdString, out var userId))
+        {
+            return Challenge();
+        }
+
+        var currentUser = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId && !u.IsDeleted);
+        if (currentUser == null)
+        {
+            return Challenge();
+        }
+
+        var role = User.FindFirst(ClaimTypes.Role)?.Value;
+        IQueryable<AuditItem> query = _context.AuditItems
+            .AsNoTracking()
+            .Include(a => a.Buyer)
+            .Include(a => a.Establishment);
+
+        if (role == "Manager")
+        {
+            query = query.Where(a => a.Buyer.ManagerId == userId);
+        }
+        else if (role == "Buyer")
+        {
+            query = query.Where(a => a.BuyerId == userId);
+        }
+        else if (role == "BranchStaff")
+        {
+            query = currentUser.EstablishmentId.HasValue
+                ? query.Where(a => a.EstablishmentId == currentUser.EstablishmentId.Value)
+                : query.Where(a => false);
+        }
+
+        if (model.StartDate.HasValue)
+        {
+            query = query.Where(a => a.EntryDate >= model.StartDate.Value);
+        }
+        if (model.EndDate.HasValue)
+        {
+            query = query.Where(a => a.EntryDate < model.EndDate.Value.AddDays(1));
+        }
+        if (model.Status.HasValue)
+        {
+            query = query.Where(a => a.Status == model.Status.Value);
+        }
+        if (model.EstablishmentId.HasValue)
+        {
+            query = query.Where(a => a.EstablishmentId == model.EstablishmentId.Value);
+        }
+        if (model.BuyerId.HasValue)
+        {
+            query = query.Where(a => a.BuyerId == model.BuyerId.Value);
+        }
+
+        var audits = await query
+            .OrderByDescending(a => a.EntryDate)
+            .ThenByDescending(a => a.Id)
+            .ToListAsync();
+
+        var csv = new StringBuilder();
+        csv.AppendLine("ID,Buyer,Establishment,Description,Date,Amount,Status");
+        foreach (var audit in audits)
+        {
+            csv.AppendLine(string.Join(",", new[]
+            {
+                EscapeCsv($"AUD-{audit.Id}"),
+                EscapeCsv(audit.Buyer.Name),
+                EscapeCsv(audit.Establishment.Name),
+                EscapeCsv(audit.Description),
+                EscapeCsv(audit.EntryDate.ToString("yyyy-MM-dd")),
+                EscapeCsv(audit.Amount.ToString("N2")),
+                EscapeCsv(audit.Status.ToString())
+            }));
+        }
+
+        var bytes = Encoding.UTF8.GetBytes(csv.ToString());
+        var fileName = $"historical-audits-{DateTime.Today:yyyyMMdd}.csv";
+        return File(bytes, "text/csv", fileName);
+    }
+
+    private static string EscapeCsv(string value)
+    {
+        if (value.Contains('"') || value.Contains(',') || value.Contains('\n') || value.Contains('\r'))
+        {
+            return $"\"{value.Replace("\"", "\"\"")}\"";
+        }
+
+        return value;
     }
 
     [AllowAnonymous]

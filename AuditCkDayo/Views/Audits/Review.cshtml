@@ -27,8 +27,11 @@
             </div>
             
             <!-- Large Image Preview -->
-            <div class="p-space-4 bg-surface-container-highest flex items-center justify-center min-h-[350px] relative">
-                <img id="main-preview" src="@Model.ReceiptImageUrl" class="max-w-full max-h-[500px] object-contain rounded-lg border border-surface-border/50 shadow-sm" alt="Receipt Upload" />
+            <div class="p-space-4 bg-surface-container-highest flex flex-col items-center justify-center min-h-[350px] relative">
+                <img id="main-preview" src="@Model.ReceiptImageUrl" class="max-w-full max-h-[500px] object-contain rounded-lg border border-surface-border/50 shadow-sm cursor-pointer hover:scale-[1.01] transition-transform duration-300" alt="Receipt Upload" />
+            </div>
+            <div class="p-space-3 bg-surface-container-low border-t border-surface-border text-center">
+                <span class="text-on-surface-variant text-[11px] font-label-caps uppercase"><span class="material-symbols-outlined text-[14px] align-middle">zoom_in</span> Tap to Inspect</span>
             </div>
 
             <!-- Thumbnail Selector -->
@@ -65,6 +68,25 @@
                         <input type="hidden" name="ReceiptImageUrls[@i]" value="@Model.ReceiptImageUrls[i]" />
                     }
                 }
+
+                <!-- Bento Grid Metadata (Stitch Responsive Reference) -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-space-4 my-space-4">
+                    <div class="bg-surface-container-low rounded-lg p-space-3 border border-surface-border">
+                        <div class="text-[9px] uppercase font-bold text-on-surface-variant tracking-wider mb-1">Submitter</div>
+                        <div class="flex items-center gap-1.5 text-body-md font-body-md text-on-surface">
+                            <span class="material-symbols-outlined text-[16px] text-primary">person</span>
+                            @(User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value ?? User.Identity?.Name ?? "Buyer")
+                        </div>
+                    </div>
+                    <div class="bg-surface-container-low rounded-xl p-space-4 border-l-4 border-primary shadow-sm flex flex-col justify-center">
+                        <span class="font-label-caps text-on-surface-variant uppercase text-[9px] tracking-wider">Total Claimed Amount</span>
+                        <div class="flex items-baseline gap-space-1 mt-1">
+                            <span class="text-primary font-bold text-[20px]">₱</span>
+                            <span class="font-data-mono text-primary font-bold text-[28px]" id="claimed-amount-display">@Model.Amount.ToString("N2")</span>
+                            <span class="text-on-surface-variant text-[10px] font-label-caps uppercase ml-2">PHP</span>
+                        </div>
+                    </div>
+                </div>
 
                 <!-- Establishment and Total Amount -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-space-6">
@@ -111,9 +133,9 @@
                         Extracted Line Items
                     </h4>
                     
-                    <div class="overflow-x-auto border border-surface-border rounded-xl">
-                        <table class="w-full text-left border-collapse">
-                            <thead>
+                    <div class="border border-surface-border rounded-xl">
+                        <table class="w-full text-left border-collapse block lg:table">
+                            <thead class="hidden lg:table-header-group">
                                 <tr class="bg-surface-container-low border-b border-surface-border">
                                     <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px]">Item Description</th>
                                     <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-20">Qty</th>
@@ -122,23 +144,28 @@
                                     <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-12 text-center">Action</th>
                                 </tr>
                             </thead>
-                            <tbody id="line-items-body" class="divide-y divide-surface-border">
+                            <tbody id="line-items-body" class="divide-y divide-surface-border block lg:table-row-group space-y-space-4 lg:space-y-0 p-space-4 lg:p-0">
                                 @for (int i = 0; i < Model.Items.Count; i++)
                                 {
-                                    <tr class="hover:bg-surface-container-low/30 transition-colors line-item-row">
-                                        <td class="px-space-4 py-space-2">
-                                            <input asp-for="Items[i].Name" class="w-full bg-transparent border-0 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none rounded px-2 py-1 name-input" required />
+                                    <tr class="hover:bg-surface-container-low/30 transition-colors line-item-row block lg:table-row grid grid-cols-2 gap-x-space-4 gap-y-space-3 p-space-4 border border-surface-border lg:border-0 rounded-xl bg-surface-container-lowest lg:bg-transparent shadow-sm lg:shadow-none">
+                                        <td class="col-span-2 lg:col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2">
+                                            <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Item Description</label>
+                                            <input asp-for="Items[i].Name" class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none name-input" required />
                                         </td>
-                                        <td class="px-space-4 py-space-2">
-                                            <input asp-for="Items[i].Quantity" class="w-full bg-transparent border-0 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none rounded px-2 py-1 text-center qty-input" type="number" min="1" required />
+                                        <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2">
+                                            <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Qty</label>
+                                            <input asp-for="Items[i].Quantity" class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none text-center qty-input" type="number" min="1" required />
                                         </td>
-                                        <td class="px-space-4 py-space-2 text-right">
-                                            <input asp-for="Items[i].Price" class="w-full bg-transparent border-0 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none rounded px-2 py-1 text-right price-input" type="number" step="0.01" min="0.00" required />
+                                        <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2 text-right">
+                                            <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Price (₱)</label>
+                                            <input asp-for="Items[i].Price" class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none text-right price-input" type="number" step="0.01" min="0.00" required />
                                         </td>
-                                        <td class="px-space-4 py-space-2 text-right">
-                                            <input asp-for="Items[i].Total" class="w-full bg-transparent border-0 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none rounded px-2 py-1 text-right total-input" type="number" step="0.01" min="0.00" readonly />
+                                        <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2 text-right">
+                                            <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Total (₱)</label>
+                                            <input asp-for="Items[i].Total" class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none text-right total-input" type="number" step="0.01" min="0.00" readonly />
                                         </td>
-                                        <td class="px-space-4 py-space-2 text-center">
+                                        <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2 text-center flex items-center justify-end lg:justify-center">
+                                            <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Action</label>
                                             <button type="button" class="text-audit-error hover:scale-110 transition-transform remove-row-btn" onclick="removeRow(this)">
                                                 <span class="material-symbols-outlined text-[18px]">delete</span>
                                             </button>
@@ -231,26 +258,35 @@
         if (amountField) {
             amountField.value = sum.toFixed(2);
         }
+        const displayVal = document.getElementById('claimed-amount-display');
+        if (displayVal) {
+            displayVal.innerText = sum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
     }
 
     function addRow() {
         const body = document.getElementById('line-items-body');
         const newRow = document.createElement('tr');
-        newRow.className = 'hover:bg-surface-container-low/30 transition-colors line-item-row';
+        newRow.className = 'hover:bg-surface-container-low/30 transition-colors line-item-row block lg:table-row grid grid-cols-2 gap-x-space-4 gap-y-space-3 p-space-4 border border-surface-border lg:border-0 rounded-xl bg-surface-container-lowest lg:bg-transparent shadow-sm lg:shadow-none';
         newRow.innerHTML = `
-            <td class="px-space-4 py-space-2">
-                <input class="w-full bg-transparent border-0 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none rounded px-2 py-1 name-input" required placeholder="New Item" />
+            <td class="col-span-2 lg:col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2">
+                <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Item Description</label>
+                <input class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none name-input" required placeholder="New Item" />
             </td>
-            <td class="px-space-4 py-space-2">
-                <input class="w-full bg-transparent border-0 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none rounded px-2 py-1 text-center qty-input" type="number" min="1" value="1" required />
+            <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2">
+                <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Qty</label>
+                <input class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none text-center qty-input" type="number" min="1" value="1" required />
             </td>
-            <td class="px-space-4 py-space-2 text-right">
-                <input class="w-full bg-transparent border-0 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none rounded px-2 py-1 text-right price-input" type="number" step="0.01" min="0.00" value="0.00" required />
+            <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2 text-right">
+                <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Price (₱)</label>
+                <input class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none text-right price-input" type="number" step="0.01" min="0.00" value="0.00" required />
             </td>
-            <td class="px-space-4 py-space-2 text-right">
-                <input class="w-full bg-transparent border-0 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none rounded px-2 py-1 text-right total-input" type="number" step="0.01" min="0.00" value="0.00" readonly />
+            <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2 text-right">
+                <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Total (₱)</label>
+                <input class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none text-right total-input" type="number" step="0.01" min="0.00" value="0.00" readonly />
             </td>
-            <td class="px-space-4 py-space-2 text-center">
+            <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2 text-center flex items-center justify-end lg:justify-center">
+                <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Action</label>
                 <button type="button" class="text-audit-error hover:scale-110 transition-transform remove-row-btn" onclick="removeRow(this)">
                     <span class="material-symbols-outlined text-[18px]">delete</span>
                 </button>
@@ -283,6 +319,32 @@
             qtyInput.addEventListener('input', () => calculateRowTotal(row));
             priceInput.addEventListener('input', () => calculateRowTotal(row));
         });
+
+        // Lightbox Modal Handlers
+        const mainPreview = document.getElementById('main-preview');
+        const lightbox = document.getElementById('lightboxModal');
+        const lightboxImg = document.getElementById('lightbox-img');
+
+        function openLightbox() {
+            if (lightbox && lightboxImg && mainPreview) {
+                lightboxImg.src = mainPreview.src;
+                lightbox.classList.remove('hidden');
+                document.body.classList.add('overflow-hidden');
+            }
+        }
+
+        function closeLightbox() {
+            if (lightbox) {
+                lightbox.classList.add('hidden');
+                document.body.classList.remove('overflow-hidden');
+            }
+        }
+
+        mainPreview?.addEventListener('click', openLightbox);
+        window.closeLightbox = closeLightbox;
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeLightbox();
+        });
     });
 </script>
 <script>
@@ -297,3 +359,13 @@
         }
     });
 </script>
+
+<!-- Lightbox Modal for Full Image View -->
+<div id="lightboxModal" class="fixed inset-0 z-[100] hidden" role="dialog" aria-modal="true" aria-labelledby="lightboxTitle">
+    <div class="absolute inset-0 bg-primary/90 backdrop-blur-sm cursor-pointer" onclick="closeLightbox()"></div>
+    <div class="relative z-10 h-full w-full p-space-6 flex flex-col items-center justify-center" onclick="closeLightbox()">
+        <span id="lightboxTitle" class="sr-only">Receipt Lightbox View</span>
+        <img src="" id="lightbox-img" class="max-w-full max-h-[88vh] object-contain rounded-lg shadow-2xl bg-white border border-surface-border" />
+        <span class="text-on-primary/60 text-[11px] font-label-caps uppercase mt-space-3 pointer-events-none">Click anywhere to close</span>
+    </div>
+</div>

@@ -83,7 +83,7 @@
                 <h3 class="font-headline-sm text-headline-sm text-on-surface">Surrender History</h3>
             </div>
             
-            <div class="overflow-x-auto">
+            <div class="hidden lg:block overflow-x-auto">
                 <table class="w-full text-left border-collapse">
                     <thead>
                         <tr class="bg-surface-container-low border-b border-surface-border">
@@ -118,8 +118,8 @@
                                         @{
                                             var badgeClass = request.Status switch
                                             {
-                                                SurrenderStatus.Pending => "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
-                                                SurrenderStatus.Confirmed => "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
+                                                SurrenderStatus.Pending => "bg-audit-pending/10 text-audit-pending border border-audit-pending/20",
+                                                SurrenderStatus.Confirmed => "bg-emerald-100 text-emerald-900 border border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-200 dark:border-emerald-700",
                                                 SurrenderStatus.Rejected => "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
                                                 SurrenderStatus.Cancelled => "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400",
                                                 _ => "bg-gray-100 text-gray-800"
@@ -161,6 +161,68 @@
                         }
                     </tbody>
                 </table>
+            </div>
+
+            <!-- Mobile Card Layout (Stitch Responsive Reference) -->
+            <div class="block lg:hidden space-y-space-4 p-space-4">
+                @if (!Model.Any())
+                {
+                    <div class="text-center text-on-surface-variant font-body-md py-space-6">
+                        You have no surrender requests yet.
+                    </div>
+                }
+                else
+                {
+                    @foreach (var request in Model)
+                    {
+                        var badgeClass = request.Status switch
+                        {
+                            SurrenderStatus.Pending => "bg-audit-pending/10 text-audit-pending border border-audit-pending/20",
+                            SurrenderStatus.Confirmed => "bg-emerald-100 text-emerald-900 border border-emerald-300",
+                            SurrenderStatus.Rejected => "bg-red-100 text-red-800",
+                            SurrenderStatus.Cancelled => "bg-gray-100 text-gray-800",
+                            _ => "bg-gray-100 text-gray-800"
+                        };
+
+                        <article class="bg-surface-container-lowest border border-surface-border rounded-xl p-space-4 flex flex-col gap-space-4 shadow-sm">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <div class="text-[9px] uppercase font-bold text-on-surface-variant tracking-wider mb-1">Declared Amount</div>
+                                    <div class="font-data-mono text-primary font-bold text-[18px]">₱@request.DeclaredAmount.ToString("N2")</div>
+                                </div>
+                                <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold @badgeClass">
+                                    @request.Status
+                                </span>
+                            </div>
+                            <div class="grid grid-cols-1 gap-space-3 bg-surface-container-low rounded-lg p-space-3 border border-surface-border">
+                                <div>
+                                    <div class="text-[9px] uppercase font-bold text-on-surface-variant tracking-wider mb-1">Request Details</div>
+                                    <p class="text-body-md text-on-surface">@(string.IsNullOrEmpty(request.BuyerNotes) ? "-" : request.BuyerNotes)</p>
+                                    @if (!string.IsNullOrEmpty(request.ActionNotes))
+                                    {
+                                        <p class="text-[12px] text-audit-error mt-1"><span class="font-semibold">Reviewer:</span> @request.ActionNotes</p>
+                                    }
+                                </div>
+                            </div>
+                            <div class="pt-space-3 border-t border-surface-border border-dashed flex justify-between items-center">
+                                <div class="flex items-center gap-1.5 text-[11px] text-on-surface-variant">
+                                    <span class="material-symbols-outlined text-[16px] text-primary">calendar_today</span>
+                                    @request.RequestDate.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+                                </div>
+                                @if (request.Status == SurrenderStatus.Pending)
+                                {
+                                    <form asp-action="CancelSurrender" method="post" onsubmit="return confirm('Are you sure you want to cancel this request?');">
+                                        @Html.AntiForgeryToken()
+                                        <input type="hidden" name="id" value="@request.Id" />
+                                        <button type="submit" class="bg-audit-error/10 text-audit-error px-space-4 py-2 rounded-lg font-label-caps hover:bg-audit-error hover:text-on-primary text-[11px] uppercase transition-all shadow-sm">
+                                            Cancel
+                                        </button>
+                                    </form>
+                                }
+                            </div>
+                        </article>
+                    }
+                }
             </div>
         </div>
     </div>

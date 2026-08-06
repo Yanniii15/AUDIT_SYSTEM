@@ -34,6 +34,13 @@
         <button onclick="this.parentElement.remove()" class="material-symbols-outlined text-[18px] hover:scale-110 transition-transform">close</button>
     </div>
 }
+@if (TempData["Error"] != null)
+{
+    <div class="p-space-4 my-space-4 bg-audit-error/10 border border-audit-error/20 rounded-xl text-audit-error font-body-md flex items-center justify-between shadow-sm">
+        <span><i class="bi bi-exclamation-triangle-fill me-2"></i> @TempData["Error"]</span>
+        <button onclick="this.parentElement.remove()" class="material-symbols-outlined text-[18px] hover:scale-110 transition-transform">close</button>
+    </div>
+}
 
 <div class="flex flex-col lg:flex-row gap-space-8 items-start my-space-4">
     <!-- Staff Directory Table -->
@@ -43,7 +50,7 @@
             <span class="text-on-primary/60 text-[10px] font-data-mono">TOTAL_RECORDS: @Model.Count()</span>
         </div>
         
-        <div class="overflow-x-auto">
+        <div class="hidden lg:block overflow-x-auto">
             <table class="w-full text-left border-collapse">
                 <thead>
                     <tr class="bg-surface-container-low border-b border-surface-border">
@@ -128,6 +135,76 @@
                     }
                 </tbody>
             </table>
+        </div>
+
+        <!-- Mobile Card Layout (Stitch Responsive Reference) -->
+        <div class="block lg:hidden space-y-space-4 p-space-4">
+            @foreach (var user in Model)
+            {
+                var badgeStyle = user.Role == AuditCkDayo.Models.UserRole.Owner ? "bg-primary/10 text-primary border-primary/20" : 
+                                 (user.Role == AuditCkDayo.Models.UserRole.Manager ? "bg-secondary-container text-on-secondary-container border-secondary/20" : 
+                                 (user.Role == AuditCkDayo.Models.UserRole.BranchStaff ? "bg-audit-pending/10 text-audit-pending border-audit-pending/20" : 
+                                 "bg-surface-container text-on-surface-variant border-surface-border"));
+
+                <article class="bg-surface-container-lowest border border-surface-border rounded-xl p-space-4 flex flex-col gap-space-4 shadow-sm">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <div class="font-body-md font-semibold text-on-surface">@user.Name</div>
+                            <div class="text-[12px] text-on-surface-variant mt-0.5">@user.Email</div>
+                        </div>
+                        <span class="px-space-3 py-0.5 rounded-full text-[10px] font-label-caps uppercase border @badgeStyle">
+                            @user.Role
+                        </span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-space-3">
+                        <div class="bg-surface-container-low rounded-lg p-space-3 border border-surface-border">
+                            <div class="text-[9px] uppercase font-bold text-on-surface-variant tracking-wider mb-1">Reporting Manager</div>
+                            <div class="font-body-md text-on-surface text-[13px]">
+                                @(user.Manager != null ? user.Manager.Name : "No Manager")
+                            </div>
+                        </div>
+                        <div class="bg-surface-container-low rounded-lg p-space-3 border border-surface-border">
+                            <div class="text-[9px] uppercase font-bold text-on-surface-variant tracking-wider mb-1">Assigned Branch</div>
+                            <div class="font-body-md text-on-surface text-[13px]">
+                                @(user.Establishment != null ? user.Establishment.Name : "No Branch")
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Actions inside Mobile Card -->
+                    <div class="pt-space-3 border-t border-surface-border border-dashed space-y-3">
+                        @if (user.Role == AuditCkDayo.Models.UserRole.Buyer)
+                        {
+                            <form asp-controller="Users" asp-action="AssignManager" asp-route-id="@user.Id" method="post" class="flex gap-space-2 items-center">
+                                <select name="managerId" class="flex-1 bg-surface-container-low border border-surface-border rounded-lg px-2 py-1.5 font-body-md focus:outline-none focus:border-primary/50 text-on-surface text-[12px] cursor-pointer">
+                                    <option value="">No Manager Assigned</option>
+                                    @if (ViewBag.Managers != null)
+                                    {
+                                        foreach (var manager in ViewBag.Managers)
+                                        {
+                                            <!option value="@manager.Id" selected="@(user.ManagerId == manager.Id)">@manager.Name</!option>
+                                        }
+                                    }
+                                </select>
+                                <button type="submit" class="bg-primary text-on-primary px-3 py-1.5 rounded-lg font-label-caps hover:bg-primary/95 text-[10px] uppercase shadow-sm whitespace-nowrap">
+                                    Assign
+                                </button>
+                            </form>
+                        }
+
+                        @if (user.Id.ToString() != User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value)
+                        {
+                            <div class="flex justify-end">
+                                <form asp-controller="Users" asp-action="Delete" asp-route-id="@user.Id" method="post" onsubmit="return confirm('Are you sure you want to delete user @user.Name?');" class="inline">
+                                    <button type="submit" class="bg-red-500 hover:bg-red-600 text-white px-4 py-1.5 rounded-lg text-[10px] font-label-caps uppercase shadow-sm">
+                                        Delete Account
+                                    </button>
+                                </form>
+                            </div>
+                        }
+                    </div>
+                </article>
+            }
         </div>
     </div>
     

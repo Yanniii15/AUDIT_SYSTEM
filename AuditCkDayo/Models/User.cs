@@ -43,6 +43,8 @@ namespace AuditCkDayo.Models
         [Column(TypeName = "decimal(12,2)")]
         public decimal DailyStartingFloat { get; set; } = 0.00m;
 
+        public bool IsDeleted { get; set; }
+
 
         public int? EstablishmentId { get; set; }
 
