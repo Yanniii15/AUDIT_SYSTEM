@@ -41,6 +41,7 @@ using (var scope = app.Services.CreateScope())
 
     try
     {
+        db.Database.ExecuteSqlRaw("UPDATE AuditItems SET Status = 'AwaitingBranchVerification' WHERE Status = '' OR Status IS NULL;");
         db.Database.ExecuteSqlRaw("ALTER TABLE AuditItems MODIFY COLUMN Status varchar(50) NOT NULL;");
         db.Database.ExecuteSqlRaw("UPDATE AuditItems SET Status = 'AwaitingBranchVerification' WHERE Status = 'Pending';");
         db.Database.ExecuteSqlRaw("UPDATE AuditItems SET Status = 'AwaitingBranchVerification' WHERE Status = 'AwaitingBranchVerifi';");

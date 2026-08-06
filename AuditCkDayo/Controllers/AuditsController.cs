@@ -448,6 +448,10 @@ namespace AuditCkDayo.Controllers
                 return Challenge();
             }
 
+            await _context.Database.ExecuteSqlRawAsync(
+                "UPDATE AuditItems SET Status = {0} WHERE Status = '' OR Status IS NULL",
+                AuditStatus.AwaitingBranchVerification.ToString());
+
             var pendingAudits = await _context.AuditItems
                 .Include(a => a.Buyer)
                 .Include(a => a.Establishment)

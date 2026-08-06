@@ -525,6 +525,27 @@ namespace AuditCkDayo.Tests
         }
 
         [Fact]
+        public async Task BranchVerifyList_RepairsBlankSubmittedStatusAndShowsAuditForAssignedBranch()
+        {
+            using (var context = new AuditDbContext(_options))
+            {
+                await SeedDataAsync(context);
+                await context.Database.ExecuteSqlRawAsync(
+                    "INSERT INTO AuditItems (Id, BuyerId, EstablishmentId, Amount, Description, EntryDate, Status, ReceiptImageUrl) VALUES (50, 3, 1, 46.42, 'Blank status receipt', '2026-08-06', '', '/Audits/Receipt/blank-status.jpg')");
+
+                var controller = CreateController(context, 5, "BranchStaff");
+
+                var result = await controller.BranchVerifyList();
+
+                var viewResult = Assert.IsType<ViewResult>(result);
+                var audits = Assert.IsAssignableFrom<IEnumerable<AuditItem>>(viewResult.Model);
+                var audit = Assert.Single(audits);
+                Assert.Equal(50, audit.Id);
+                Assert.Equal(AuditStatus.AwaitingBranchVerification, audit.Status);
+            }
+        }
+
+        [Fact]
         public void Receipt_ActionDeclaresFilenameRouteSegment()
         {
             var httpGet = typeof(AuditsController)
