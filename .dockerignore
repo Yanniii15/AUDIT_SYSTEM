@@ -1,51 +1,28 @@
-# See https://docs.docker.com/engine/reference/builder/#dockerignore-file for more about ignoring files.
+# Ignore build artifacts and object directories
+**/bin/
+**/obj/
 
-# Ignore git directory.
-/.git/
-/.gitignore
+# Ignore git repository details
+.git/
+.gitignore
 
-# Ignore bundler config.
-/.bundle
+# Ignore local config overrides and secrets
+**/appsettings.Development.json
+secrets.json
 
-# Ignore all environment files.
-/.env*
+# Ignore IDE settings and project temp files
+.vs/
+.vscode/
+*.user
+*.suo
+*.sln.docstates
 
-# Ignore all default key files.
-/config/master.key
-/config/credentials/*.key
-
-# Ignore all logfiles and tempfiles.
-/log/*
-/tmp/*
-!/log/.keep
-!/tmp/.keep
-
-# Ignore pidfiles, but keep the directory.
-/tmp/pids/*
-!/tmp/pids/.keep
-
-# Ignore storage (uploaded files in development and any SQLite databases).
-/storage/*
-!/storage/.keep
-/tmp/storage/*
-!/tmp/storage/.keep
-
-# Ignore assets.
-/node_modules/
-/app/assets/builds/*
-!/app/assets/builds/.keep
-/public/assets
-
-# Ignore CI service files.
-/.github
-
-# Ignore Kamal files.
-/config/deploy*.yml
-/.kamal
-
-# Ignore development files
-/.devcontainer
-
-# Ignore Docker-related files
-/.dockerignore
-/Dockerfile*
+# Ignore test results and local database files
+TestResults/
+*.db
+*.sqlite
+*.sqlite3
+database_schema.sql
+Recommendation_Updates.md
+docs/
+reference_rails/
