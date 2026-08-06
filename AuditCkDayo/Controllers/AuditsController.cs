@@ -283,28 +283,25 @@ namespace AuditCkDayo.Controllers
                 _context.PettyCashLedgers.Add(ledger);
                 await _context.SaveChangesAsync();
 
-                // SubmitAudit: create a notification for the buyer's assigned manager (or Owner if no manager) stating a new audit is awaiting approval.
-                int targetUserId;
-                if (buyer.ManagerId.HasValue)
+                var branchStaffIds = await _context.Users
+                    .AsNoTracking()
+                    .Where(u => u.Role == UserRole.BranchStaff && u.EstablishmentId == model.EstablishmentId)
+                    .Select(u => u.Id)
+                    .ToListAsync();
+
+                foreach (var branchStaffId in branchStaffIds)
                 {
-                    targetUserId = buyer.ManagerId.Value;
-                }
-                else
-                {
-                    var owner = await _context.Users.FirstOrDefaultAsync(u => u.Role == UserRole.Owner);
-                    targetUserId = owner?.Id ?? buyerId;
+                    _context.Notifications.Add(new Notification
+                    {
+                        UserId = branchStaffId,
+                        Title = "Audit Awaiting Branch Verification",
+                        Message = $"A new audit of ₱{model.Amount:N2} from {buyer.Email} is awaiting branch verification.",
+                        Category = "BranchVerify",
+                        LinkUrl = Url.Action("BranchVerifyList", "Audits") ?? "/Audits/BranchVerifyList",
+                        CreatedAt = DateTime.UtcNow
+                    });
                 }
 
-                var auditNotification = new Notification
-                {
-                    UserId = targetUserId,
-                    Title = "New Audit Awaiting Approval",
-                    Message = $"A new audit of ₱{model.Amount:N2} from {buyer.Email} is awaiting approval.",
-                    Category = "AuditSubmit",
-                    LinkUrl = Url.Action("VerifyList", "Audits") ?? "/Audits/VerifyList",
-                    CreatedAt = DateTime.UtcNow
-                };
-                _context.Notifications.Add(auditNotification);
                 await _context.SaveChangesAsync();
 
                 await transaction.CommitAsync();
@@ -572,7 +569,7 @@ namespace AuditCkDayo.Controllers
             return RedirectToAction(nameof(BranchVerifyList));
         }
 
-        [HttpGet]
+        [HttpGet("Audits/Receipt/{filename}")]
         [Authorize]
         public async Task<IActionResult> Receipt(string filename)
         {

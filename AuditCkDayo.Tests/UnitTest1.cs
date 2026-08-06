@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
+using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using AuditCkDayo.Controllers;
@@ -387,6 +388,22 @@ namespace AuditCkDayo.Tests
         public bool TryGetValue(string key, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out byte[]? value) => _sessionStorage.TryGetValue(key, out value);
     }
 
+    public class FakeUrlHelper : IUrlHelper
+    {
+        public ActionContext ActionContext { get; } = new ActionContext();
+
+        public string? Action(UrlActionContext actionContext)
+        {
+            return $"/{actionContext.Controller}/{actionContext.Action}";
+        }
+
+        public string? Content(string? contentPath) => contentPath;
+        public bool IsLocalUrl(string? url) => true;
+        public string? Link(string? routeName, object? values) => routeName;
+        public string? RouteUrl(UrlRouteContext routeContext) => routeContext.RouteName;
+    }
+
+
     public class AuditsControllerTests : IDisposable
     {
         private readonly SqliteConnection _connection;
@@ -454,8 +471,67 @@ namespace AuditCkDayo.Tests
                 {
                     HttpContext = httpContext
                 },
-                TempData = tempData
+                TempData = tempData,
+                Url = new FakeUrlHelper()
             };
+        }
+
+        [Fact]
+        public async Task SubmitAudit_CreatesBranchQueueItemAndNotifiesOnlyAssignedBranchStaff()
+        {
+            using (var context = new AuditDbContext(_options))
+            {
+                await SeedDataAsync(context);
+                var controller = CreateController(context, 3, "Buyer");
+                var model = new AuditCkDayo.ViewModels.AuditSubmissionViewModel
+                {
+                    EstablishmentId = 1,
+                    Amount = 25m,
+                    Description = "Branch delivery test",
+                    EntryDate = DateTime.Today,
+                    ReceiptImageUrl = "/Audits/Receipt/branch-delivery.png",
+                    ReceiptImageUrls = new List<string> { "/Audits/Receipt/branch-delivery.png" },
+                    Items = new List<OcrItemResult>
+                    {
+                        new OcrItemResult { Name = "Item", Quantity = 1, Price = 25m, Total = 25m }
+                    }
+                };
+
+                var submitResult = await controller.SubmitAudit(model);
+
+                var redirectResult = Assert.IsType<RedirectToActionResult>(submitResult);
+                Assert.Equal("Index", redirectResult.ActionName);
+
+                var branchController = CreateController(context, 5, "BranchStaff");
+                var branchResult = await branchController.BranchVerifyList();
+                var branchView = Assert.IsType<ViewResult>(branchResult);
+                var branchAudits = Assert.IsAssignableFrom<IEnumerable<AuditItem>>(branchView.Model);
+                var branchAudit = Assert.Single(branchAudits);
+                Assert.Equal(1, branchAudit.EstablishmentId);
+                Assert.Equal(AuditStatus.AwaitingBranchVerification, branchAudit.Status);
+
+                var otherBranchController = CreateController(context, 6, "BranchStaff");
+                var otherBranchResult = await otherBranchController.BranchVerifyList();
+                var otherBranchView = Assert.IsType<ViewResult>(otherBranchResult);
+                var otherBranchAudits = Assert.IsAssignableFrom<IEnumerable<AuditItem>>(otherBranchView.Model);
+                Assert.Empty(otherBranchAudits);
+
+                var assignedBranchNotification = await context.Notifications.SingleAsync(n => n.UserId == 5);
+                Assert.Equal("Audit Awaiting Branch Verification", assignedBranchNotification.Title);
+                Assert.Equal("/Audits/BranchVerifyList", assignedBranchNotification.LinkUrl);
+                Assert.False(await context.Notifications.AnyAsync(n => n.UserId == 6));
+                Assert.False(await context.Notifications.AnyAsync(n => n.UserId == 2 && n.Category == "AuditSubmit"));
+            }
+        }
+
+        [Fact]
+        public void Receipt_ActionDeclaresFilenameRouteSegment()
+        {
+            var httpGet = typeof(AuditsController)
+                .GetMethod(nameof(AuditsController.Receipt))!
+                .GetCustomAttributes(typeof(HttpGetAttribute), inherit: false);
+            var route = Assert.Single(httpGet);
+            Assert.Equal("Audits/Receipt/{filename}", ((HttpGetAttribute)route).Template);
         }
 
         [Fact]
