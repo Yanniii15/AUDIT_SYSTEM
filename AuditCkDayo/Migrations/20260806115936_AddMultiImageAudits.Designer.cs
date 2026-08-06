@@ -4,6 +4,7 @@ using AuditCkDayo.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace AuditCkDayo.Migrations
 {
     [DbContext(typeof(AuditDbContext))]
-    partial class AuditDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260806115936_AddMultiImageAudits")]
+    partial class AddMultiImageAudits
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -158,142 +161,6 @@ namespace AuditCkDayo.Migrations
                     b.ToTable("Establishments");
                 });
 
-            modelBuilder.Entity("AuditCkDayo.Models.Notification", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Category")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("LinkUrl")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("varchar(255)");
-
-                    b.Property<string>("Message")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("varchar(255)");
-
-                    b.Property<DateTime?>("ReadAt")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("Notifications");
-                });
-
-            modelBuilder.Entity("AuditCkDayo.Models.PettyCashLedger", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<decimal>("Amount")
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<int?>("AssociatedRecordId")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("CounterpartyUserId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(255)
-                        .HasColumnType("varchar(255)");
-
-                    b.Property<decimal>("ResultingBalance")
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<DateTime>("Timestamp")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("TransactionType")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CounterpartyUserId");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("PettyCashLedgers");
-                });
-
-            modelBuilder.Entity("AuditCkDayo.Models.SurrenderRequest", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int?>("ActionByUserId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("ActionDate")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("ActionNotes")
-                        .HasMaxLength(255)
-                        .HasColumnType("varchar(255)");
-
-                    b.Property<int>("BuyerId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("BuyerNotes")
-                        .HasMaxLength(255)
-                        .HasColumnType("varchar(255)");
-
-                    b.Property<decimal?>("ConfirmedAmount")
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<decimal>("DeclaredAmount")
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<DateTime>("RequestDate")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ActionByUserId");
-
-                    b.HasIndex("BuyerId");
-
-                    b.ToTable("SurrenderRequests");
-                });
-
             modelBuilder.Entity("AuditCkDayo.Models.User", b =>
                 {
                     b.Property<int>("Id")
@@ -396,53 +263,6 @@ namespace AuditCkDayo.Migrations
                         .IsRequired();
 
                     b.Navigation("AuditItem");
-                });
-
-            modelBuilder.Entity("AuditCkDayo.Models.Notification", b =>
-                {
-                    b.HasOne("AuditCkDayo.Models.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("AuditCkDayo.Models.PettyCashLedger", b =>
-                {
-                    b.HasOne("AuditCkDayo.Models.User", "CounterpartyUser")
-                        .WithMany()
-                        .HasForeignKey("CounterpartyUserId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("AuditCkDayo.Models.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("CounterpartyUser");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("AuditCkDayo.Models.SurrenderRequest", b =>
-                {
-                    b.HasOne("AuditCkDayo.Models.User", "ActionByUser")
-                        .WithMany()
-                        .HasForeignKey("ActionByUserId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("AuditCkDayo.Models.User", "Buyer")
-                        .WithMany()
-                        .HasForeignKey("BuyerId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("ActionByUser");
-
-                    b.Navigation("Buyer");
                 });
 
             modelBuilder.Entity("AuditCkDayo.Models.User", b =>

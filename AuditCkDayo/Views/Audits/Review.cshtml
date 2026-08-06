@@ -22,12 +22,27 @@
     <div class="col-span-12 lg:col-span-5">
         <div class="bg-surface-container-lowest rounded-xl shadow-sm border border-surface-border overflow-hidden sticky top-24">
             <div class="p-space-4 bg-surface-container-low border-b border-surface-border flex justify-between items-center">
-                <span class="font-label-caps text-on-surface-variant uppercase text-[10px]">Uploaded Invoice Document</span>
+                <span class="font-label-caps text-on-surface-variant uppercase text-[10px]">Uploaded Invoice Documents (@(Model.ReceiptImageUrls?.Count ?? 1))</span>
                 <span class="material-symbols-outlined text-primary text-[18px]">receipt</span>
             </div>
-            <div class="p-space-4 bg-surface-container-highest flex items-center justify-center min-h-[300px]">
-                <img src="@Model.ReceiptImageUrl" class="max-w-full max-h-[500px] object-contain rounded-lg border border-surface-border/50 shadow-sm" alt="Receipt Upload" />
+            
+            <!-- Large Image Preview -->
+            <div class="p-space-4 bg-surface-container-highest flex items-center justify-center min-h-[350px] relative">
+                <img id="main-preview" src="@Model.ReceiptImageUrl" class="max-w-full max-h-[500px] object-contain rounded-lg border border-surface-border/50 shadow-sm" alt="Receipt Upload" />
             </div>
+
+            <!-- Thumbnail Selector -->
+            @if (Model.ReceiptImageUrls != null && Model.ReceiptImageUrls.Count > 1)
+            {
+                <div class="p-space-3 bg-surface-container-low border-t border-surface-border flex gap-2 overflow-x-auto">
+                    @for (int i = 0; i < Model.ReceiptImageUrls.Count; i++)
+                    {
+                        <div class="w-16 h-16 flex-shrink-0 bg-black rounded border border-surface-border overflow-hidden cursor-pointer hover:border-primary transition-all @(i == 0 ? "ring-2 ring-primary" : "")" onclick="setPreview(this, '@Model.ReceiptImageUrls[i]')">
+                            <img src="@Model.ReceiptImageUrls[i]" class="w-full h-full object-contain" />
+                        </div>
+                    }
+                </div>
+            }
         </div>
     </div>
 
@@ -36,13 +51,20 @@
         <div class="bg-surface-container-lowest rounded-xl shadow-sm border border-surface-border overflow-hidden">
             <div class="bg-primary px-space-6 py-space-4 flex justify-between items-center">
                 <span class="text-on-primary font-label-caps uppercase tracking-tighter text-[11px]">Reconciliation Form</span>
-                <span class="text-on-primary/60 text-[10px] font-data-mono">RECON-v2.0</span>
+                <span class="text-on-primary/60 text-[10px] font-data-mono">RECON-v3.0</span>
             </div>
 
             <form asp-action="SubmitAudit" method="post" class="p-space-8 space-y-space-6">
                 <div asp-validation-summary="ModelOnly" class="text-audit-error bg-audit-error/10 border border-audit-error/20 p-space-4 rounded-lg text-body-md text-center"></div>
                 
                 <input type="hidden" asp-for="ReceiptImageUrl" />
+                @if (Model.ReceiptImageUrls != null)
+                {
+                    for (int i = 0; i < Model.ReceiptImageUrls.Count; i++)
+                    {
+                        <input type="hidden" name="ReceiptImageUrls[@i]" value="@Model.ReceiptImageUrls[i]" />
+                    }
+                }
 
                 <!-- Establishment and Total Amount -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-space-6">
@@ -97,34 +119,45 @@
                                     <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-20">Qty</th>
                                     <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-28 text-right">Price (₱)</th>
                                     <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-28 text-right">Total (₱)</th>
+                                    <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-12 text-center">Action</th>
                                 </tr>
                             </thead>
-                            <tbody class="divide-y divide-surface-border">
+                            <tbody id="line-items-body" class="divide-y divide-surface-border">
                                 @for (int i = 0; i < Model.Items.Count; i++)
                                 {
-                                    <tr class="hover:bg-surface-container-low/30 transition-colors">
+                                    <tr class="hover:bg-surface-container-low/30 transition-colors line-item-row">
                                         <td class="px-space-4 py-space-2">
-                                            <input asp-for="Items[i].Name" class="w-full bg-transparent border-0 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none rounded px-2 py-1" />
+                                            <input asp-for="Items[i].Name" class="w-full bg-transparent border-0 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none rounded px-2 py-1 name-input" required />
                                         </td>
                                         <td class="px-space-4 py-space-2">
-                                            <input asp-for="Items[i].Quantity" class="w-full bg-transparent border-0 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none rounded px-2 py-1 text-center" type="number" />
+                                            <input asp-for="Items[i].Quantity" class="w-full bg-transparent border-0 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none rounded px-2 py-1 text-center qty-input" type="number" min="1" required />
                                         </td>
                                         <td class="px-space-4 py-space-2 text-right">
-                                            <input asp-for="Items[i].Price" class="w-full bg-transparent border-0 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none rounded px-2 py-1 text-right" type="number" step="0.01" />
+                                            <input asp-for="Items[i].Price" class="w-full bg-transparent border-0 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none rounded px-2 py-1 text-right price-input" type="number" step="0.01" min="0.00" required />
                                         </td>
                                         <td class="px-space-4 py-space-2 text-right">
-                                            <input asp-for="Items[i].Total" class="w-full bg-transparent border-0 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none rounded px-2 py-1 text-right" type="number" step="0.01" />
+                                            <input asp-for="Items[i].Total" class="w-full bg-transparent border-0 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none rounded px-2 py-1 text-right total-input" type="number" step="0.01" min="0.00" readonly />
+                                        </td>
+                                        <td class="px-space-4 py-space-2 text-center">
+                                            <button type="button" class="text-audit-error hover:scale-110 transition-transform remove-row-btn" onclick="removeRow(this)">
+                                                <span class="material-symbols-outlined text-[18px]">delete</span>
+                                            </button>
                                         </td>
                                     </tr>
                                 }
                             </tbody>
                         </table>
                     </div>
+                    <div class="mt-space-3 flex justify-end">
+                        <button type="button" class="bg-surface-container text-on-surface border border-surface-border px-4 py-2 rounded-lg font-label-caps hover:bg-surface-container-high transition-all text-[11px] uppercase flex items-center gap-1 shadow-sm" onclick="addRow()">
+                            <span class="material-symbols-outlined text-[16px]">add</span> Add Line Item
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Submit Button -->
                 <div class="pt-space-6 flex gap-space-4 border-t border-surface-border">
-                    <button type="submit" class="flex-1 bg-primary text-on-primary py-3 rounded-lg font-label-caps uppercase tracking-widest hover:brightness-110 active:scale-[0.98] transition-all text-[12px] flex items-center justify-center gap-space-2">
+                    <button type="submit" id="submitReviewBtn" class="flex-1 bg-primary text-on-primary py-3 rounded-lg font-label-caps uppercase tracking-widest hover:brightness-110 active:scale-[0.98] transition-all text-[12px] flex items-center justify-center gap-space-2">
                         <span class="material-symbols-outlined">send</span>
                         Submit Audit Invoice
                     </button>
@@ -136,3 +169,131 @@
         </div>
     </div>
 </div>
+
+<script>
+    function setPreview(el, src) {
+        document.getElementById('main-preview').src = src;
+        // Remove ring from all thumbnails
+        el.parentElement.querySelectorAll('.ring-2').forEach(thumb => {
+            thumb.classList.remove('ring-2', 'ring-primary');
+        });
+        // Add ring to clicked thumbnail
+        el.classList.add('ring-2', 'ring-primary');
+    }
+
+    function reindexRows() {
+        const rows = document.querySelectorAll('#line-items-body .line-item-row');
+        rows.forEach((row, idx) => {
+            // Update Name inputs
+            const nameInput = row.querySelector('.name-input');
+            if (nameInput) {
+                nameInput.name = `Items[${idx}].Name`;
+                nameInput.id = `Items_${idx}__Name`;
+            }
+
+            // Update Quantity inputs
+            const qtyInput = row.querySelector('.qty-input');
+            if (qtyInput) {
+                qtyInput.name = `Items[${idx}].Quantity`;
+                qtyInput.id = `Items_${idx}__Quantity`;
+            }
+
+            // Update Price inputs
+            const priceInput = row.querySelector('.price-input');
+            if (priceInput) {
+                priceInput.name = `Items[${idx}].Price`;
+                priceInput.id = `Items_${idx}__Price`;
+            }
+
+            // Update Total inputs
+            const totalInput = row.querySelector('.total-input');
+            if (totalInput) {
+                totalInput.name = `Items[${idx}].Total`;
+                totalInput.id = `Items_${idx}__Total`;
+            }
+        });
+    }
+
+    function calculateRowTotal(row) {
+        const qty = parseFloat(row.querySelector('.qty-input').value) || 0;
+        const price = parseFloat(row.querySelector('.price-input').value) || 0;
+        const total = qty * price;
+        row.querySelector('.total-input').value = total.toFixed(2);
+        calculateOverallTotal();
+    }
+
+    function calculateOverallTotal() {
+        let sum = 0;
+        document.querySelectorAll('#line-items-body .total-input').forEach(input => {
+            sum += parseFloat(input.value) || 0;
+        });
+        const amountField = document.querySelector('input[name="Amount"]');
+        if (amountField) {
+            amountField.value = sum.toFixed(2);
+        }
+    }
+
+    function addRow() {
+        const body = document.getElementById('line-items-body');
+        const newRow = document.createElement('tr');
+        newRow.className = 'hover:bg-surface-container-low/30 transition-colors line-item-row';
+        newRow.innerHTML = `
+            <td class="px-space-4 py-space-2">
+                <input class="w-full bg-transparent border-0 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none rounded px-2 py-1 name-input" required placeholder="New Item" />
+            </td>
+            <td class="px-space-4 py-space-2">
+                <input class="w-full bg-transparent border-0 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none rounded px-2 py-1 text-center qty-input" type="number" min="1" value="1" required />
+            </td>
+            <td class="px-space-4 py-space-2 text-right">
+                <input class="w-full bg-transparent border-0 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none rounded px-2 py-1 text-right price-input" type="number" step="0.01" min="0.00" value="0.00" required />
+            </td>
+            <td class="px-space-4 py-space-2 text-right">
+                <input class="w-full bg-transparent border-0 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none rounded px-2 py-1 text-right total-input" type="number" step="0.01" min="0.00" value="0.00" readonly />
+            </td>
+            <td class="px-space-4 py-space-2 text-center">
+                <button type="button" class="text-audit-error hover:scale-110 transition-transform remove-row-btn" onclick="removeRow(this)">
+                    <span class="material-symbols-outlined text-[18px]">delete</span>
+                </button>
+            </td>
+        `;
+        body.appendChild(newRow);
+        
+        // Setup event listeners on new row
+        const qtyInput = newRow.querySelector('.qty-input');
+        const priceInput = newRow.querySelector('.price-input');
+        qtyInput.addEventListener('input', () => calculateRowTotal(newRow));
+        priceInput.addEventListener('input', () => calculateRowTotal(newRow));
+
+        reindexRows();
+        calculateRowTotal(newRow);
+    }
+
+    function removeRow(btn) {
+        const row = btn.closest('tr');
+        row.remove();
+        reindexRows();
+        calculateOverallTotal();
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        // Bind event listeners to existing rows
+        document.querySelectorAll('#line-items-body .line-item-row').forEach(row => {
+            const qtyInput = row.querySelector('.qty-input');
+            const priceInput = row.querySelector('.price-input');
+            qtyInput.addEventListener('input', () => calculateRowTotal(row));
+            priceInput.addEventListener('input', () => calculateRowTotal(row));
+        });
+    });
+</script>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const form = document.querySelector("form");
+        const submitBtn = document.getElementById("submitReviewBtn");
+        if (form && submitBtn) {
+            form.addEventListener("submit", function () {
+                submitBtn.disabled = true;
+                submitBtn.innerText = "Submitting...";
+            });
+        }
+    });
+</script>

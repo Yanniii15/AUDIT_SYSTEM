@@ -1,0 +1,62 @@
+@model IEnumerable<AuditCkDayo.Models.Notification>
+@{
+    ViewData["Title"] = "Notifications";
+}
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>Notification History</h2>
+        @if (Model.Any(n => n.ReadAt == null))
+        {
+            <form asp-controller="Notifications" asp-action="MarkAllAsRead" method="post" class="d-inline">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn btn-outline-primary btn-sm">Mark All as Read</button>
+            </form>
+        }
+    </div>
+
+    @if (!Model.Any())
+    {
+        <div class="alert alert-info">
+            You have no notifications yet.
+        </div>
+    }
+    else
+    {
+        <div class="list-group">
+            @foreach (var notification in Model)
+            {
+                var isUnread = notification.ReadAt == null;
+                <div class="list-group-item list-group-item-action @(isUnread ? "border-primary bg-light" : "") mb-2 shadow-sm rounded">
+                    <div class="d-flex w-100 justify-content-between align-items-center">
+                        <h5 class="mb-1 @(isUnread ? "text-primary fw-bold" : "text-dark")">
+                            @if (isUnread)
+                            {
+                                <span class="badge bg-primary me-2">New</span>
+                            }
+                            @notification.Title
+                        </h5>
+                        <small class="text-muted">@notification.CreatedAt.ToLocalTime().ToString("MMM dd, yyyy hh:mm tt")</small>
+                    </div>
+                    <p class="mb-1 text-secondary">@notification.Message</p>
+                    <div class="d-flex justify-content-between align-items-center mt-2">
+                        <small class="badge bg-secondary">@notification.Category</small>
+                        <div class="d-flex gap-2">
+                            @if (isUnread)
+                            {
+                                <form asp-controller="Notifications" asp-action="MarkAsRead" asp-route-id="@notification.Id" method="post" class="d-inline">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" class="btn btn-sm btn-link text-decoration-none p-0">Mark as read</button>
+                                </form>
+                            }
+                            @if (!string.IsNullOrEmpty(notification.LinkUrl))
+                            {
+                                <a href="@notification.LinkUrl" class="btn btn-sm btn-primary">View Details</a>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>

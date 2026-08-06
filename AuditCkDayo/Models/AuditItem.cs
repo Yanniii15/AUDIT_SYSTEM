@@ -10,7 +10,10 @@ namespace AuditCkDayo.Models
         AwaitingBranchVerification,
         AwaitingManagerApproval,
         Approved,
-        Rejected
+        Rejected,
+        Pending,
+        AwaitingBranchVerifi = AwaitingBranchVerification,
+        AwaitingManagerAppro = AwaitingManagerApproval
     }
 
     public class AuditItem
@@ -54,6 +57,7 @@ namespace AuditCkDayo.Models
 
         public DateTime? VerificationDate { get; set; }
 
+        public virtual ICollection<AuditItemImage> Images { get; set; } = new List<AuditItemImage>();
         public virtual ICollection<AuditItemDetail> Details { get; set; } = new List<AuditItemDetail>();
     }
 }

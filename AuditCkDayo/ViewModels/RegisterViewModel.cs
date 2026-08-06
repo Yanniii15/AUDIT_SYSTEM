@@ -20,10 +20,19 @@ namespace AuditCkDayo.ViewModels
         public string Password { get; set; } = string.Empty;
 
         [Required]
+        [DataType(DataType.Password)]
+        [Display(Name = "Retype Password")]
+        [Compare("Password", ErrorMessage = "The password and confirmation password do not match.")]
+        public string RetypePassword { get; set; } = string.Empty;
+
+        [Required]
         [Display(Name = "Role")]
         public UserRole Role { get; set; }
 
         [Display(Name = "Manager")]
         public int? ManagerId { get; set; }
+
+        [Display(Name = "Establishment")]
+        public int? EstablishmentId { get; set; }
     }
 }

@@ -1,3 +1,37 @@
+@using Microsoft.EntityFrameworkCore
+@inject AuditCkDayo.Data.AuditDbContext dbContext
+@{
+    var userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+    var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
+    AuditCkDayo.Models.User dbUser = null;
+    int userId = 0;
+    if (User.Identity?.IsAuthenticated == true && !string.IsNullOrEmpty(userIdStr) && int.TryParse(userIdStr, out userId))
+    {
+        dbUser = dbContext.Users.AsNoTracking().FirstOrDefault(u => u.Id == userId);
+    }
+
+    int pendingAuditsCount = 0;
+    int pendingSurrendersCount = 0;
+    int pendingBranchVerificationsCount = 0;
+
+    if (dbUser != null)
+    {
+        if (userRole == "Manager")
+        {
+            pendingAuditsCount = dbContext.AuditItems.Count(a => a.Status == AuditCkDayo.Models.AuditStatus.AwaitingManagerApproval && a.Buyer.ManagerId == userId);
+            pendingSurrendersCount = dbContext.SurrenderRequests.Count(s => s.Status == AuditCkDayo.Models.SurrenderStatus.Pending && s.Buyer.ManagerId == userId);
+        }
+        else if (userRole == "Owner")
+        {
+            pendingAuditsCount = dbContext.AuditItems.Count(a => a.Status == AuditCkDayo.Models.AuditStatus.AwaitingManagerApproval);
+            pendingSurrendersCount = dbContext.SurrenderRequests.Count(s => s.Status == AuditCkDayo.Models.SurrenderStatus.Pending);
+        }
+        else if (userRole == "BranchStaff" && dbUser.EstablishmentId.HasValue)
+        {
+            pendingBranchVerificationsCount = dbContext.AuditItems.Count(a => a.Status == AuditCkDayo.Models.AuditStatus.AwaitingBranchVerification && a.EstablishmentId == dbUser.EstablishmentId);
+        }
+    }
+}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -131,27 +165,115 @@
             </div>
             
             <nav class="flex-1 py-space-6 px-space-4 space-y-space-1">
+                <!-- Shared Dashboard Link -->
                 <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
                    asp-controller="Home" asp-action="Index">
                     <span class="material-symbols-outlined mr-space-3">dashboard</span>
                     <span class="font-label-caps uppercase">Dashboard</span>
                 </a>
-                
+
                 @if (User.IsInRole("Buyer"))
                 {
                     <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
                        asp-controller="Audits" asp-action="Upload">
                         <span class="material-symbols-outlined mr-space-3">upload_file</span>
-                        <span class="font-label-caps uppercase">Upload Receipt</span>
+                        <span class="font-label-caps uppercase">New Audit</span>
+                    </a>
+                    
+                    <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
+                       asp-controller="Home" asp-action="Index">
+                        <span class="material-symbols-outlined mr-space-3">list_alt</span>
+                        <span class="font-label-caps uppercase">My Audits</span>
+                    </a>
+                    
+                    <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
+                       asp-controller="Audits" asp-action="Surrender">
+                        <span class="material-symbols-outlined mr-space-3">payments</span>
+                        <span class="font-label-caps uppercase">Cash Surrender</span>
                     </a>
                 }
-                
-                @if (User.IsInRole("Owner") || User.IsInRole("Manager"))
+
+                @if (User.IsInRole("Manager"))
                 {
-                    <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
+                    <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary justify-between" 
                        asp-controller="Audits" asp-action="VerifyList">
-                        <span class="material-symbols-outlined mr-space-3">pending_actions</span>
-                        <span class="font-label-caps uppercase">Pending Verifications</span>
+                        <div class="flex items-center">
+                            <span class="material-symbols-outlined mr-space-3">pending_actions</span>
+                            <span class="font-label-caps uppercase">Audit Approvals</span>
+                        </div>
+                        @if (pendingAuditsCount > 0)
+                        {
+                            <span class="badge bg-danger ml-auto bg-red-600 text-white text-[11px] font-bold px-2 py-0.5 rounded-full">@pendingAuditsCount</span>
+                        }
+                    </a>
+                    
+                    <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary justify-between" 
+                       asp-controller="Audits" asp-action="SurrenderQueue">
+                        <div class="flex items-center">
+                            <span class="material-symbols-outlined mr-space-3">payments</span>
+                            <span class="font-label-caps uppercase">Cash Surrender Requests</span>
+                        </div>
+                        @if (pendingSurrendersCount > 0)
+                        {
+                            <span class="badge bg-danger ml-auto bg-red-600 text-white text-[11px] font-bold px-2 py-0.5 rounded-full">@pendingSurrendersCount</span>
+                        }
+                    </a>
+                    
+                    <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
+                       asp-controller="Users" asp-action="Index">
+                        <span class="material-symbols-outlined mr-space-3">group</span>
+                        <span class="font-label-caps uppercase">Buyers</span>
+                    </a>
+                    
+                    <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
+                       asp-controller="Users" asp-action="Index">
+                        <span class="material-symbols-outlined mr-space-3">account_balance_wallet</span>
+                        <span class="font-label-caps uppercase">Petty Cash</span>
+                    </a>
+                    
+                    <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
+                       href="#">
+                        <span class="material-symbols-outlined mr-space-3">assessment</span>
+                        <span class="font-label-caps uppercase">Reports</span>
+                    </a>
+                }
+
+                @if (User.IsInRole("Owner"))
+                {
+                    <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary justify-between" 
+                       asp-controller="Audits" asp-action="VerifyList">
+                        <div class="flex items-center">
+                            <span class="material-symbols-outlined mr-space-3">pending_actions</span>
+                            <span class="font-label-caps uppercase">Audit Approvals</span>
+                        </div>
+                        @if (pendingAuditsCount > 0)
+                        {
+                            <span class="badge bg-danger ml-auto bg-red-600 text-white text-[11px] font-bold px-2 py-0.5 rounded-full">@pendingAuditsCount</span>
+                        }
+                    </a>
+                    
+                    <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
+                       asp-controller="Audits" asp-action="BranchVerifyList">
+                        <span class="material-symbols-outlined mr-space-3">local_shipping</span>
+                        <span class="font-label-caps uppercase">Branch Verification</span>
+                    </a>
+                    
+                    <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary justify-between" 
+                       asp-controller="Audits" asp-action="SurrenderQueue">
+                        <div class="flex items-center">
+                            <span class="material-symbols-outlined mr-space-3">payments</span>
+                            <span class="font-label-caps uppercase">Cash Surrender Requests</span>
+                        </div>
+                        @if (pendingSurrendersCount > 0)
+                        {
+                            <span class="badge bg-danger ml-auto bg-red-600 text-white text-[11px] font-bold px-2 py-0.5 rounded-full">@pendingSurrendersCount</span>
+                        }
+                    </a>
+                    
+                    <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
+                       asp-controller="Account" asp-action="Register">
+                        <span class="material-symbols-outlined mr-space-3">group</span>
+                        <span class="font-label-caps uppercase">Users</span>
                     </a>
                     
                     <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
@@ -159,20 +281,39 @@
                         <span class="material-symbols-outlined mr-space-3">domain</span>
                         <span class="font-label-caps uppercase">Establishments</span>
                     </a>
+                    
                     <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
                        asp-controller="Users" asp-action="Index">
                         <span class="material-symbols-outlined mr-space-3">account_balance_wallet</span>
-                        <span class="font-label-caps uppercase">Vault Control</span>
+                        <span class="font-label-caps uppercase">Petty Cash</span>
                     </a>
+                    
+                    <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
+                       href="#">
+                        <span class="material-symbols-outlined mr-space-3">assessment</span>
+                        <span class="font-label-caps uppercase">Reports</span>
+                    </a>
+                    
+                    <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
+                       href="#">
+                        <span class="material-symbols-outlined mr-space-3">settings</span>
+                        <span class="font-label-caps uppercase">System Settings</span>
+                    </a>
+                }
 
-                    @if (User.IsInRole("Owner"))
-                    {
-                        <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
-                           asp-controller="Account" asp-action="Register">
-                            <span class="material-symbols-outlined mr-space-3">person_add</span>
-                            <span class="font-label-caps uppercase">User Registration</span>
-                        </a>
-                    }
+                @if (User.IsInRole("BranchStaff"))
+                {
+                    <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary justify-between" 
+                       asp-controller="Audits" asp-action="BranchVerifyList">
+                        <div class="flex items-center">
+                            <span class="material-symbols-outlined mr-space-3">local_shipping</span>
+                            <span class="font-label-caps uppercase">Verify Deliveries</span>
+                        </div>
+                        @if (pendingBranchVerificationsCount > 0)
+                        {
+                            <span class="badge bg-danger ml-auto bg-red-600 text-white text-[11px] font-bold px-2 py-0.5 rounded-full">@pendingBranchVerificationsCount</span>
+                        }
+                    </a>
                 }
             </nav>
             
@@ -193,6 +334,29 @@
                 </div>
                 
                 <div class="flex items-center gap-space-6">
+                    <!-- Notification Bell Dropdown -->
+                    <div class="relative" id="notificationBellContainer">
+                        <button type="button" id="notificationBellBtn" class="relative p-2 text-on-surface-variant hover:text-primary transition-colors focus:outline-none bg-transparent border-0 flex items-center justify-center">
+                            <span class="material-symbols-outlined text-[24px]">notifications</span>
+                            <span id="notificationBadge" class="absolute top-1 right-1 hidden min-w-[16px] h-[16px] bg-red-600 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">0</span>
+                        </button>
+                        
+                        <!-- Dropdown panel -->
+                        <div id="notificationDropdown" class="hidden absolute right-0 mt-2 w-80 bg-white border border-surface-border rounded-xl shadow-xl z-50 py-2">
+                            <div class="px-4 py-2 border-b border-surface-border flex justify-between items-center">
+                                <span class="font-semibold text-body-md text-on-surface">Notifications</span>
+                                <button type="button" id="markAllAsReadBtn" class="text-xs text-primary hover:underline bg-transparent border-0 p-0 font-medium">Mark all as read</button>
+                            </div>
+                            <div id="notificationList" class="max-h-64 overflow-y-auto divide-y divide-surface-border">
+                                <!-- Dynamic items loaded via JS -->
+                                <div class="px-4 py-3 text-sm text-secondary text-center">Loading...</div>
+                            </div>
+                            <div class="px-4 py-2 border-t border-surface-border text-center">
+                                <a href="@Url.Action("Index", "Notifications")" class="text-xs text-primary font-medium hover:underline">View all history</a>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="flex items-center gap-space-3 pl-space-4">
                         <div class="flex flex-col items-end">
                             <span class="text-body-md font-semibold text-on-surface">@User.Identity.Name</span>
@@ -226,6 +390,149 @@
             @RenderBody()
         </main>
     }
+
+    <!-- Anti-Forgery Token form for JS -->
+    <form id="antiForgeryForm" class="hidden">
+        @Html.AntiForgeryToken()
+    </form>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const bellBtn = document.getElementById("notificationBellBtn");
+            const dropdown = document.getElementById("notificationDropdown");
+            const badge = document.getElementById("notificationBadge");
+            const list = document.getElementById("notificationList");
+            const markAllBtn = document.getElementById("markAllAsReadBtn");
+            const afForm = document.getElementById("antiForgeryForm");
+            if (!afForm) return;
+            const tokenInput = afForm.querySelector("input[name='__RequestVerificationToken']");
+            if (!tokenInput) return;
+            const afToken = tokenInput.value;
+
+            async function fetchNotifications() {
+                try {
+                    const response = await fetch('/Notifications/GetLatestUnread');
+                    if (response.ok) {
+                        const data = await response.json();
+                        updateBadge(data.unreadCount);
+                        updateDropdownList(data.notifications);
+                    }
+                } catch (err) {
+                    console.error("Error fetching notifications:", err);
+                }
+            }
+
+            function updateBadge(count) {
+                if (count > 0) {
+                    badge.textContent = count;
+                    badge.classList.remove("hidden");
+                    badge.classList.add("flex");
+                } else {
+                    badge.classList.add("hidden");
+                    badge.classList.remove("flex");
+                }
+            }
+
+            function updateDropdownList(notifications) {
+                if (!notifications || notifications.length === 0) {
+                    list.innerHTML = `<div class="px-4 py-3 text-sm text-secondary text-center">No new notifications</div>`;
+                    return;
+                }
+
+                list.innerHTML = notifications.map(n => `
+                    <div class="px-4 py-3 hover:bg-gray-50 flex flex-col gap-1 transition-colors cursor-pointer text-left" data-id="${n.id}" data-url="${n.linkUrl}">
+                        <div class="flex justify-between items-start gap-2">
+                            <span class="font-semibold text-xs text-primary text-left">${escapeHtml(n.title)}</span>
+                            <small class="text-gray-400 text-[10px] whitespace-nowrap">${n.createdAt}</small>
+                        </div>
+                        <p class="text-xs text-secondary-container text-gray-600 text-left">${escapeHtml(n.message)}</p>
+                        <div class="flex justify-between items-center mt-1">
+                            <span class="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">${escapeHtml(n.category)}</span>
+                            <button type="button" class="mark-single-read-btn text-[10px] text-primary hover:underline bg-transparent border-0 p-0 font-medium" data-id="${n.id}">Mark read</button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            function escapeHtml(str) {
+                if (!str) return '';
+                return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+            }
+
+            // Poll notifications every 30 seconds
+            fetchNotifications();
+            setInterval(fetchNotifications, 30000);
+
+            // Toggle Dropdown
+            bellBtn.addEventListener("click", function (e) {
+                e.stopPropagation();
+                dropdown.classList.toggle("hidden");
+                fetchNotifications();
+            });
+
+            // Close dropdown when clicking outside
+            document.addEventListener("click", function (e) {
+                if (!dropdown.classList.contains("hidden") && !dropdown.contains(e.target) && !bellBtn.contains(e.target)) {
+                    dropdown.classList.add("hidden");
+                }
+            });
+
+            // Handle actions inside the dropdown list
+            list.addEventListener("click", async function (e) {
+                const markBtn = e.target.closest(".mark-single-read-btn");
+                const item = e.target.closest("[data-id]");
+                
+                if (markBtn) {
+                    e.stopPropagation();
+                    const id = markBtn.getAttribute("data-id");
+                    await markAsRead(id);
+                } else if (item) {
+                    const id = item.getAttribute("data-id");
+                    const url = item.getAttribute("data-url");
+                    await markAsRead(id);
+                    if (url) {
+                        window.location.href = url;
+                    }
+                }
+            });
+
+            async function markAsRead(id) {
+                const formData = new FormData();
+                formData.append("__RequestVerificationToken", afToken);
+                formData.append("id", id);
+
+                try {
+                    const response = await fetch('/Notifications/MarkAsRead', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    if (response.ok) {
+                        await fetchNotifications();
+                    }
+                } catch (err) {
+                    console.error("Error marking notification read:", err);
+                }
+            }
+
+            markAllBtn.addEventListener("click", async function (e) {
+                e.stopPropagation();
+                const formData = new FormData();
+                formData.append("__RequestVerificationToken", afToken);
+
+                try {
+                    const response = await fetch('/Notifications/MarkAllAsRead', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    if (response.ok) {
+                        await fetchNotifications();
+                    }
+                } catch (err) {
+                    console.error("Error marking all notifications read:", err);
+                }
+            });
+        });
+    </script>
 
     @await RenderSectionAsync("Scripts", required: false)
 </body>

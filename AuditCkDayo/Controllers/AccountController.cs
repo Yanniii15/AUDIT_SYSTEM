@@ -72,13 +72,26 @@ namespace AuditCkDayo.Controllers
         public async Task<IActionResult> Register()
         {
             await PopulateRegistrationStats();
-            return View();
+            var users = await _context.Users
+                .Include(u => u.Establishment)
+                .Include(u => u.Manager)
+                .AsNoTracking()
+                .ToListAsync();
+            return View(users);
+        }
+
+        [HttpGet]
+        [Authorize(Roles = "Owner")]
+        public async Task<IActionResult> RegisterForm()
+        {
+            await PopulateRegistrationStats();
+            return View(new RegisterViewModel());
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
         [Authorize(Roles = "Owner")]
-        public async Task<IActionResult> Register(RegisterViewModel model)
+        public async Task<IActionResult> RegisterForm(RegisterViewModel model)
         {
             // Custom Password Requirements Validation
             if (string.IsNullOrEmpty(model.Password))
@@ -93,6 +106,10 @@ namespace AuditCkDayo.Controllers
                 ModelState.AddModelError("Password", "Password must be at least 8 characters long and contain at least one uppercase letter, one number, and one special character.");
             }
 
+            if (model.Password != model.RetypePassword)
+            {
+                ModelState.AddModelError("RetypePassword", "The password and confirmation password do not match.");
+            }
             if (ModelState.IsValid)
             {
                 var existingUser = await _context.Users.AnyAsync(u => u.Email == model.Email);
@@ -108,7 +125,8 @@ namespace AuditCkDayo.Controllers
                         Email = model.Email,
                         PasswordHash = BCrypt.Net.BCrypt.HashPassword(model.Password),
                         Role = model.Role,
-                        ManagerId = model.Role == UserRole.Buyer ? model.ManagerId : null,
+                        ManagerId = (model.Role == UserRole.Buyer || model.Role == UserRole.BranchStaff) ? model.ManagerId : null,
+                        EstablishmentId = model.Role == UserRole.BranchStaff ? model.EstablishmentId : null,
                         PcfBalance = 0.00m,
                         DailyStartingFloat = 0.00m
                     };
@@ -117,7 +135,7 @@ namespace AuditCkDayo.Controllers
                     await _context.SaveChangesAsync();
 
                     TempData["Message"] = $"User '{model.Name}' registered successfully.";
-                    return RedirectToAction("Index", "Users");
+                    return RedirectToAction("Register");
                 }
             }
 
@@ -133,6 +151,7 @@ namespace AuditCkDayo.Controllers
             ViewBag.TotalManagers = managers.Count;
             ViewBag.TotalBuyers = await _context.Users.AsNoTracking().CountAsync(u => u.Role == UserRole.Buyer);
             ViewBag.RecentUsers = await _context.Users.AsNoTracking().OrderByDescending(u => u.Id).Take(3).ToListAsync();
+            ViewBag.Establishments = new Microsoft.AspNetCore.Mvc.Rendering.SelectList(await _context.Establishments.AsNoTracking().ToListAsync(), "Id", "Name");
         }
 
         [HttpPost]
@@ -143,6 +162,23 @@ namespace AuditCkDayo.Controllers
             return RedirectToAction("Index", "Home");
         }
 
+        [HttpGet]
+        [Authorize(Roles = "Owner")]
+        public async Task<IActionResult> CheckEmailAvailability(string email)
+        {
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                return Json(new { available = true });
+            }
+
+            var exists = await _context.Users.AnyAsync(u => u.Email.ToLower() == email.Trim().ToLower());
+            if (exists)
+            {
+                return Json(new { available = false, message = "Email address is already in use." });
+            }
+
+            return Json(new { available = true });
+        }
         [HttpGet]
         public IActionResult AccessDenied()
         {

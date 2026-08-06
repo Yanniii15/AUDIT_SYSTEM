@@ -19,7 +19,32 @@ namespace AuditCkDayo.Services
             _endpoint = configuration["AzureOcr:Endpoint"] ?? "";
         }
 
-        public async Task<OcrResult> ParseReceiptAsync(Stream imageStream)
+        public async Task<OcrResult> ParseReceiptAsync(List<Stream> imageStreams)
+        {
+            var combinedResult = new OcrResult();
+            if (imageStreams == null || imageStreams.Count == 0)
+            {
+                return combinedResult;
+            }
+
+            foreach (var stream in imageStreams)
+            {
+                var result = await ParseSingleReceiptAsync(stream);
+                combinedResult.TotalAmount += result.TotalAmount;
+                if (result.TransactionDate.HasValue)
+                {
+                    combinedResult.TransactionDate = result.TransactionDate;
+                }
+                if (result.Items != null)
+                {
+                    combinedResult.Items.AddRange(result.Items);
+                }
+            }
+
+            return combinedResult;
+        }
+
+        private async Task<OcrResult> ParseSingleReceiptAsync(Stream imageStream)
         {
             var result = new OcrResult();
 

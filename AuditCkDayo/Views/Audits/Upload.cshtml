@@ -1,5 +1,5 @@
 @{
-    ViewData["Title"] = "Upload Invoice";
+    ViewData["Title"] = "Upload Receipts";
 }
 
 <!-- Header Section -->
@@ -9,42 +9,40 @@
             <span class="material-symbols-outlined text-[20px]">cloud_upload</span>
             <span class="font-label-caps uppercase tracking-widest text-on-surface-variant">Expense Intake</span>
         </div>
-        <h1 class="font-headline-lg text-headline-lg text-on-surface">Upload Invoice</h1>
+        <h1 class="font-headline-lg text-headline-lg text-on-surface">Upload Receipts</h1>
         <p class="font-body-md text-on-surface-variant leading-relaxed">
-            Submit a new expense to the auditing system. Upload a clear photograph or PDF scan of your physical receipt.
+            Submit a new expense to the auditing system. Upload up to 5 clear photographs or receipt images.
             The AI engine will automatically scan and extract the items and totals.
         </p>
     </div>
 </div>
 
 <div class="flex justify-center my-space-6">
-    <div class="w-full max-w-2xl bg-surface-container-lowest rounded-xl shadow-sm border border-surface-border overflow-hidden">
+    <div class="w-full max-w-3xl bg-surface-container-lowest rounded-xl shadow-sm border border-surface-border overflow-hidden">
         <div class="bg-primary px-space-6 py-space-4 flex justify-between items-center">
             <span class="text-on-primary font-label-caps uppercase tracking-tighter">Document Intake</span>
-            <span class="text-on-primary/60 text-[10px] font-data-mono">MODEL: RECEIPT-SCAN-v2.0</span>
+            <span class="text-on-primary/60 text-[10px] font-data-mono">MODEL: RECEIPT-SCAN-v3.0</span>
         </div>
 
         <form asp-action="ProcessUpload" method="post" enctype="multipart/form-data" class="p-space-8 flex flex-col gap-space-6" id="uploadForm">
             <div asp-validation-summary="ModelOnly" class="text-audit-error bg-audit-error/10 border border-audit-error/20 p-space-3 rounded-lg text-body-md text-center"></div>
 
             <!-- Drag & Drop Zone -->
-            <div id="drop-zone" class="border-2 border-dashed border-surface-border rounded-xl p-space-8 text-center flex flex-col items-center justify-center gap-space-4 cursor-pointer hover:border-primary/40 hover:bg-primary/5 transition-all relative min-h-[220px]">
-                <input type="file" name="receipt" id="file-input" class="hidden" accept="image/*" required />
+            <div id="drop-zone" class="border-2 border-dashed border-surface-border rounded-xl p-space-8 text-center flex flex-col items-center justify-center gap-space-4 cursor-pointer hover:border-primary/40 hover:bg-primary/5 transition-all relative min-h-[160px]">
+                <input type="file" name="receipts" id="file-input" class="hidden" accept="image/*" multiple />
                 
-                <div id="upload-prompt" class="flex flex-col items-center gap-space-3 transition-opacity duration-300">
+                <div id="upload-prompt" class="flex flex-col items-center gap-space-3">
                     <span class="material-symbols-outlined text-[48px] text-primary">receipt_long</span>
                     <div>
-                        <p class="font-headline-sm text-on-surface text-[15px]">Click or drag receipt here</p>
-                        <p class="text-on-surface-variant text-body-md text-[13px] mt-1">Accepts PNG, JPG, JPEG, or WEBP up to 10MB</p>
+                        <p class="font-headline-sm text-on-surface text-[15px]">Click or drag receipts here (up to 5 images)</p>
+                        <p class="text-on-surface-variant text-body-md text-[13px] mt-1">Accepts PNG, JPG, JPEG, or WEBP up to 10MB each</p>
                     </div>
                 </div>
+            </div>
 
-                <!-- Preview State (Initial hidden) -->
-                <div id="preview-container" class="absolute inset-0 p-space-4 flex flex-col items-center justify-center bg-surface-container-lowest/90 backdrop-blur-sm rounded-xl opacity-0 pointer-events-none transition-opacity duration-300">
-                    <span class="material-symbols-outlined text-[48px] text-audit-success animate-bounce">task_alt</span>
-                    <p class="font-headline-sm text-on-surface text-[15px] mt-space-3" id="file-name">file_name.jpg selected</p>
-                    <p class="text-on-surface-variant text-[13px]">Ready to process and run OCR scan</p>
-                </div>
+            <!-- Previews Grid -->
+            <div id="previews-container" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 hidden">
+                <!-- Preview items will be dynamically generated here -->
             </div>
 
             <!-- Action Button -->
@@ -59,11 +57,12 @@
 <script>
     const dropZone = document.getElementById('drop-zone');
     const fileInput = document.getElementById('file-input');
-    const previewContainer = document.getElementById('preview-container');
-    const uploadPrompt = document.getElementById('upload-prompt');
+    const previewsContainer = document.getElementById('previews-container');
     const processBtn = document.getElementById('process-btn');
-    const fileNameText = document.getElementById('file-name');
     const form = document.getElementById('uploadForm');
+
+    let fileItems = []; // Array of { id: number, file: File, rotation: number }
+    let nextId = 1;
 
     // Trigger file input
     dropZone.addEventListener('click', () => fileInput.click());
@@ -82,32 +81,219 @@
         e.preventDefault();
         dropZone.classList.remove('border-primary/40', 'bg-primary/5');
         if (e.dataTransfer.files.length) {
-            fileInput.files = e.dataTransfer.files;
-            handleFiles(e.dataTransfer.files[0]);
+            addFiles(e.dataTransfer.files);
         }
     });
 
     fileInput.addEventListener('change', (e) => {
         if (e.target.files.length) {
-            handleFiles(e.target.files[0]);
+            addFiles(e.target.files);
+            fileInput.value = ''; // Reset input to allow adding same files again
         }
     });
 
-    function handleFiles(file) {
-        fileNameText.innerText = file.name;
-        previewContainer.classList.remove('opacity-0', 'pointer-events-none');
-        uploadPrompt.classList.add('opacity-0');
-        processBtn.disabled = false;
-        
-        dropZone.classList.add('border-solid', 'border-primary/20');
-        dropZone.classList.remove('border-dashed');
+    function addFiles(files) {
+        for (let i = 0; i < files.length; i++) {
+            if (fileItems.length >= 5) {
+                alert('You can only upload up to 5 images.');
+                break;
+            }
+            const file = files[i];
+            const allowedExtensions = ['.png', '.jpg', '.jpeg', '.webp'];
+            const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+            if (!allowedExtensions.includes(ext)) {
+                alert(`File format of ${file.name} is not supported.`);
+                continue;
+            }
+            fileItems.push({
+                id: nextId++,
+                file: file,
+                rotation: 0
+            });
+        }
+        renderPreviews();
     }
 
-    form.addEventListener('submit', () => {
+    function renderPreviews() {
+        previewsContainer.innerHTML = '';
+        if (fileItems.length === 0) {
+            previewsContainer.classList.add('hidden');
+            processBtn.disabled = true;
+            return;
+        }
+
+        previewsContainer.classList.remove('hidden');
+        processBtn.disabled = false;
+
+        fileItems.forEach((item, index) => {
+            const card = document.createElement('div');
+            card.className = "relative bg-surface-container-low rounded-lg p-2 border border-surface-border flex flex-col items-center gap-2 group";
+
+            const imgContainer = document.createElement('div');
+            imgContainer.className = "w-full h-32 flex items-center justify-center overflow-hidden bg-black rounded relative";
+
+            const img = document.createElement('img');
+            img.src = URL.createObjectURL(item.file);
+            img.className = "max-h-full max-w-full object-contain transition-transform duration-200";
+            img.style.transform = `rotate(${item.rotation}deg)`;
+            imgContainer.appendChild(img);
+
+            // Reorder, Rotate, Delete Actions Overlay
+            const controlsOverlay = document.createElement('div');
+            controlsOverlay.className = "absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col justify-between p-1.5 transition-opacity duration-200";
+
+            const topRow = document.createElement('div');
+            topRow.className = "flex justify-between items-center w-full";
+            
+            // Delete button
+            const delBtn = document.createElement('button');
+            delBtn.type = "button";
+            delBtn.className = "p-1 rounded bg-audit-error text-white hover:bg-audit-error-hover flex items-center justify-center";
+            delBtn.innerHTML = '<span class="material-symbols-outlined text-[16px]">delete</span>';
+            delBtn.onclick = () => removeFile(item.id);
+
+            // Rotate button
+            const rotateBtn = document.createElement('button');
+            rotateBtn.type = "button";
+            rotateBtn.className = "p-1 rounded bg-primary text-white hover:bg-primary/90 flex items-center justify-center";
+            rotateBtn.innerHTML = '<span class="material-symbols-outlined text-[16px]">rotate_right</span>';
+            rotateBtn.onclick = () => rotateFile(item.id);
+
+            topRow.appendChild(rotateBtn);
+            topRow.appendChild(delBtn);
+
+            const bottomRow = document.createElement('div');
+            bottomRow.className = "flex justify-center gap-2 w-full";
+
+            // Move Left
+            const moveLeftBtn = document.createElement('button');
+            moveLeftBtn.type = "button";
+            moveLeftBtn.className = "p-1 rounded bg-surface-border text-white disabled:opacity-40 flex items-center justify-center" + (index === 0 ? " cursor-not-allowed" : "");
+            moveLeftBtn.disabled = index === 0;
+            moveLeftBtn.innerHTML = '<span class="material-symbols-outlined text-[14px]">arrow_back</span>';
+            moveLeftBtn.onclick = () => moveFile(index, index - 1);
+
+            // Move Right
+            const moveRightBtn = document.createElement('button');
+            moveRightBtn.type = "button";
+            moveRightBtn.className = "p-1 rounded bg-surface-border text-white disabled:opacity-40 flex items-center justify-center" + (index === fileItems.length - 1 ? " cursor-not-allowed" : "");
+            moveRightBtn.disabled = index === fileItems.length - 1;
+            moveRightBtn.innerHTML = '<span class="material-symbols-outlined text-[14px]">arrow_forward</span>';
+            moveRightBtn.onclick = () => moveFile(index, index + 1);
+
+            bottomRow.appendChild(moveLeftBtn);
+            bottomRow.appendChild(moveRightBtn);
+
+            controlsOverlay.appendChild(topRow);
+            controlsOverlay.appendChild(bottomRow);
+            imgContainer.appendChild(controlsOverlay);
+
+            const label = document.createElement('span');
+            label.className = "text-[11px] text-on-surface truncate w-full text-center font-data-mono";
+            label.innerText = `${index + 1}. ${item.file.name}`;
+
+            card.appendChild(imgContainer);
+            card.appendChild(label);
+            previewsContainer.appendChild(card);
+        });
+    }
+
+    function removeFile(id) {
+        fileItems = fileItems.filter(item => item.id !== id);
+        renderPreviews();
+    }
+
+    function rotateFile(id) {
+        const item = fileItems.find(item => item.id === id);
+        if (item) {
+            item.rotation = (item.rotation + 90) % 360;
+            renderPreviews();
+        }
+    }
+
+    function moveFile(fromIndex, toIndex) {
+        if (toIndex < 0 || toIndex >= fileItems.length) return;
+        const temp = fileItems[fromIndex];
+        fileItems[fromIndex] = fileItems[toIndex];
+        fileItems[toIndex] = temp;
+        renderPreviews();
+    }
+
+    async function getRotatedFile(fileItem) {
+        if (fileItem.rotation === 0) {
+            return fileItem.file;
+        }
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                const angle = (fileItem.rotation % 360 + 360) % 360;
+                if (angle === 90 || angle === 270) {
+                    canvas.width = img.height;
+                    canvas.height = img.width;
+                } else {
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                }
+                ctx.translate(canvas.width / 2, canvas.height / 2);
+                ctx.rotate((angle * Math.PI) / 180);
+                ctx.drawImage(img, -img.width / 2, -img.height / 2);
+                canvas.toBlob((blob) => {
+                    URL.revokeObjectURL(img.src);
+                    const rotatedFile = new File([blob], fileItem.file.name, { type: fileItem.file.type });
+                    resolve(rotatedFile);
+                }, fileItem.file.type);
+            };
+            img.onerror = () => {
+                URL.revokeObjectURL(img.src);
+                resolve(fileItem.file);
+            };
+            img.src = URL.createObjectURL(fileItem.file);
+        });
+    }
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        if (fileItems.length === 0) return;
+
         processBtn.disabled = true;
         processBtn.innerHTML = `
             <span class="material-symbols-outlined animate-spin">sync</span>
-            <span>Running OCR Extraction...</span>
+            <span>Processing Images & OCR...</span>
         `;
+
+        const formData = new FormData();
+        const token = form.querySelector('input[name="__RequestVerificationToken"]').value;
+        formData.append('__RequestVerificationToken', token);
+
+        for (let i = 0; i < fileItems.length; i++) {
+            const rotatedFile = await getRotatedFile(fileItems[i]);
+            formData.append('receipts', rotatedFile);
+        }
+
+        try {
+            const response = await fetch(form.action, {
+                method: 'POST',
+                body: formData
+            });
+            if (response.ok) {
+                window.location.href = '/Audits/Review';
+            } else {
+                const html = await response.text();
+                // Replace body content with validation failure responses if any
+                document.open();
+                document.write(html);
+                document.close();
+            }
+        } catch (err) {
+            console.error(err);
+            alert('An error occurred during submission. Please try again.');
+            processBtn.disabled = false;
+            processBtn.innerHTML = `
+                <span class="material-symbols-outlined">memory</span>
+                <span>Process OCR</span>
+            `;
+        }
     });
 </script>

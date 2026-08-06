@@ -22,6 +22,6 @@ namespace AuditCkDayo.Services
 
     public interface IOcrService
     {
-        Task<OcrResult> ParseReceiptAsync(Stream imageStream);
+        Task<OcrResult> ParseReceiptAsync(List<Stream> imageStreams);
     }
 }

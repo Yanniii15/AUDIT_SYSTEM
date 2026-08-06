@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using AuditCkDayo.Controllers;
 using AuditCkDayo.Data;
 using AuditCkDayo.Models;
+using AuditCkDayo.Services;
 using Xunit;
 
 namespace AuditCkDayo.Tests
@@ -320,7 +321,7 @@ namespace AuditCkDayo.Tests
                 var result = await controller.AssignManager(4, 2);
 
                 var redirectResult = Assert.IsType<RedirectToActionResult>(result);
-                Assert.Equal("Index", redirectResult.ActionName);
+                Assert.Equal("Register", redirectResult.ActionName);
                 Assert.Equal("Successfully updated manager for david@test.com.", controller.TempData["Message"]);
 
                 var buyer = await context.Users.FindAsync(4);
@@ -340,11 +341,445 @@ namespace AuditCkDayo.Tests
                 var result = await controller.AssignManager(3, null);
 
                 var redirectResult = Assert.IsType<RedirectToActionResult>(result);
-                Assert.Equal("Index", redirectResult.ActionName);
+                Assert.Equal("Register", redirectResult.ActionName);
 
                 var buyer = await context.Users.FindAsync(3);
                 Assert.Null(buyer.ManagerId);
             }
         }
+
+    public class FakeOcrService : IOcrService
+    {
+        public Task<OcrResult> ParseReceiptAsync(List<Stream> receiptStreams)
+        {
+            return Task.FromResult(new OcrResult
+            {
+                TotalAmount = 100.00m,
+                TransactionDate = DateTime.Today,
+                Items = new List<OcrItemResult>()
+            });
+        }
+    }
+
+    public class FakeWebHostEnvironment : Microsoft.AspNetCore.Hosting.IWebHostEnvironment
+    {
+        public string WebRootPath { get; set; } = string.Empty;
+        public string ContentRootPath { get; set; } = string.Empty;
+        public Microsoft.Extensions.FileProviders.IFileProvider WebRootFileProvider { get; set; } = null!;
+        public Microsoft.Extensions.FileProviders.IFileProvider ContentRootFileProvider { get; set; } = null!;
+        public string ApplicationName { get; set; } = "AuditCkDayo";
+        public string EnvironmentName { get; set; } = "Development";
+    }
+
+    public class FakeSession : ISession
+    {
+        private readonly Dictionary<string, byte[]> _sessionStorage = new();
+
+        public bool IsAvailable => true;
+        public string Id => "FakeSessionId";
+        public IEnumerable<string> Keys => _sessionStorage.Keys;
+
+        public void Clear() => _sessionStorage.Clear();
+        public Task CommitAsync(System.Threading.CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task LoadAsync(System.Threading.CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public void Remove(string key) => _sessionStorage.Remove(key);
+        public void Set(string key, byte[] value) => _sessionStorage[key] = value;
+        public bool TryGetValue(string key, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out byte[]? value) => _sessionStorage.TryGetValue(key, out value);
+    }
+
+    public class AuditsControllerTests : IDisposable
+    {
+        private readonly SqliteConnection _connection;
+        private readonly DbContextOptions<AuditDbContext> _options;
+
+        public AuditsControllerTests()
+        {
+            _connection = new SqliteConnection("Filename=:memory:");
+            _connection.Open();
+
+            _options = new DbContextOptionsBuilder<AuditDbContext>()
+                .UseSqlite(_connection)
+                .Options;
+
+            using (var context = new AuditDbContext(_options))
+            {
+                context.Database.EnsureCreated();
+            }
+        }
+
+        public void Dispose()
+        {
+            _connection.Dispose();
+        }
+
+        private async Task SeedDataAsync(AuditDbContext context)
+        {
+            var users = new List<User>
+            {
+                new User { Id = 1, Name = "Alice Owner", Email = "alice@test.com", PasswordHash = "hash", Role = UserRole.Owner, PcfBalance = 1000m, DailyStartingFloat = 1000m },
+                new User { Id = 2, Name = "Bob Manager", Email = "bob@test.com", PasswordHash = "hash", Role = UserRole.Manager, PcfBalance = 500m, DailyStartingFloat = 500m },
+                new User { Id = 3, Name = "Charlie Buyer", Email = "charlie@test.com", PasswordHash = "hash", Role = UserRole.Buyer, PcfBalance = 200m, DailyStartingFloat = 200m, ManagerId = 2 },
+                new User { Id = 4, Name = "David Buyer", Email = "david@test.com", PasswordHash = "hash", Role = UserRole.Buyer, PcfBalance = 100m, DailyStartingFloat = 100m, ManagerId = null },
+                new User { Id = 5, Name = "Eve Staff", Email = "eve@test.com", PasswordHash = "hash", Role = UserRole.BranchStaff, EstablishmentId = 1 },
+                new User { Id = 6, Name = "Frank OtherStaff", Email = "frank@test.com", PasswordHash = "hash", Role = UserRole.BranchStaff, EstablishmentId = 2 }
+            };
+
+            context.Users.AddRange(users);
+
+            var establishment1 = new Establishment { Id = 1, Name = "Test Establishment 1" };
+            var establishment2 = new Establishment { Id = 2, Name = "Test Establishment 2" };
+            context.Establishments.AddRange(establishment1, establishment2);
+            await context.SaveChangesAsync();
+        }
+
+        private AuditsController CreateController(AuditDbContext context, int currentUserId, string currentUserRole, ISession? session = null)
+        {
+            var claims = new List<Claim>
+            {
+                new Claim(ClaimTypes.NameIdentifier, currentUserId.ToString()),
+                new Claim(ClaimTypes.Role, currentUserRole)
+            };
+            var identity = new ClaimsIdentity(claims, "TestAuth");
+            var principal = new ClaimsPrincipal(identity);
+
+            var httpContext = new DefaultHttpContext { User = principal };
+            httpContext.Session = session ?? new FakeSession();
+
+            var tempDataProvider = new FakeTempDataProvider();
+            var tempData = new TempDataDictionary(httpContext, tempDataProvider);
+
+            return new AuditsController(context, new FakeOcrService(), new FakeWebHostEnvironment())
+            {
+                ControllerContext = new ControllerContext
+                {
+                    HttpContext = httpContext
+                },
+                TempData = tempData
+            };
+        }
+
+        [Fact]
+        public async Task Receipt_FileNotFound_ReturnsNotFound()
+        {
+            using (var context = new AuditDbContext(_options))
+            {
+                await SeedDataAsync(context);
+                var controller = CreateController(context, 1, "Owner");
+
+                var result = await controller.Receipt("nonexistent_file.png");
+
+                Assert.IsType<NotFoundResult>(result);
+            }
+        }
+
+        [Fact]
+        public async Task Receipt_AuthorizedOwner_ReturnsFile()
+        {
+            var filename = "test_receipt_owner.png";
+            var uploadsFolder = Path.Combine(AppContext.BaseDirectory, "App_Data", "uploads");
+            Directory.CreateDirectory(uploadsFolder);
+            var filePath = Path.Combine(uploadsFolder, filename);
+            var expectedBytes = new byte[] { 1, 2, 3, 4 };
+            await File.WriteAllBytesAsync(filePath, expectedBytes);
+
+            try
+            {
+                using (var context = new AuditDbContext(_options))
+                {
+                    await SeedDataAsync(context);
+
+                    // Add an audit item
+                    var audit = new AuditItem
+                    {
+                        Id = 1,
+                        BuyerId = 3,
+                        EstablishmentId = 1,
+                        Amount = 50m,
+                        Description = "Test",
+                        ReceiptImageUrl = $"/Audits/Receipt/{filename}"
+                    };
+                    context.AuditItems.Add(audit);
+                    await context.SaveChangesAsync();
+
+                    var controller = CreateController(context, 1, "Owner"); // Owner requesting
+                    var result = await controller.Receipt(filename);
+
+                    var fileResult = Assert.IsType<FileContentResult>(result);
+                    Assert.Equal("image/png", fileResult.ContentType);
+                    Assert.Equal(expectedBytes, fileResult.FileContents);
+                }
+            }
+            finally
+            {
+                if (File.Exists(filePath))
+                {
+                    File.Delete(filePath);
+                }
+            }
+        }
+
+        [Fact]
+        public async Task Receipt_AuthorizedBuyer_ReturnsFile()
+        {
+            var filename = "test_receipt_buyer.png";
+            var uploadsFolder = Path.Combine(AppContext.BaseDirectory, "App_Data", "uploads");
+            Directory.CreateDirectory(uploadsFolder);
+            var filePath = Path.Combine(uploadsFolder, filename);
+            var expectedBytes = new byte[] { 5, 6, 7 };
+            await File.WriteAllBytesAsync(filePath, expectedBytes);
+
+            try
+            {
+                using (var context = new AuditDbContext(_options))
+                {
+                    await SeedDataAsync(context);
+
+                    // Add an audit item for Buyer Id = 3
+                    var audit = new AuditItem
+                    {
+                        Id = 2,
+                        BuyerId = 3,
+                        EstablishmentId = 1,
+                        Amount = 50m,
+                        Description = "Test",
+                        ReceiptImageUrl = $"/Audits/Receipt/{filename}"
+                    };
+                    context.AuditItems.Add(audit);
+                    await context.SaveChangesAsync();
+
+                    var controller = CreateController(context, 3, "Buyer"); // Charlie Buyer requesting
+                    var result = await controller.Receipt(filename);
+
+                    var fileResult = Assert.IsType<FileContentResult>(result);
+                    Assert.Equal("image/png", fileResult.ContentType);
+                    Assert.Equal(expectedBytes, fileResult.FileContents);
+                }
+            }
+            finally
+            {
+                if (File.Exists(filePath))
+                {
+                    File.Delete(filePath);
+                }
+            }
+        }
+
+        [Fact]
+        public async Task Receipt_UnauthorizedBuyer_ReturnsForbid()
+        {
+            var filename = "test_receipt_unauth.png";
+            var uploadsFolder = Path.Combine(AppContext.BaseDirectory, "App_Data", "uploads");
+            Directory.CreateDirectory(uploadsFolder);
+            var filePath = Path.Combine(uploadsFolder, filename);
+            await File.WriteAllBytesAsync(filePath, new byte[] { 1 });
+
+            try
+            {
+                using (var context = new AuditDbContext(_options))
+                {
+                    await SeedDataAsync(context);
+
+                    // Add an audit item for Buyer Id = 3
+                    var audit = new AuditItem
+                    {
+                        Id = 3,
+                        BuyerId = 3,
+                        EstablishmentId = 1,
+                        Amount = 50m,
+                        Description = "Test",
+                        ReceiptImageUrl = $"/Audits/Receipt/{filename}"
+                    };
+                    context.AuditItems.Add(audit);
+                    await context.SaveChangesAsync();
+
+                    var controller = CreateController(context, 4, "Buyer"); // David Buyer requesting (not the owner/buyer/manager)
+                    var result = await controller.Receipt(filename);
+
+                    Assert.IsType<ForbidResult>(result);
+                }
+            }
+            finally
+            {
+                if (File.Exists(filePath))
+                {
+                    File.Delete(filePath);
+                }
+            }
+        }
+
+        [Fact]
+        public async Task Receipt_AuthorizedSessionBuyer_ReturnsFile()
+        {
+            var filename = "test_receipt_session.png";
+            var uploadsFolder = Path.Combine(AppContext.BaseDirectory, "App_Data", "uploads");
+            Directory.CreateDirectory(uploadsFolder);
+            var filePath = Path.Combine(uploadsFolder, filename);
+            var expectedBytes = new byte[] { 9, 10, 11 };
+            await File.WriteAllBytesAsync(filePath, expectedBytes);
+
+            try
+            {
+                using (var context = new AuditDbContext(_options))
+                {
+                    await SeedDataAsync(context);
+
+                    var session = new FakeSession();
+                    session.Set("ReceiptImageUrl", System.Text.Encoding.UTF8.GetBytes($"/Audits/Receipt/{filename}"));
+
+                    var controller = CreateController(context, 3, "Buyer", session); // Charlie Buyer requesting
+                    var result = await controller.Receipt(filename);
+
+                    var fileResult = Assert.IsType<FileContentResult>(result);
+                    Assert.Equal("image/png", fileResult.ContentType);
+                    Assert.Equal(expectedBytes, fileResult.FileContents);
+                }
+            }
+            finally
+            {
+                if (File.Exists(filePath))
+                {
+                    File.Delete(filePath);
+                }
+            }
+        }
+
+        [Fact]
+        public async Task Receipt_AuthorizedBranchStaff_ReturnsFile()
+        {
+            var filename = "test_receipt_branchstaff.png";
+            var uploadsFolder = Path.Combine(AppContext.BaseDirectory, "App_Data", "uploads");
+            Directory.CreateDirectory(uploadsFolder);
+            var filePath = Path.Combine(uploadsFolder, filename);
+            var expectedBytes = new byte[] { 12, 13, 14 };
+            await File.WriteAllBytesAsync(filePath, expectedBytes);
+
+            try
+            {
+                using (var context = new AuditDbContext(_options))
+                {
+                    await SeedDataAsync(context);
+
+                    // Add an audit item for Establishment Id = 1
+                    var audit = new AuditItem
+                    {
+                        Id = 10,
+                        BuyerId = 3,
+                        EstablishmentId = 1,
+                        Amount = 50m,
+                        Description = "Test",
+                        ReceiptImageUrl = $"/Audits/Receipt/{filename}"
+                    };
+                    context.AuditItems.Add(audit);
+                    await context.SaveChangesAsync();
+
+                    var controller = CreateController(context, 5, "BranchStaff"); // Eve (Staff at Est 1) requesting
+                    var result = await controller.Receipt(filename);
+
+                    var fileResult = Assert.IsType<FileContentResult>(result);
+                    Assert.Equal("image/png", fileResult.ContentType);
+                    Assert.Equal(expectedBytes, fileResult.FileContents);
+                }
+            }
+            finally
+            {
+                if (File.Exists(filePath))
+                {
+                    File.Delete(filePath);
+                }
+            }
+        }
+
+        [Fact]
+        public async Task Receipt_UnauthorizedBranchStaff_ReturnsForbid()
+        {
+            var filename = "test_receipt_branchstaff_unauth.png";
+            var uploadsFolder = Path.Combine(AppContext.BaseDirectory, "App_Data", "uploads");
+            Directory.CreateDirectory(uploadsFolder);
+            var filePath = Path.Combine(uploadsFolder, filename);
+            await File.WriteAllBytesAsync(filePath, new byte[] { 1 });
+
+            try
+            {
+                using (var context = new AuditDbContext(_options))
+                {
+                    await SeedDataAsync(context);
+
+                    // Add an audit item for Establishment Id = 1
+                    var audit = new AuditItem
+                    {
+                        Id = 11,
+                        BuyerId = 3,
+                        EstablishmentId = 1,
+                        Amount = 50m,
+                        Description = "Test",
+                        ReceiptImageUrl = $"/Audits/Receipt/{filename}"
+                    };
+                    context.AuditItems.Add(audit);
+                    await context.SaveChangesAsync();
+
+                    var controller = CreateController(context, 6, "BranchStaff"); // Frank (Staff at Est 2) requesting (different establishment)
+                    var result = await controller.Receipt(filename);
+
+                    Assert.IsType<ForbidResult>(result);
+                }
+            }
+            finally
+            {
+                if (File.Exists(filePath))
+                {
+                    File.Delete(filePath);
+                }
+            }
+        }
+
+        [Fact]
+        public async Task Receipt_PathTraversal_SanitizesFilename()
+        {
+            var filename = "test_receipt_traversal.png";
+            var uploadsFolder = Path.Combine(AppContext.BaseDirectory, "App_Data", "uploads");
+            Directory.CreateDirectory(uploadsFolder);
+            var filePath = Path.Combine(uploadsFolder, filename);
+            var expectedBytes = new byte[] { 15, 16, 17 };
+            await File.WriteAllBytesAsync(filePath, expectedBytes);
+
+            try
+            {
+                using (var context = new AuditDbContext(_options))
+                {
+                    await SeedDataAsync(context);
+
+                    // Add an audit item
+                    var audit = new AuditItem
+                    {
+                        Id = 12,
+                        BuyerId = 3,
+                        EstablishmentId = 1,
+                        Amount = 50m,
+                        Description = "Test",
+                        ReceiptImageUrl = $"/Audits/Receipt/{filename}"
+                    };
+                    context.AuditItems.Add(audit);
+                    await context.SaveChangesAsync();
+
+                    var controller = CreateController(context, 1, "Owner");
+                    // Attempt path traversal path
+                    var traversalFilename = "../../../" + filename;
+                    var result = await controller.Receipt(traversalFilename);
+
+                    // It should sanitize the filename and correctly serve the file as it extracts only the filename
+                    var fileResult = Assert.IsType<FileContentResult>(result);
+                    Assert.Equal("image/png", fileResult.ContentType);
+                    Assert.Equal(expectedBytes, fileResult.FileContents);
+                }
+            }
+            finally
+            {
+                if (File.Exists(filePath))
+                {
+                    File.Delete(filePath);
+                }
+            }
+        }
+    }
     }
 }

@@ -11,6 +11,10 @@ namespace AuditCkDayo.Data
         public DbSet<Establishment> Establishments { get; set; }
         public DbSet<AuditItem> AuditItems { get; set; }
         public DbSet<AuditItemDetail> AuditItemDetails { get; set; }
+        public DbSet<AuditItemImage> AuditItemImages { get; set; }
+        public DbSet<PettyCashLedger> PettyCashLedgers { get; set; }
+        public DbSet<SurrenderRequest> SurrenderRequests { get; set; }
+        public DbSet<Notification> Notifications { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -57,7 +61,7 @@ namespace AuditCkDayo.Data
             modelBuilder.Entity<AuditItem>()
                 .Property(a => a.Status)
                 .HasConversion<string>()
-                .HasMaxLength(20)
+                .HasMaxLength(50)
                 .HasDefaultValue(AuditStatus.AwaitingBranchVerification);
 
             modelBuilder.Entity<AuditItem>()
@@ -95,6 +99,56 @@ namespace AuditCkDayo.Data
                 .HasOne(ad => ad.AuditItem)
                 .WithMany(a => a.Details)
                 .HasForeignKey(ad => ad.AuditItemId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // AuditItemImage -> AuditItem relationship (Cascade Delete)
+            modelBuilder.Entity<AuditItemImage>()
+                .HasOne(ai => ai.AuditItem)
+                .WithMany(a => a.Images)
+                .HasForeignKey(ai => ai.AuditItemId)
+                .OnDelete(DeleteBehavior.Cascade);
+            // PettyCashLedger configuration
+            modelBuilder.Entity<PettyCashLedger>()
+                .Property(l => l.TransactionType)
+                .HasConversion<string>()
+                .HasMaxLength(50);
+
+            modelBuilder.Entity<PettyCashLedger>()
+                .HasOne(l => l.User)
+                .WithMany()
+                .HasForeignKey(l => l.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<PettyCashLedger>()
+                .HasOne(l => l.CounterpartyUser)
+                .WithMany()
+                .HasForeignKey(l => l.CounterpartyUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+
+            // SurrenderRequest configuration
+            modelBuilder.Entity<SurrenderRequest>()
+                .Property(s => s.Status)
+                .HasConversion<string>()
+                .HasMaxLength(50);
+
+            modelBuilder.Entity<SurrenderRequest>()
+                .HasOne(s => s.Buyer)
+                .WithMany()
+                .HasForeignKey(s => s.BuyerId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<SurrenderRequest>()
+                .HasOne(s => s.ActionByUser)
+                .WithMany()
+                .HasForeignKey(s => s.ActionByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Notification configuration
+            modelBuilder.Entity<Notification>()
+                .HasOne(n => n.User)
+                .WithMany()
+                .HasForeignKey(n => n.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
         }
     }

@@ -86,9 +86,15 @@ namespace AuditCkDayo.Controllers
                     return RedirectToAction(nameof(Index));
                 }
 
+                bool isSelfTransfer = (targetUser.Id == currentUser.Id);
+                bool isAuthorized = User.IsInRole("Owner") || (!isSelfTransfer && targetUser.ManagerId == currentUser.Id);
+                if (!isAuthorized)
+                {
+                    TempData["Error"] = "Unauthorized access.";
+                    return RedirectToAction(nameof(Index));
+                }
                 // If subtracting cash, convert amount to negative.
                 decimal finalAmount = actionType == "Subtract" ? -amount : amount;
-                bool isSelfTransfer = (targetUser.Id == currentUser.Id);
 
                 if (isSelfTransfer)
                 {
@@ -102,6 +108,20 @@ namespace AuditCkDayo.Controllers
 
                     targetUser.PcfBalance += finalAmount;
                     targetUser.DailyStartingFloat += finalAmount;
+
+                    var ledger = new PettyCashLedger
+                    {
+                        UserId = targetUser.Id,
+                        TransactionType = LedgerTransactionType.VaultFunding,
+                        Amount = finalAmount,
+                        ResultingBalance = targetUser.PcfBalance,
+                        Timestamp = DateTime.Now,
+                        CounterpartyUserId = null,
+                        Notes = finalAmount > 0 
+                            ? $"Vault funded with ₱{finalAmount:N2}." 
+                            : $"Vault adjusted/reduced by ₱{-finalAmount:N2}."
+                    };
+                    _context.PettyCashLedgers.Add(ledger);
                 }
                 else
                 {
@@ -127,14 +147,56 @@ namespace AuditCkDayo.Controllers
                     // Add amount to target user's PcfBalance and DailyStartingFloat
                     targetUser.PcfBalance += finalAmount;
                     targetUser.DailyStartingFloat += finalAmount;
+
+                    var managerLedger = new PettyCashLedger
+                    {
+                        UserId = currentUser.Id,
+                        TransactionType = LedgerTransactionType.ManagerFunding,
+                        Amount = -finalAmount,
+                        ResultingBalance = currentUser.PcfBalance,
+                        Timestamp = DateTime.Now,
+                        CounterpartyUserId = targetUser.Id,
+                        Notes = finalAmount > 0
+                            ? $"Allocated ₱{finalAmount:N2} to {targetUser.Email}."
+                            : $"Retrieved/deducted ₱{-finalAmount:N2} from {targetUser.Email}."
+                    };
+                    _context.PettyCashLedgers.Add(managerLedger);
+
+                    var buyerLedger = new PettyCashLedger
+                    {
+                        UserId = targetUser.Id,
+                        TransactionType = LedgerTransactionType.ManagerFunding,
+                        Amount = finalAmount,
+                        ResultingBalance = targetUser.PcfBalance,
+                        Timestamp = DateTime.Now,
+                        CounterpartyUserId = currentUser.Id,
+                        Notes = finalAmount > 0
+                            ? $"Received ₱{finalAmount:N2} from {currentUser.Email}."
+                            : $"Returned ₱{-finalAmount:N2} to manager {currentUser.Email}."
+                    };
+                    _context.PettyCashLedgers.Add(buyerLedger);
                 }
+
+                // Create notification for targetUser when funds have been transferred/adjusted.
+                var notification = new Notification
+                {
+                    UserId = targetUser.Id,
+                    Title = "Funds Adjusted",
+                    Message = finalAmount > 0 
+                        ? $"Funds transferred: Received ₱{finalAmount:N2} from {(isSelfTransfer ? "Master Vault" : currentUser.Email)}." 
+                        : $"Funds adjusted: Deducted ₱{-finalAmount:N2} by {(isSelfTransfer ? "Master Vault" : currentUser.Email)}.",
+                    Category = "Funding",
+                    LinkUrl = (Url != null ? (Url.Action("Index", "Users") ?? "/Users") : "/Users"),
+                    CreatedAt = DateTime.UtcNow
+                };
+                _context.Notifications.Add(notification);
 
                 await _context.SaveChangesAsync();
                 await transaction.CommitAsync();
 
                 if (isSelfTransfer && finalAmount > 0)
                 {
-                    TempData["Message"] = $"Master Vault funded with ₱{finalAmount}!";
+                    TempData["Message"] = $"💰 Master Vault funded with ₱{finalAmount}!";
                 }
                 else
                 {
@@ -145,7 +207,8 @@ namespace AuditCkDayo.Controllers
             catch (Exception ex)
             {
                 await transaction.RollbackAsync();
-                TempData["Error"] = $"An error occurred: {ex.Message}";
+                Console.WriteLine($"Error in AddPcf: {ex}");
+                TempData["Error"] = "An error occurred while processing the transfer.";
             }
 
             return RedirectToAction(nameof(Index));
@@ -160,14 +223,56 @@ namespace AuditCkDayo.Controllers
             if (targetUser == null)
             {
                 TempData["Error"] = "User not found.";
-                return RedirectToAction(nameof(Index));
+                return RedirectToAction("Register", "Account");
             }
 
             targetUser.ManagerId = managerId;
             await _context.SaveChangesAsync();
 
             TempData["Message"] = $"Successfully updated manager for {targetUser.Email}.";
-            return RedirectToAction(nameof(Index));
+            return RedirectToAction("Register", "Account");
+        }
+
+        [HttpPost]
+        [Authorize(Roles = "Owner")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Delete(int id)
+        {
+            var user = await _context.Users.FindAsync(id);
+            if (user == null)
+            {
+                TempData["Error"] = "User not found.";
+                return RedirectToAction("Register", "Account");
+            }
+
+            var currentUserIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (int.TryParse(currentUserIdString, out var currentUserId) && currentUserId == id)
+            {
+                TempData["Error"] = "You cannot delete your own account.";
+                return RedirectToAction("Register", "Account");
+            }
+
+            var hasAuditItems = await _context.AuditItems.AnyAsync(a => a.BuyerId == id || a.VerifiedById == id);
+            var hasLedgerEntries = await _context.PettyCashLedgers.AnyAsync(l => l.UserId == id || l.CounterpartyUserId == id);
+            var hasSurrenders = await _context.SurrenderRequests.AnyAsync(s => s.BuyerId == id || s.ActionByUserId == id);
+            if (hasAuditItems || hasLedgerEntries || hasSurrenders)
+            {
+                TempData["Error"] = $"User '{user.Name}' cannot be deleted because they have associated audit, ledger, or surrender records.";
+                return RedirectToAction("Register", "Account");
+            }
+
+            // Unassign staff reporting to this manager
+            var staffMembers = await _context.Users.Where(u => u.ManagerId == id).ToListAsync();
+            foreach (var staff in staffMembers)
+            {
+                staff.ManagerId = null;
+            }
+
+            _context.Users.Remove(user);
+            await _context.SaveChangesAsync();
+
+            TempData["Message"] = $"User '{user.Name}' has been successfully deleted.";
+            return RedirectToAction("Register", "Account");
         }
     }
 }

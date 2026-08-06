@@ -1,0 +1,218 @@
+@model IEnumerable<AuditCkDayo.Models.SurrenderRequest>
+@{
+    ViewData["Title"] = "Surrender Approval Queue";
+}
+
+<!-- Header Section -->
+<div class="relative flex flex-col lg:flex-row gap-space-6 items-start justify-between mb-6">
+    <div class="flex flex-col gap-space-2 max-w-2xl">
+        <div class="flex items-center gap-space-2 text-primary">
+            <span class="material-symbols-outlined text-[20px]">queue</span>
+            <span class="font-label-caps uppercase tracking-widest text-on-surface-variant">Review Queue</span>
+        </div>
+        <h1 class="font-headline-lg text-headline-lg text-on-surface">Cash Surrender Approvals</h1>
+        <p class="font-body-md text-on-surface-variant leading-relaxed">
+            Verify and confirm receipt of physical cash from buyers. Confirming will permanently deduct the amount from the buyer's balance.
+        </p>
+    </div>
+</div>
+
+<div class="grid grid-cols-12 gap-8 items-start">
+    <!-- Queue List -->
+    <div class="col-span-12 lg:col-span-8">
+        <div class="bg-surface-container-lowest rounded-xl shadow-sm border border-surface-border overflow-hidden">
+            <div class="p-6 border-b border-surface-border flex items-center justify-between">
+                <h3 class="font-headline-sm text-headline-sm text-on-surface">Pending Requests</h3>
+                <span class="bg-yellow-100 text-yellow-800 text-xs font-semibold px-2.5 py-0.5 rounded-full dark:bg-yellow-900/30 dark:text-yellow-400">
+                    @Model.Count() Pending
+                </span>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-surface-container-low border-b border-surface-border">
+                            <th class="px-6 py-4 font-label-caps text-[11px] uppercase tracking-wider text-on-surface-variant">Buyer</th>
+                            <th class="px-6 py-4 font-label-caps text-[11px] uppercase tracking-wider text-on-surface-variant text-right">Declared Amount</th>
+                            <th class="px-6 py-4 font-label-caps text-[11px] uppercase tracking-wider text-on-surface-variant">Request Date</th>
+                            <th class="px-6 py-4 font-label-caps text-[11px] uppercase tracking-wider text-on-surface-variant">Buyer Notes</th>
+                            <th class="px-6 py-4 font-label-caps text-[11px] uppercase tracking-wider text-on-surface-variant text-center">Inspect</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-surface-border">
+                        @if (!Model.Any())
+                        {
+                            <tr>
+                                <td colspan="5" class="px-6 py-8 text-center text-on-surface-variant font-body-md">
+                                    No pending cash surrenders to verify.
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            var firstRequest = Model.First();
+                            @foreach (var request in Model)
+                            {
+                                <tr class="hover:bg-surface-container-low/30 transition-colors cursor-pointer group @(request.Id == firstRequest.Id ? "bg-primary/5" : "")"
+                                    onclick="selectRequest(this)"
+                                    data-id="@request.Id"
+                                    data-buyer="@request.Buyer.Name"
+                                    data-amount="₱@request.DeclaredAmount.ToString("N2")"
+                                    data-date="@request.RequestDate.ToLocalTime().ToString("yyyy-MM-dd HH:mm")"
+                                    data-notes="@(string.IsNullOrEmpty(request.BuyerNotes) ? "No notes provided." : request.BuyerNotes)">
+                                    <td class="px-6 py-4">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-8 h-8 rounded-full bg-secondary-container text-secondary flex items-center justify-center font-bold text-[12px]">
+                                                @request.Buyer.Name.Substring(0, Math.Min(2, request.Buyer.Name.Length)).ToUpper()
+                                            </div>
+                                            <div>
+                                                <div class="font-body-md font-semibold text-on-surface">@request.Buyer.Name</div>
+                                                <div class="text-[9px] text-on-surface-variant font-label-caps uppercase">Buyer</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 text-right">
+                                        <span class="font-data-mono text-primary font-bold">₱@request.DeclaredAmount.ToString("N2")</span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-on-surface-variant">
+                                        @request.RequestDate.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+                                    </td>
+                                    <td class="px-6 py-4 text-sm text-on-surface-variant max-w-xs truncate" title="@request.BuyerNotes">
+                                        @request.BuyerNotes
+                                    </td>
+                                    <td class="px-6 py-4 text-center whitespace-nowrap text-sm">
+                                        <span class="material-symbols-outlined text-primary group-hover:scale-110 transition-transform">zoom_in</span>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Action/Detail Panel -->
+    <div class="col-span-12 lg:col-span-4 sticky top-24 h-fit">
+        @if (Model.Any())
+        {
+            var firstRequest = Model.First();
+            <div class="bg-surface-container-lowest rounded-xl shadow-sm border border-surface-border overflow-hidden" id="action-panel">
+                <div class="p-6 border-b border-surface-border bg-surface-container-low">
+                    <h3 class="font-headline-sm text-headline-sm text-on-surface" id="panel-title">Inspection & Verification</h3>
+                </div>
+                
+                <div class="p-6 space-y-6">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs uppercase tracking-wider text-on-surface-variant font-semibold mb-1">Buyer</label>
+                            <span class="font-body-md text-on-surface block font-semibold text-base" id="preview-buyer">@firstRequest.Buyer.Name</span>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs uppercase tracking-wider text-on-surface-variant font-semibold mb-1">Declared Amount</label>
+                                <span class="font-data-mono text-primary text-xl font-bold block" id="preview-amount">₱@firstRequest.DeclaredAmount.ToString("N2")</span>
+                            </div>
+                            <div>
+                                <label class="block text-xs uppercase tracking-wider text-on-surface-variant font-semibold mb-1">Request Date</label>
+                                <span class="font-body-md text-on-surface-variant text-sm block" id="preview-date">@firstRequest.RequestDate.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</span>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs uppercase tracking-wider text-on-surface-variant font-semibold mb-1">Buyer Notes</label>
+                            <span class="font-body-md text-on-surface-variant text-sm block bg-surface-container-low p-3 rounded-lg border border-surface-border min-h-[60px]" id="preview-notes">
+                                @(string.IsNullOrEmpty(firstRequest.BuyerNotes) ? "No notes provided." : firstRequest.BuyerNotes)
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Action Form -->
+                    <form asp-action="ActionSurrender" method="post" id="action-form" class="space-y-4 pt-4 border-t border-surface-border">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="id" id="action-id" value="@firstRequest.Id" />
+                        <input type="hidden" name="actionType" id="action-type" value="Confirm" />
+
+                        <div>
+                            <label class="block text-xs uppercase tracking-wider text-on-surface-variant font-semibold mb-1" for="actionNotes">Verification / Reject Notes</label>
+                            <textarea id="actionNotes" name="actionNotes" maxlength="255" rows="2" required
+                                      class="w-full bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 text-on-surface focus:outline-none focus:border-primary transition-colors text-sm" 
+                                      placeholder="e.g. Confirmed receipt of physical cash / Reject reason..."></textarea>
+                        </div>
+
+                        <div class="flex gap-4">
+                            <!-- Confirm Button -->
+                            <button type="submit" id="confirmSurrenderBtn" onclick="setActionType('Confirm')" class="flex-1 bg-primary text-on-primary font-semibold py-3 rounded-lg hover:bg-primary/90 transition-all flex items-center justify-center gap-2 shadow-md active:scale-95 text-xs uppercase tracking-wider">
+                                <span class="material-symbols-outlined text-[18px]">check_circle</span>
+                                Confirm Cash
+                            </button>
+                            
+                            <!-- Reject Button -->
+                            <button type="submit" id="rejectSurrenderBtn" onclick="setActionType('Reject')" class="bg-error/15 text-error font-semibold px-4 py-3 rounded-lg hover:bg-error hover:text-on-primary transition-all flex items-center justify-center gap-1 shadow-sm active:scale-95 text-xs uppercase tracking-wider">
+                                <span class="material-symbols-outlined text-[18px]">cancel</span>
+                                Reject
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="bg-surface-container-lowest rounded-xl shadow-sm border border-surface-border p-8 text-center text-on-surface-variant font-body-md">
+                No active requests to inspect.
+            </div>
+        }
+    </div>
+</div>
+
+<script>
+    function selectRequest(row) {
+        // Remove active class from all rows
+        document.querySelectorAll('tbody tr').forEach(r => r.classList.remove('bg-primary/5'));
+        
+        // Add active class to clicked row
+        row.classList.add('bg-primary/5');
+        
+        // Get data attributes
+        const id = row.dataset.id;
+        const buyer = row.dataset.buyer;
+        const amount = row.dataset.amount;
+        const date = row.dataset.date;
+        const notes = row.dataset.notes;
+        
+        // Update detail panel elements
+        document.getElementById('preview-buyer').innerText = buyer;
+        document.getElementById('preview-amount').innerText = amount;
+        document.getElementById('preview-date').innerText = date;
+        document.getElementById('preview-notes').innerText = notes;
+        
+        // Update hidden inputs
+        document.getElementById('action-id').value = id;
+    }
+
+    function setActionType(type) {
+        document.getElementById('action-type').value = type;
+        if (type === 'Reject') {
+            document.getElementById('actionNotes').required = true;
+        } else {
+            // Confirm can have optional notes but we keep it optional or required. Let's make sure it doesn't fail HTML5 validation if empty.
+            // Actually, we set textarea required in markup, we can adjust here if needed:
+            document.getElementById('actionNotes').required = false; // confirm doesn't strictly need notes, but reject does
+        }
+    }
+</script>
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const actionForm = document.getElementById("action-form");
+        const confirmBtn = document.getElementById("confirmSurrenderBtn");
+        const rejectBtn = document.getElementById("rejectSurrenderBtn");
+        if (actionForm && (confirmBtn || rejectBtn)) {
+            actionForm.addEventListener("submit", function () {
+                if (confirmBtn) confirmBtn.disabled = true;
+                if (rejectBtn) rejectBtn.disabled = true;
+            });
+        }
+    });
+</script>

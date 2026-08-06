@@ -51,6 +51,17 @@ public class HomeController : Controller
         {
             query = query.Where(a => a.BuyerId == userId);
         }
+        else if (role == "BranchStaff")
+        {
+            if (currentUser != null && currentUser.EstablishmentId.HasValue)
+            {
+                query = query.Where(a => a.EstablishmentId == currentUser.EstablishmentId.Value);
+            }
+            else
+            {
+                query = query.Where(a => false);
+            }
+        }
 
         // Apply search filters
         if (model.StartDate.HasValue)
@@ -101,6 +112,15 @@ public class HomeController : Controller
             var buyers = await _context.Users
                 .AsNoTracking()
                 .Where(u => u.Role == UserRole.Buyer && u.ManagerId == userId)
+                .OrderBy(u => u.Name)
+                .ToListAsync();
+            ViewBag.Buyers = new SelectList(buyers, "Id", "Name", model.BuyerId);
+        }
+        else if (role == "BranchStaff")
+        {
+            var buyers = await _context.Users
+                .AsNoTracking()
+                .Where(u => u.Role == UserRole.Buyer)
                 .OrderBy(u => u.Name)
                 .ToListAsync();
             ViewBag.Buyers = new SelectList(buyers, "Id", "Name", model.BuyerId);

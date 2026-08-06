@@ -24,11 +24,9 @@ builder.Services.AddSession(options =>
     options.Cookie.IsEssential = true;
 });
 
-builder.Services.AddScoped<AuditCkDayo.Services.IOcrService, AuditCkDayo.Services.AzureOcrService>();
+builder.Services.AddScoped<AuditCkDayo.Services.IOcrService, AuditCkDayo.Services.GoogleGeminiOcrService>();
 
 var app = builder.Build();
-
-// Automatically apply EF migrations on startup (creates database and tables)
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AuditDbContext>();
@@ -38,8 +36,29 @@ using (var scope = app.Services.CreateScope())
     }
     catch (Exception ex)
     {
-        // Log error or ignore if db server is not running yet during compile tests
         Console.WriteLine($"Database migration failed: {ex.Message}");
+    }
+
+    try
+    {
+        db.Database.ExecuteSqlRaw("ALTER TABLE AuditItems MODIFY COLUMN Status varchar(50) NOT NULL;");
+        db.Database.ExecuteSqlRaw("UPDATE AuditItems SET Status = 'AwaitingBranchVerification' WHERE Status = 'Pending';");
+        db.Database.ExecuteSqlRaw("UPDATE AuditItems SET Status = 'AwaitingBranchVerification' WHERE Status = 'AwaitingBranchVerifi';");
+        db.Database.ExecuteSqlRaw("UPDATE AuditItems SET Status = 'AwaitingManagerApproval' WHERE Status = 'AwaitingManagerAppro';");
+        db.Database.ExecuteSqlRaw("UPDATE AuditItems SET ReceiptImageUrl = REPLACE(ReceiptImageUrl, '/uploads/', '/Audits/Receipt/') WHERE ReceiptImageUrl LIKE '/uploads/%';");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Database status cleanup failed: {ex.Message}");
+    }
+
+    try
+    {
+        DbSeeder.Seed(db);
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Database seeding failed: {ex.Message}");
     }
 }
 // Configure the HTTP request pipeline.
@@ -51,6 +70,7 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseStaticFiles();
 app.UseSession();
 app.UseRouting();
 

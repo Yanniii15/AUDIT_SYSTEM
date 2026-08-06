@@ -1,0 +1,167 @@
+@model IEnumerable<AuditCkDayo.Models.SurrenderRequest>
+@{
+    ViewData["Title"] = "Cash Surrender";
+}
+
+<!-- Header Section -->
+<div class="relative flex flex-col lg:flex-row gap-space-6 items-start justify-between mb-6">
+    <div class="flex flex-col gap-space-2 max-w-2xl">
+        <div class="flex items-center gap-space-2 text-primary">
+            <span class="material-symbols-outlined text-[20px]">payments</span>
+            <span class="font-label-caps uppercase tracking-widest text-on-surface-variant">Cash Surrender Request</span>
+        </div>
+        <h1 class="font-headline-lg text-headline-lg text-on-surface">Submit & Manage Surrenders</h1>
+        <p class="font-body-md text-on-surface-variant leading-relaxed">
+            Request to surrender physical cash. Declared amount will be reserved and deducted from your available balance until confirmed by a manager or owner.
+        </p>
+    </div>
+</div>
+
+<!-- Stats / Balance Cards -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+    <div class="bg-surface-container-lowest p-space-4 rounded-xl shadow-sm border border-surface-border flex flex-col gap-space-1">
+        <span class="font-label-caps text-on-surface-variant uppercase text-[11px] tracking-wider">Recorded PCF Balance</span>
+        <div class="flex items-baseline gap-space-2">
+            <span class="font-headline-md text-headline-md text-on-surface font-bold">₱@(((decimal)ViewBag.PcfBalance).ToString("N2"))</span>
+        </div>
+    </div>
+    
+    <div class="bg-surface-container-lowest p-space-4 rounded-xl shadow-sm border border-surface-border flex flex-col gap-space-1">
+        <span class="font-label-caps text-on-surface-variant uppercase text-[11px] tracking-wider text-audit-pending">Reserved Pending Surrenders</span>
+        <div class="flex items-baseline gap-space-2">
+            <span class="font-headline-md text-headline-md text-error font-bold">₱@(((decimal)ViewBag.ReservedBalance).ToString("N2"))</span>
+        </div>
+    </div>
+
+    <div class="bg-surface-container-lowest p-space-4 rounded-xl shadow-sm border border-surface-border flex flex-col gap-space-1">
+        <span class="font-label-caps text-on-surface-variant uppercase text-[11px] tracking-wider text-primary">Available Balance</span>
+        <div class="flex items-baseline gap-space-2">
+            <span class="font-headline-md text-headline-md text-primary font-bold">₱@(((decimal)ViewBag.AvailableBalance).ToString("N2"))</span>
+        </div>
+    </div>
+</div>
+
+<div class="grid grid-cols-12 gap-8 items-start">
+    <!-- Surrender Submission Form -->
+    <div class="col-span-12 lg:col-span-4">
+        <div class="bg-surface-container-lowest rounded-xl shadow-sm border border-surface-border p-6">
+            <h3 class="font-headline-sm text-headline-sm text-on-surface mb-4">Request Surrender</h3>
+            
+            <form asp-action="SubmitSurrender" method="post" class="space-y-4">
+                @Html.AntiForgeryToken()
+                
+                <div class="text-danger font-semibold text-sm mb-3">
+                    @Html.ValidationSummary(true)
+                </div>
+
+                <div>
+                    <label class="block text-xs uppercase tracking-wider text-on-surface-variant font-semibold mb-1" for="amount">Surrender Amount (₱)</label>
+                    <input type="number" step="0.01" min="0.01" max="@ViewBag.AvailableBalance" id="amount" name="amount" required 
+                           class="w-full bg-surface-container-low border border-surface-border rounded-lg px-4 py-2.5 text-on-surface focus:outline-none focus:border-primary transition-colors" 
+                           placeholder="0.00" />
+                </div>
+
+                <div>
+                    <label class="block text-xs uppercase tracking-wider text-on-surface-variant font-semibold mb-1" for="notes">Buyer Notes</label>
+                    <textarea id="notes" name="notes" maxlength="255" rows="3"
+                              class="w-full bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 text-on-surface focus:outline-none focus:border-primary transition-colors" 
+                              placeholder="Describe cash delivery details..."></textarea>
+                </div>
+
+                <button type="submit" class="w-full bg-primary text-on-primary font-semibold py-3 rounded-lg hover:bg-primary/90 transition-all flex items-center justify-center gap-2 shadow-md active:scale-95 text-xs uppercase tracking-wider">
+                    <span class="material-symbols-outlined text-[18px]">send</span>
+                    Submit Surrender
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- History / Requests List -->
+    <div class="col-span-12 lg:col-span-8">
+        <div class="bg-surface-container-lowest rounded-xl shadow-sm border border-surface-border overflow-hidden">
+            <div class="p-6 border-b border-surface-border flex items-center justify-between">
+                <h3 class="font-headline-sm text-headline-sm text-on-surface">Surrender History</h3>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-surface-container-low border-b border-surface-border">
+                            <th class="px-6 py-4 font-label-caps text-[11px] uppercase tracking-wider text-on-surface-variant">Date</th>
+                            <th class="px-6 py-4 font-label-caps text-[11px] uppercase tracking-wider text-on-surface-variant text-right">Amount</th>
+                            <th class="px-6 py-4 font-label-caps text-[11px] uppercase tracking-wider text-on-surface-variant">Status</th>
+                            <th class="px-6 py-4 font-label-caps text-[11px] uppercase tracking-wider text-on-surface-variant">Notes / Details</th>
+                            <th class="px-6 py-4 font-label-caps text-[11px] uppercase tracking-wider text-on-surface-variant text-center">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-surface-border">
+                        @if (!Model.Any())
+                        {
+                            <tr>
+                                <td colspan="5" class="px-6 py-8 text-center text-on-surface-variant font-body-md">
+                                    You have no surrender requests yet.
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var request in Model)
+                            {
+                                <tr>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-on-surface">
+                                        @request.RequestDate.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-bold text-right text-on-surface">
+                                        ₱@request.DeclaredAmount.ToString("N2")
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        @{
+                                            var badgeClass = request.Status switch
+                                            {
+                                                SurrenderStatus.Pending => "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400",
+                                                SurrenderStatus.Confirmed => "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
+                                                SurrenderStatus.Rejected => "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
+                                                SurrenderStatus.Cancelled => "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400",
+                                                _ => "bg-gray-100 text-gray-800"
+                                            };
+                                        }
+                                        <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold @badgeClass">
+                                            @request.Status
+                                        </span>
+                                    </td>
+                                    <td class="px-6 py-4 text-sm text-on-surface-variant">
+                                        <div class="max-w-xs truncate" title="@request.BuyerNotes">
+                                            <span class="font-semibold text-xs">Request:</span> @(string.IsNullOrEmpty(request.BuyerNotes) ? "-" : request.BuyerNotes)
+                                        </div>
+                                        @if (!string.IsNullOrEmpty(request.ActionNotes))
+                                        {
+                                            <div class="max-w-xs truncate text-xs text-error mt-0.5" title="@request.ActionNotes">
+                                                <span class="font-semibold">Reviewer:</span> @request.ActionNotes
+                                            </div>
+                                        }
+                                    </td>
+                                    <td class="px-6 py-4 text-center whitespace-nowrap text-sm">
+                                        @if (request.Status == SurrenderStatus.Pending)
+                                        {
+                                            <form asp-action="CancelSurrender" method="post" onsubmit="return confirm('Are you sure you want to cancel this request?');">
+                                                @Html.AntiForgeryToken()
+                                                <input type="hidden" name="id" value="@request.Id" />
+                                                <button type="submit" class="text-error hover:text-error-hover font-semibold text-xs uppercase tracking-wider">
+                                                    Cancel
+                                                </button>
+                                            </form>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-on-surface-variant/40 text-xs">-</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

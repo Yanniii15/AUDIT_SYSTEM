@@ -1,6 +1,6 @@
 @model IEnumerable<AuditCkDayo.Models.AuditItem>
 @{
-    ViewData["Title"] = "Pending Verifications";
+    ViewData["Title"] = "Pending Deliveries Verification";
     var firstAudit = Model.FirstOrDefault();
 }
 
@@ -8,18 +8,18 @@
 <div class="relative flex flex-col lg:flex-row gap-space-6 items-start justify-between">
     <div class="flex flex-col gap-space-2 max-w-2xl">
         <div class="flex items-center gap-space-2 text-primary">
-            <span class="material-symbols-outlined text-[20px]">pending_actions</span>
-            <span class="font-label-caps uppercase tracking-widest text-on-surface-variant">Quality Control</span>
+            <span class="material-symbols-outlined text-[20px]">local_shipping</span>
+            <span class="font-label-caps uppercase tracking-widest text-on-surface-variant">Branch Staff Verification</span>
         </div>
-        <h1 class="font-headline-lg text-headline-lg text-on-surface">Pending Verifications</h1>
+        <h1 class="font-headline-lg text-headline-lg text-on-surface">Branch Deliveries Verification</h1>
         <p class="font-body-md text-on-surface-variant leading-relaxed">
-            Verify submitted invoices and receipts. Tap on any audit item in the queue to load the receipt image and detail scan in the inspector.
+            Confirm physically received items at your branch location. Click any audit item to inspect the receipt details and verify or reject.
         </p>
     </div>
 
     <!-- Quick Stats -->
     <div class="bg-surface-container-lowest p-space-4 rounded-xl shadow-sm border border-surface-border flex flex-col gap-space-1 min-w-[180px]">
-        <span class="font-label-caps text-on-surface-variant uppercase text-[10px]">Queue Size</span>
+        <span class="font-label-caps text-on-surface-variant uppercase text-[10px]">Pending Deliveries</span>
         <div class="flex items-baseline gap-space-2">
             <span class="font-headline-md text-headline-md text-audit-pending">@Model.Count()</span>
             <span class="text-on-surface-variant text-[12px]">Pending</span>
@@ -32,7 +32,7 @@
     <div class="col-span-12 lg:col-span-8">
         <div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden border border-surface-border/50">
             <div class="p-space-6 border-b border-surface-border flex items-center justify-between">
-                <h3 class="font-headline-sm text-headline-sm text-on-surface">Audit Queue</h3>
+                <h3 class="font-headline-sm text-headline-sm text-on-surface">Delivery Queue</h3>
             </div>
             
             <div class="overflow-x-auto">
@@ -50,7 +50,7 @@
                         {
                             <tr>
                                 <td colspan="4" class="px-space-6 py-space-8 text-center text-on-surface-variant font-body-md">
-                                    No pending audits for verification.
+                                    No pending branch deliveries to verify.
                                 </td>
                             </tr>
                         }
@@ -170,21 +170,21 @@
                     </div>
                     
                     <div class="pt-space-4 border-t border-surface-border flex gap-space-3">
-                        <!-- Approve Form -->
-                        <form asp-action="Verify" method="post" class="flex-1" id="approveForm">
-                            <input type="hidden" name="id" id="approve-id" value="@firstAudit.Id" />
-                            <input type="hidden" name="action" value="Approved" />
-                            <button type="submit" id="approveSubmitBtn" class="w-full bg-primary text-on-primary font-label-caps py-space-3 rounded-lg hover:bg-primary/90 transition-all flex items-center justify-center gap-space-2 shadow-md active:scale-95 text-[12px] uppercase">
+                        <!-- Verify Form -->
+                        <form asp-action="BranchVerify" method="post" class="flex-1" id="branchVerifyForm">
+                            <input type="hidden" name="id" id="verify-id" value="@firstAudit.Id" />
+                            <input type="hidden" name="actionType" value="Verify" />
+                            <button type="submit" id="branchVerifySubmitBtn" class="w-full bg-primary text-on-primary font-label-caps py-space-3 rounded-lg hover:bg-primary/90 transition-all flex items-center justify-center gap-space-2 shadow-md active:scale-95 text-[12px] uppercase">
                                 <span class="material-symbols-outlined text-[18px]">verified</span>
-                                Approve Audit
+                                Verify Received
                             </button>
                         </form>
                         
                         <!-- Reject Form -->
-                        <form asp-action="Verify" method="post" class="flex-none" id="rejectForm">
+                        <form asp-action="BranchVerify" method="post" class="flex-none" id="branchRejectForm">
                             <input type="hidden" name="id" id="reject-id" value="@firstAudit.Id" />
-                            <input type="hidden" name="action" value="Rejected" />
-                            <button type="submit" id="rejectSubmitBtn" class="w-12 bg-error/10 text-error hover:bg-error hover:text-on-primary font-label-caps py-space-3 rounded-lg transition-all flex items-center justify-center shadow-sm active:scale-95">
+                            <input type="hidden" name="actionType" value="Reject" />
+                            <button type="submit" id="branchRejectSubmitBtn" class="w-12 bg-error/10 text-error hover:bg-error hover:text-on-primary font-label-caps py-space-3 rounded-lg transition-all flex items-center justify-center shadow-sm active:scale-95">
                                 <span class="material-symbols-outlined">flag</span>
                             </button>
                         </form>
@@ -195,7 +195,7 @@
         else
         {
             <div class="bg-surface-container-lowest rounded-xl shadow-sm border border-surface-border p-space-8 text-center text-on-surface-variant font-body-md">
-                No active item loaded in inspector.
+                No active delivery loaded in inspector.
             </div>
         }
     </div>
@@ -249,29 +249,30 @@
         }
         
         // Update hidden inputs
-        document.getElementById('approve-id').value = id;
+        document.getElementById('verify-id').value = id;
         document.getElementById('reject-id').value = id;
     }
 </script>
 <script>
     document.addEventListener("DOMContentLoaded", function () {
-        const approveForm = document.getElementById("approveForm");
-        const rejectForm = document.getElementById("rejectForm");
-        const approveBtn = document.getElementById("approveSubmitBtn");
-        const rejectBtn = document.getElementById("rejectSubmitBtn");
+        const verifyForm = document.getElementById("branchVerifyForm");
+        const rejectForm = document.getElementById("branchRejectForm");
+        const verifyBtn = document.getElementById("branchVerifySubmitBtn");
+        const rejectBtn = document.getElementById("branchRejectSubmitBtn");
 
-        if (approveForm && approveBtn) {
-            approveForm.addEventListener("submit", function () {
-                approveBtn.disabled = true;
+        if (verifyForm && verifyBtn) {
+            verifyForm.addEventListener("submit", function () {
+                verifyBtn.disabled = true;
                 if (rejectBtn) rejectBtn.disabled = true;
-                approveBtn.innerText = "Approving...";
+                verifyBtn.innerText = "Verifying...";
             });
         }
         if (rejectForm && rejectBtn) {
             rejectForm.addEventListener("submit", function () {
                 rejectBtn.disabled = true;
-                if (approveBtn) approveBtn.disabled = true;
+                if (verifyBtn) verifyBtn.disabled = true;
             });
         }
     });
 </script>
+

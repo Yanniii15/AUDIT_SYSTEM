@@ -1,0 +1,283 @@
+@model AuditCkDayo.ViewModels.RegisterViewModel
+@{
+    ViewData["Title"] = "Register New Staff";
+}
+
+<!-- Header Section -->
+<div class="relative flex flex-col lg:flex-row gap-space-6 items-start justify-between">
+    <div class="flex flex-col gap-space-2 max-w-2xl">
+        <div class="flex items-center gap-space-2 text-primary">
+            <span class="material-symbols-outlined text-[20px]">person_add</span>
+            <span class="font-label-caps uppercase tracking-widest text-on-surface-variant">User Administration</span>
+        </div>
+        <h1 class="font-headline-lg text-headline-lg text-on-surface">Register New Staff</h1>
+        <p class="font-body-md text-on-surface-variant leading-relaxed">
+            Provision new user accounts and establish roles, branches, and manager relationships.
+        </p>
+    </div>
+</div>
+
+<div class="flex justify-center my-space-6">
+    <div class="w-full max-w-3xl bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden border border-surface-border">
+        <div class="bg-primary px-space-6 py-space-4 flex justify-between items-center">
+            <span class="text-on-primary font-label-caps uppercase tracking-tighter text-[11px]">Staff Account Details</span>
+            <span class="text-on-primary/60 text-[10px] font-data-mono">REG-FORM-v2.1</span>
+        </div>
+        
+        <form asp-action="RegisterForm" method="post" class="p-space-8 grid grid-cols-1 md:grid-cols-2 gap-x-space-8 gap-y-space-6" id="registrationForm">
+            <div asp-validation-summary="ModelOnly" class="md:col-span-2 text-audit-error bg-audit-error/10 border border-audit-error/20 p-space-4 rounded-lg text-body-md text-center"></div>
+
+            <!-- Full Name -->
+            <div class="flex flex-col gap-space-2">
+                <label asp-for="Name" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Full Name</label>
+                <input asp-for="Name" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-space-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" placeholder="e.g. Alexander Sterling" required />
+                <span asp-validation-for="Name" class="text-audit-error text-[11px]"></span>
+            </div>
+            
+            <!-- Email -->
+            <div class="flex flex-col gap-space-2">
+                <label asp-for="Email" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Email Address</label>
+                <input asp-for="Email" id="Email" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-space-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" placeholder="sterling@auditck.com" required />
+                <span asp-validation-for="Email" class="text-audit-error text-[11px]"></span>
+                <span id="emailAvailabilityError" class="text-audit-error text-[11px] hidden mt-1">Email is already in use.</span>
+            </div>
+            
+            <!-- Password -->
+            <div class="flex flex-col gap-space-2">
+                <label asp-for="Password" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Password</label>
+                <div class="relative">
+                    <input asp-for="Password" type="password" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-space-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" id="passInput" placeholder="••••••••" required />
+                    <button class="absolute right-space-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50 hover:text-primary" onclick="togglePass('passInput', 'eyeIcon')" type="button">
+                        <span class="material-symbols-outlined text-[20px]" id="eyeIcon">visibility</span>
+                    </button>
+                </div>
+                <span asp-validation-for="Password" class="text-audit-error text-[11px]"></span>
+                
+                <!-- Real-time Password Checklist -->
+                <div class="password-rules-checklist mt-2 space-y-1">
+                    <div id="rule-length" class="rule-item text-[11px] text-audit-error flex items-center gap-1">
+                        <span class="material-symbols-outlined text-[14px]" id="icon-length">cancel</span> At least 8 characters
+                    </div>
+                    <div id="rule-uppercase" class="rule-item text-[11px] text-audit-error flex items-center gap-1">
+                        <span class="material-symbols-outlined text-[14px]" id="icon-uppercase">cancel</span> One uppercase letter
+                    </div>
+                    <div id="rule-number" class="rule-item text-[11px] text-audit-error flex items-center gap-1">
+                        <span class="material-symbols-outlined text-[14px]" id="icon-number">cancel</span> One number
+                    </div>
+                    <div id="rule-special" class="rule-item text-[11px] text-audit-error flex items-center gap-1">
+                        <span class="material-symbols-outlined text-[14px]" id="icon-special">cancel</span> One special character
+                    </div>
+                </div>
+            </div>
+
+            <!-- Retype Password -->
+            <div class="flex flex-col gap-space-2">
+                <label asp-for="RetypePassword" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Retype Password</label>
+                <div class="relative">
+                    <input asp-for="RetypePassword" type="password" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-space-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" id="retypeInput" placeholder="••••••••" required />
+                    <button class="absolute right-space-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50 hover:text-primary" onclick="togglePass('retypeInput', 'retypeEyeIcon')" type="button">
+                        <span class="material-symbols-outlined text-[20px]" id="retypeEyeIcon">visibility</span>
+                    </button>
+                </div>
+                <span asp-validation-for="RetypePassword" class="text-audit-error text-[11px]"></span>
+                <span id="passwordMatchError" class="text-audit-error text-[11px] hidden mt-1">Passwords do not match</span>
+            </div>
+            
+            <!-- Role -->
+            <div class="flex flex-col gap-space-2">
+                <label asp-for="Role" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">System Role</label>
+                <select asp-for="Role" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-space-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all appearance-none cursor-pointer text-on-surface" id="roleSelect">
+                    @foreach (var val in Enum.GetValues(typeof(AuditCkDayo.Models.UserRole)))
+                    {
+                        <option value="@val">@val</option>
+                    }
+                </select>
+                <span asp-validation-for="Role" class="text-audit-error text-[11px]"></span>
+            </div>
+            
+            <!-- Manager (Conditional, only shown for Buyers & BranchStaff) -->
+            <div class="flex flex-col gap-space-2 opacity-30 pointer-events-none transition-all duration-300" id="managerField">
+                <label asp-for="ManagerId" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Assigned Manager</label>
+                <select asp-for="ManagerId" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-space-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all appearance-none cursor-pointer text-on-surface">
+                    <option value="">Select reporting manager...</option>
+                    @if (ViewBag.Managers != null)
+                    {
+                        foreach (var mgr in (IEnumerable<AuditCkDayo.Models.User>)ViewBag.Managers)
+                        {
+                            <option value="@mgr.Id">@mgr.Name</option>
+                        }
+                    }
+                </select>
+                <span asp-validation-for="ManagerId" class="text-audit-error text-[11px]"></span>
+            </div>
+            
+            <!-- Establishment (Conditional, only shown for BranchStaff) -->
+            <div class="flex flex-col gap-space-2 opacity-30 pointer-events-none transition-all duration-300" id="branchField">
+                <label asp-for="EstablishmentId" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Assigned Branch / Location</label>
+                <select asp-for="EstablishmentId" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-space-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all appearance-none cursor-pointer text-on-surface" asp-items="ViewBag.Establishments">
+                    <option value="">Select branch location...</option>
+                </select>
+                <span asp-validation-for="EstablishmentId" class="text-audit-error text-[11px]"></span>
+            </div>
+            
+            <div class="md:col-span-2 pt-space-6 flex flex-col sm:flex-row gap-space-4 border-t border-surface-border mt-space-4">
+                <button class="bg-primary text-on-primary px-space-8 py-space-3 rounded-lg font-label-caps uppercase tracking-widest hover:bg-on-primary-fixed-variant transition-colors flex items-center justify-center gap-space-2 shadow-md text-[12px]" type="submit">
+                    <span class="material-symbols-outlined text-[18px]">how_to_reg</span>
+                    Create User Account
+                </button>
+                <a asp-action="Register" class="bg-surface-container text-on-surface-variant border border-surface-border px-space-8 py-space-3 rounded-lg font-label-caps uppercase tracking-widest hover:bg-surface-container-high transition-colors text-[12px] text-center decoration-none">
+                    Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        const roleSelect = document.getElementById("roleSelect");
+        const managerField = document.getElementById("managerField");
+        const passInput = document.getElementById("passInput");
+        const retypeInput = document.getElementById("retypeInput");
+        const passwordMatchError = document.getElementById("passwordMatchError");
+        const registrationForm = document.getElementById("registrationForm");
+        const emailInput = document.getElementById("Email");
+        const emailAvailabilityError = document.getElementById("emailAvailabilityError");
+
+        let isPasswordValid = false;
+        let isEmailAvailable = true;
+
+        const updateManagerVisibility = () => {
+            if (roleSelect.value === "Buyer") {
+                managerField.classList.remove("opacity-30", "pointer-events-none");
+                document.getElementById("branchField").classList.add("opacity-30", "pointer-events-none");
+                document.getElementById("branchField").querySelector("select").value = "";
+            } else if (roleSelect.value === "BranchStaff") {
+                document.getElementById("branchField").classList.remove("opacity-30", "pointer-events-none");
+                managerField.classList.remove("opacity-30", "pointer-events-none");
+            } else {
+                managerField.classList.add("opacity-30", "pointer-events-none");
+                managerField.querySelector("select").value = "";
+                document.getElementById("branchField").classList.add("opacity-30", "pointer-events-none");
+                document.getElementById("branchField").querySelector("select").value = "";
+            }
+        };
+
+        function validatePasswordRules(password) {
+            const minLength = password.length >= 8;
+            const hasUppercase = /[A-Z]/.test(password);
+            const hasNumber = /[0-9]/.test(password);
+            const hasSpecial = /[^A-Za-z0-9]/.test(password);
+
+            updateRuleState('rule-length', 'icon-length', minLength);
+            updateRuleState('rule-uppercase', 'icon-uppercase', hasUppercase);
+            updateRuleState('rule-number', 'icon-number', hasNumber);
+            updateRuleState('rule-special', 'icon-special', hasSpecial);
+
+            isPasswordValid = minLength && hasUppercase && hasNumber && hasSpecial;
+            return isPasswordValid;
+        }
+
+        function updateRuleState(elementId, iconId, isValid) {
+            const el = document.getElementById(elementId);
+            const icon = document.getElementById(iconId);
+            if (!el || !icon) return;
+
+            if (isValid) {
+                el.classList.remove('text-audit-error');
+                el.classList.add('text-audit-success', 'opacity-100');
+                icon.innerText = 'check_circle';
+            } else {
+                el.classList.remove('text-audit-success', 'opacity-100');
+                el.classList.add('text-audit-error');
+                icon.innerText = 'cancel';
+            }
+        }
+
+        function checkPasswordMatch() {
+            const password = passInput.value;
+            const retypePassword = retypeInput.value;
+
+            if (retypePassword.length > 0 && password !== retypePassword) {
+                passwordMatchError.classList.remove('hidden');
+                retypeInput.classList.add('border-audit-error');
+                return false;
+            } else {
+                passwordMatchError.classList.add('hidden');
+                retypeInput.classList.remove('border-audit-error');
+                return true;
+            }
+        }
+
+        passInput.addEventListener('input', function() {
+            validatePasswordRules(this.value);
+            checkPasswordMatch();
+        });
+
+        retypeInput.addEventListener('input', function() {
+            checkPasswordMatch();
+        });
+
+        // Email availability check with debounce
+        let emailTimeout;
+        emailInput.addEventListener('input', function () {
+            clearTimeout(emailTimeout);
+            const email = this.value;
+
+            if (email.length < 5 || !email.includes('@@')) {
+                emailAvailabilityError.classList.add('hidden');
+                emailInput.classList.remove('border-audit-error');
+                isEmailAvailable = true;
+                return;
+            }
+
+            emailTimeout = setTimeout(function () {
+                fetch('/Account/CheckEmailAvailability?email=' + encodeURIComponent(email))
+                    .then(response => response.json())
+                    .then(data => {
+                        if (!data.available) {
+                            emailAvailabilityError.textContent = data.message;
+                            emailAvailabilityError.classList.remove('hidden');
+                            emailInput.classList.add('border-audit-error');
+                            isEmailAvailable = false;
+                        } else {
+                            emailAvailabilityError.classList.add('hidden');
+                            emailInput.classList.remove('border-audit-error');
+                            isEmailAvailable = true;
+                        }
+                    });
+            }, 500);
+        });
+
+        registrationForm.addEventListener('submit', function (e) {
+            const rulesValid = validatePasswordRules(passInput.value);
+            const matchValid = checkPasswordMatch();
+
+            if (!rulesValid || !matchValid || !isEmailAvailable) {
+                e.preventDefault();
+                if (!rulesValid) {
+                    alert("Please satisfy all password requirements.");
+                } else if (!matchValid) {
+                    alert("Passwords do not match.");
+                } else if (!isEmailAvailable) {
+                    alert("Email address is already in use.");
+                }
+            }
+        });
+
+        roleSelect.addEventListener("change", updateManagerVisibility);
+        updateManagerVisibility(); // Initial check
+    });
+
+    function togglePass(inputId, eyeIconId) {
+        const passInput = document.getElementById(inputId);
+        const eyeIcon = document.getElementById(eyeIconId);
+        if (passInput.type === 'password') {
+            passInput.type = 'text';
+            eyeIcon.innerText = 'visibility_off';
+        } else {
+            passInput.type = 'password';
+            eyeIcon.innerText = 'visibility';
+        }
+    }
+</script>

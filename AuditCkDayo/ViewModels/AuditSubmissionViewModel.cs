@@ -24,6 +24,8 @@ namespace AuditCkDayo.ViewModels
 
         public string? ReceiptImageUrl { get; set; }
 
+        public List<string> ReceiptImageUrls { get; set; } = new();
+
         public List<OcrItemResult> Items { get; set; } = new();
     }
 }
