@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using AuditCkDayo.Data;
+using Microsoft.AspNetCore.HttpOverrides;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -27,6 +28,11 @@ builder.Services.AddSession(options =>
 builder.Services.AddScoped<AuditCkDayo.Services.IOcrService, AuditCkDayo.Services.GoogleGeminiOcrService>();
 
 var app = builder.Build();
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+});
+
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AuditDbContext>();

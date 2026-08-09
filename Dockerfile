@@ -29,8 +29,7 @@ RUN dotnet publish "AuditCkDayo.csproj" -c Release -o /app/publish /p:UseAppHost
 FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS runtime
 WORKDIR /app
 
-# Configure default ports for ASP.NET Core 9.0
-ENV ASPNETCORE_HTTP_PORTS=8080
+# Railway provides the public port through $PORT. Default to 8080 for local Docker runs.
 ENV ASPNETCORE_ENVIRONMENT=Production
 EXPOSE 8080
 
@@ -41,4 +40,4 @@ COPY --from=build /app/publish .
 RUN mkdir -p /app/Audits/Receipt
 
 # Entrypoint to launch the web server
-ENTRYPOINT ["dotnet", "AuditCkDayo.dll"]
+ENTRYPOINT ["sh", "-c", "dotnet AuditCkDayo.dll --urls http://0.0.0.0:${PORT:-8080}"]
