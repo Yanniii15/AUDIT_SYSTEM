@@ -1,102 +1,184 @@
-# 🪙 PCF Auditing Suite (AuditCkDayo)
+# PCF Auditing Suite
 
-An elegant, secure, and responsive Petty Cash Fund (PCF) auditing and management application. Designed with an editorial, utilitarian theme built around deep navy, slate gray, and muted slate-blue accents, the system streamlines receipt ingestion, delivery verification, and multi-tier approval workflows.
+Petty Cash Fund auditing and control system for teams that need traceable receipt uploads, branch verification, manager approval, and live petty-cash balance monitoring.
+
+The application is built with ASP.NET Core MVC and MySQL. Buyers submit receipt images, OCR extracts the expense details, branch staff confirms delivered items, and managers or owners approve, reject, fund, surrender, and report on petty-cash activity from role-safe dashboards.
 
 ---
 
-## 🚀 System Architecture & Workflow
+## What the system does
 
-The system facilitates structured, auditable expense tracking for teams managing decentralized cash floats:
+- Upload and review receipt images before submitting an audit.
+- Extract receipt details with Google Gemini OCR.
+- Route submitted audits through branch verification and manager or owner approval.
+- Track petty-cash balances, funding updates, deductions, and surrender requests.
+- Keep receipt files protected behind authorization-checked application routes.
+- Provide dashboards and reports for pending work, audit history, cash movement, and accountability.
+- Seed default roles for local testing and demonstration.
 
+---
+
+## User roles
+
+| Role | Main responsibilities |
+| --- | --- |
+| Owner | Full system oversight, user management, approval, reporting, and cash control. |
+| Manager | Reviews assigned buyer activity, approves audits, manages staff workflow, and monitors balances. |
+| Buyer | Uploads receipts, reviews extracted details, submits audits, and requests cash surrender. |
+| Branch Staff | Confirms that submitted receipt items were physically received at the branch. |
+| Admin | Supports account and system administration tasks. |
+
+---
+
+## Tech stack
+
+- ASP.NET Core MVC on .NET 9
+- Entity Framework Core 9
+- Pomelo MySQL provider
+- MySQL / MariaDB through XAMPP or another local server
+- Google Gemini OCR service
+- Azure Document Intelligence service implementation included
+- BCrypt password hashing
+- xUnit test project with SQLite and InMemory EF Core contexts
+- Tailwind-style utility classes in Razor views
+
+---
+
+## Requirements
+
+Install these before running the project:
+
+1. [.NET 9 SDK](https://dotnet.microsoft.com/download)
+2. [XAMPP](https://www.apachefriends.org/) or any MySQL-compatible server
+3. Git
+4. A Google Gemini API key for real OCR extraction
+
+---
+
+## Local setup
+
+Clone the repository:
+
+```bash
+git clone https://github.com/Yanniii15/AUDIT_SYSTEM.git
+cd AUDIT_SYSTEM
 ```
-[Buyer] ──(Uploads Receipt Images)──> [Staged Session Draft]
-                                             │
-                                       (Gemini OCR)
-                                             │
-                                             ▼
-                                    [Branch Staff] 
-                           (Verifies physical items at site)
-                                             │
-                                             ▼
-                                    [Manager / Owner] 
-                              (Approve/Reject & Ledger updates)
+
+Restore packages:
+
+```bash
+dotnet restore
 ```
 
-1. **Buyer (Ingestion)**: Captures/uploads up to 5 receipt images per transaction, reviews the unified Gemini/Azure OCR extraction draft, assigns it to an establishment, and submits.
-2. **Branch Staff (Verification)**: Inspects physical goods at the establishment against the invoice details and either verifies or flags the item.
-3. **Manager / Owner (Approval)**: Conducts final review via a split-screen dashboard, decides approval status, and triggers ledger adjustment transactions.
+Create the MySQL database:
 
----
+```sql
+CREATE DATABASE audit_ckr_dayo;
+```
 
-## 🎨 Visual Identity & Key UX Features
+Update `AuditCkDayo/appsettings.json` if your local MySQL credentials are different:
 
-- **Bento Dashboard**: An asymmetrical landing page highlighting remaining float limits, pending approval counts, and available petty cash balances with progress bars and data-mono styling.
-- **Full-Screen Audit Viewer**: Focused full-page modal allowing inspectors to zoom/pan the secure receipt image alongside transaction line items without leaving the queue.
-- **Responsive Navigation Drawer**: Adapts dynamically from a persistent desktop sidebar to an off-canvas slide-out drawer on mobile devices (<1024px).
-- **Secure File Access**: All uploaded receipt media is saved outside the public web root (`wwwroot`) and served exclusively via authorization-checked controllers to safeguard financial data.
-
----
-
-## 🛠️ Tech Stack & Dependencies
-
-- **Framework**: `.NET 9.0` (C# ASP.NET Core MVC)
-- **Database**: Entity Framework Core with `Pomelo.EntityFrameworkCore.MySql` (MySQL via XAMPP)
-- **OCR Engine**: `GoogleGeminiOcrService` (Google Gemini AI Model) with fallback to `AzureOcrService` (Azure Document Intelligence)
-- **Security**: Blowfish Password Hashing via `BCrypt.Net-Next`
-- **Testing**: xUnit with isolated SQLite and InMemory database contexts
-
----
-
-## 📦 Database Schema Quick-View
-
-The database tracks historical mutations through seven interconnected tables:
-
-- **`Users`**: Holds role, float balances (`PcfBalance`, `DailyStartingFloat`), and manager hierarchies.
-- **`Establishments`**: List of store/branch sites.
-- **`AuditItems`**: Primary record of expense audits, status (`AwaitingBranchVerification`, `AwaitingManagerApproval`, `Approved`, `Rejected`), and verification timestamps.
-- **`AuditItemDetails`**: Line items extracted from the receipt.
-- **`AuditItemImages`**: Supports long/segmented receipts with custom display ordering.
-- **`PettyCashLedgers`**: Permanent transaction record capturing funding directions, adjust type, and resulting balances.
-- **`Notifications`**: Real-time system event alerts for approval queues.
-
----
-
-## ⚡ Quick Start
-
-### 1. Prerequisites
-- Install [.NET 9.0 SDK](https://dotnet.microsoft.com/en-us/download)
-- Install [XAMPP](https://www.apache.org/xampp/) (MySQL server) and start the MySQL service.
-
-### 2. Configuration Setup
-Create a local connection string in `AuditCkDayo/appsettings.json`:
 ```json
 {
   "ConnectionStrings": {
     "DefaultConnection": "server=localhost;port=3306;database=audit_ckr_dayo;user=root;password="
   },
   "GoogleGemini": {
-    "ApiKey": "YOUR_GEMINI_API_KEY"
+    "ApiKey": ""
   }
 }
 ```
-*Alternatively, load the Gemini API Key into environment variables as `GoogleGemini__ApiKey` or via .NET User Secrets.*
 
-### 3. Database Migration & Seeding
-On startup, the system automatically applies migrations and seeds default test roles:
-- **Owner**: `alice@test.com` (Password: `Password123!`)
-- **Manager**: `bob@test.com` (Password: `Password123!`)
-- **Buyer**: `charlie@test.com` (Password: `Password123!`)
-- **Branch Staff**: `staff@test.com` (Password: `Password123!`)
+For safer local configuration, store the Gemini key in user secrets:
 
-### 4. Run the Web Application
 ```bash
 cd AuditCkDayo
-dotnet run
+dotnet user-secrets set "GoogleGemini:ApiKey" "YOUR_GEMINI_API_KEY"
+cd ..
 ```
-Open [http://localhost:5000](http://localhost:5000) or check the SSL ports in your console.
 
-### 5. Running the Test Suite
-Ensure the test project passes:
+You can also use an environment variable:
+
 ```bash
-dotnet test
+GoogleGemini__ApiKey=YOUR_GEMINI_API_KEY
 ```
+
+---
+
+## Database migration and seed data
+
+The application applies Entity Framework migrations and seeds default demo accounts during startup.
+
+Default local accounts:
+
+| Role | Email | Password |
+| --- | --- | --- |
+| Owner | `alice@test.com` | `Password123!` |
+| Manager | `bob@test.com` | `Password123!` |
+| Buyer | `charlie@test.com` | `Password123!` |
+| Branch Staff | `staff@test.com` | `Password123!` |
+
+Start MySQL before launching the application.
+
+---
+
+## Run the application
+
+From the repository root:
+
+```bash
+dotnet run --project AuditCkDayo/AuditCkDayo.csproj
+```
+
+Open the URL printed by the terminal. Common local URLs are:
+
+- `https://localhost:5001`
+- `http://localhost:5000`
+
+If the browser shows a certificate warning on HTTPS, trust the local .NET development certificate:
+
+```bash
+dotnet dev-certs https --trust
+```
+
+---
+
+## Run tests
+
+```bash
+dotnet test AuditCkDayo.Tests/AuditCkDayo.Tests.csproj --configuration Release
+```
+
+The test project validates controller flows, model behavior, view rendering expectations, OCR integration behavior, and ledger/session logic using isolated test databases.
+
+---
+
+## Project structure
+
+```text
+AuditCkDayo/
+  Controllers/        MVC controllers for authentication, audits, users, reports, and establishments
+  Data/               Entity Framework DbContext, migrations, and seed data
+  Models/             Domain models for users, audits, receipts, ledger entries, and notifications
+  Services/           OCR service contracts and implementations
+  ViewModels/         Razor form and page models
+  Views/              Razor pages for dashboards, workflows, account screens, and reports
+  wwwroot/            Static assets
+
+AuditCkDayo.Tests/    xUnit test project
+```
+
+---
+
+## Important notes
+
+- Do not commit real API keys, database passwords, user secrets, or uploaded receipt files.
+- Receipt uploads are financial documents and should remain protected by application authorization.
+- Presentation files (`*.pptx`) and rendered presentation screenshots are intentionally ignored by Git.
+- Run the test suite before pushing changes that affect workflow, data, authentication, or reporting behavior.
+
+---
+
+## License
+
+This project is provided for PCF auditing and management use. Add a license file if the project will be distributed publicly.

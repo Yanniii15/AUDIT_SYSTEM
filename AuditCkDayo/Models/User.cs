@@ -6,6 +6,7 @@ namespace AuditCkDayo.Models
     public enum UserRole
     {
         Owner,
+        Admin,
         Manager,
         Buyer,
         BranchStaff

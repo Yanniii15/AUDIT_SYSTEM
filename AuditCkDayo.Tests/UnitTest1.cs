@@ -464,6 +464,7 @@ namespace AuditCkDayo.Tests
             var establishment2 = new Establishment { Id = 2, Name = "Test Establishment 2" };
             context.Establishments.AddRange(establishment1, establishment2);
             await context.SaveChangesAsync();
+
         }
 
         private AuditsController CreateController(AuditDbContext context, int currentUserId, string currentUserRole, ISession? session = null)

@@ -24,6 +24,24 @@ namespace AuditCkDayo.Data
                 db.SaveChanges();
             }
 
+            // Ensure default System Admin exists
+            var adminEmail = "admin@test.com";
+            if (!db.Users.Any(u => u.Email == adminEmail))
+            {
+                var defaultPasswordHash = BCrypt.Net.BCrypt.HashPassword("Password123!");
+                var admin = new User
+                {
+                    Name = "System Admin",
+                    Email = adminEmail,
+                    PasswordHash = defaultPasswordHash,
+                    Role = UserRole.Admin,
+                    PcfBalance = 0m,
+                    DailyStartingFloat = 0m
+                };
+                db.Users.Add(admin);
+                db.SaveChanges();
+            }
+
             // Seed Users if empty
             if (!db.Users.Any())
             {

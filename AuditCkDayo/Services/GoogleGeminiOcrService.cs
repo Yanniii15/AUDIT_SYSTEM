@@ -84,7 +84,7 @@ namespace AuditCkDayo.Services
                 };
 
                 var jsonPayload = JsonSerializer.Serialize(payload);
-                var requestUrl = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={_apiKey}";
+                var requestUrl = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={_apiKey}";
                 
                 var request = new HttpRequestMessage(HttpMethod.Post, requestUrl)
                 {
@@ -108,6 +108,30 @@ namespace AuditCkDayo.Services
 
                     if (!string.IsNullOrEmpty(textResponse))
                     {
+                        textResponse = textResponse.Trim();
+                        int openBraces = 0;
+                        int firstOpenIndex = textResponse.IndexOf('{');
+                        int matchingCloseIndex = -1;
+                        if (firstOpenIndex >= 0)
+                        {
+                            for (int i = firstOpenIndex; i < textResponse.Length; i++)
+                            {
+                                if (textResponse[i] == '{') openBraces++;
+                                else if (textResponse[i] == '}')
+                                {
+                                    openBraces--;
+                                    if (openBraces == 0)
+                                    {
+                                        matchingCloseIndex = i;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                        if (matchingCloseIndex >= 0)
+                        {
+                            textResponse = textResponse.Substring(firstOpenIndex, matchingCloseIndex - firstOpenIndex + 1);
+                        }
                         var options = new JsonSerializerOptions
                         {
                             PropertyNameCaseInsensitive = true
@@ -116,7 +140,7 @@ namespace AuditCkDayo.Services
 
                         if (parsedResult != null)
                         {
-                            result.TotalAmount = parsedResult.TotalAmount;
+                            result.TotalAmount = parsedResult.TotalAmount ?? 0.00m;
                             
                             if (DateTime.TryParseExact(parsedResult.TransactionDate, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var date))
                             {
@@ -155,7 +179,7 @@ namespace AuditCkDayo.Services
 
         private class GeminiOcrResult
         {
-            public decimal TotalAmount { get; set; }
+            public decimal? TotalAmount { get; set; }
             public string? TransactionDate { get; set; }
             public List<GeminiOcrItem>? Items { get; set; }
         }

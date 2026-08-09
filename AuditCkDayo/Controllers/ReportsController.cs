@@ -48,6 +48,7 @@ public class ReportsController : Controller
         cashUserQuery = ApplyCashUserFilters(cashUserQuery, filter);
 
         var audits = await auditQuery
+            .Include(a => a.Details)
             .OrderByDescending(a => a.EntryDate)
             .ThenByDescending(a => a.Id)
             .Take(25)
@@ -319,6 +320,7 @@ public class ReportsController : Controller
         return role switch
         {
             "Owner" => "All company audits, cash, and surrender activity",
+            "Admin" => "All company audits, user administration, and system activity",
             "Manager" => "Assigned buyers and manager-held petty cash",
             "Buyer" => "Your submitted audits, surrender requests, and cash ledger",
             "BranchStaff" => currentUser.EstablishmentId.HasValue ? "Assigned establishment delivery audits" : "No establishment assigned",

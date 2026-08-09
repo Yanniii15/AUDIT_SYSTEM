@@ -6,7 +6,7 @@ using AuditCkDayo.Models;
 
 namespace AuditCkDayo.Controllers
 {
-    [Authorize(Roles = "Owner,Manager")]
+    [Authorize(Roles = "Owner,Manager,Admin")]
     public class EstablishmentsController : Controller
     {
         private readonly AuditDbContext _context;

@@ -136,6 +136,7 @@ namespace AuditCkDayo.Data
                 .HasConversion<string>()
                 .HasMaxLength(50);
 
+
             modelBuilder.Entity<SurrenderRequest>()
                 .HasOne(s => s.Buyer)
                 .WithMany()
@@ -154,6 +155,7 @@ namespace AuditCkDayo.Data
                 .WithMany()
                 .HasForeignKey(n => n.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+
         }
     }
 }

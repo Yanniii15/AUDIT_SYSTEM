@@ -36,15 +36,15 @@ namespace AuditCkDayo.Migrations
                     b.Property<int>("BuyerId")
                         .HasColumnType("int");
 
+                    b.Property<int?>("DailySessionId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasColumnType("longtext");
 
                     b.Property<DateTime>("EntryDate")
                         .HasColumnType("date");
-
-                    b.Property<DateTime?>("SubmittedAt")
-                        .HasColumnType("datetime(6)");
 
                     b.Property<int>("EstablishmentId")
                         .HasColumnType("int");
@@ -63,6 +63,9 @@ namespace AuditCkDayo.Migrations
                         .HasColumnType("varchar(50)")
                         .HasDefaultValue("AwaitingBranchVerification");
 
+                    b.Property<DateTime?>("SubmittedAt")
+                        .HasColumnType("datetime(6)");
+
                     b.Property<DateTime?>("VerificationDate")
                         .HasColumnType("datetime(6)");
 
@@ -72,6 +75,8 @@ namespace AuditCkDayo.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("BuyerId");
+
+                    b.HasIndex("DailySessionId");
 
                     b.HasIndex("EstablishmentId");
 
@@ -138,6 +143,54 @@ namespace AuditCkDayo.Migrations
                     b.HasIndex("AuditItemId");
 
                     b.ToTable("AuditItemImages");
+                });
+
+            modelBuilder.Entity("AuditCkDayo.Models.DailySession", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("ClosedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<decimal>("ExpectedCash")
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(255)
+                        .HasColumnType("varchar(255)");
+
+                    b.Property<decimal?>("PhysicalCash")
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<int?>("ReconciledById")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("SessionDate")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<decimal>("StartingFloat")
+                        .HasColumnType("decimal(12,2)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReconciledById");
+
+                    b.HasIndex("UserId", "SessionDate")
+                        .IsUnique();
+
+                    b.ToTable("DailySessions");
                 });
 
             modelBuilder.Entity("AuditCkDayo.Models.Establishment", b =>
@@ -280,10 +333,19 @@ namespace AuditCkDayo.Migrations
                     b.Property<decimal>("DeclaredAmount")
                         .HasColumnType("decimal(12,2)");
 
+                    b.Property<string>("LockerNumber")
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
                     b.Property<DateTime>("RequestDate")
                         .HasColumnType("datetime(6)");
 
                     b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<string>("Type")
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("varchar(50)");
@@ -366,6 +428,11 @@ namespace AuditCkDayo.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("AuditCkDayo.Models.DailySession", "DailySession")
+                        .WithMany()
+                        .HasForeignKey("DailySessionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("AuditCkDayo.Models.Establishment", "Establishment")
                         .WithMany("AuditItems")
                         .HasForeignKey("EstablishmentId")
@@ -378,6 +445,8 @@ namespace AuditCkDayo.Migrations
                         .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Buyer");
+
+                    b.Navigation("DailySession");
 
                     b.Navigation("Establishment");
 
@@ -404,6 +473,24 @@ namespace AuditCkDayo.Migrations
                         .IsRequired();
 
                     b.Navigation("AuditItem");
+                });
+
+            modelBuilder.Entity("AuditCkDayo.Models.DailySession", b =>
+                {
+                    b.HasOne("AuditCkDayo.Models.User", "ReconciledBy")
+                        .WithMany()
+                        .HasForeignKey("ReconciledById")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("AuditCkDayo.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("ReconciledBy");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("AuditCkDayo.Models.Notification", b =>

@@ -47,8 +47,8 @@
                 <label asp-for="Password" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Password</label>
                 <div class="relative">
                     <input asp-for="Password" type="password" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-space-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" id="passInput" placeholder="••••••••" required />
-                    <button class="absolute right-space-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50 hover:text-primary" onclick="togglePass('passInput', 'eyeIcon')" type="button">
-                        <span class="material-symbols-outlined text-[20px]" id="eyeIcon">visibility</span>
+                    <button class="absolute right-space-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50 hover:text-primary password-reveal-btn cursor-pointer bg-transparent border-0" data-input-id="passInput" type="button">
+                        <span class="material-symbols-outlined text-[20px] eye-icon" id="eyeIcon">visibility</span>
                     </button>
                 </div>
                 <span asp-validation-for="Password" class="text-audit-error text-[11px]"></span>
@@ -75,8 +75,8 @@
                 <label asp-for="RetypePassword" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Retype Password</label>
                 <div class="relative">
                     <input asp-for="RetypePassword" type="password" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-space-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" id="retypeInput" placeholder="••••••••" required />
-                    <button class="absolute right-space-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50 hover:text-primary" onclick="togglePass('retypeInput', 'retypeEyeIcon')" type="button">
-                        <span class="material-symbols-outlined text-[20px]" id="retypeEyeIcon">visibility</span>
+                    <button class="absolute right-space-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50 hover:text-primary password-reveal-btn cursor-pointer bg-transparent border-0" data-input-id="retypeInput" type="button">
+                        <span class="material-symbols-outlined text-[20px] eye-icon" id="retypeEyeIcon">visibility</span>
                     </button>
                 </div>
                 <span asp-validation-for="RetypePassword" class="text-audit-error text-[11px]"></span>
@@ -267,17 +267,39 @@
 
         roleSelect.addEventListener("change", updateManagerVisibility);
         updateManagerVisibility(); // Initial check
-    });
 
-    function togglePass(inputId, eyeIconId) {
-        const passInput = document.getElementById(inputId);
-        const eyeIcon = document.getElementById(eyeIconId);
-        if (passInput.type === 'password') {
-            passInput.type = 'text';
-            eyeIcon.innerText = 'visibility_off';
-        } else {
-            passInput.type = 'password';
-            eyeIcon.innerText = 'visibility';
-        }
-    }
+        // Setup password hold-to-reveal event listeners
+        document.querySelectorAll('.password-reveal-btn').forEach(btn => {
+            const inputId = btn.dataset.inputId;
+            const input = document.getElementById(inputId);
+            const icon = btn.querySelector('.eye-icon');
+
+            if (!input || !icon) return;
+
+            const showPass = () => {
+                input.type = 'text';
+                icon.innerText = 'visibility_off';
+            };
+
+            const hidePass = () => {
+                input.type = 'password';
+                icon.innerText = 'visibility';
+            };
+
+            // Mouse events
+            btn.addEventListener('mousedown', showPass);
+            btn.addEventListener('mouseup', hidePass);
+            btn.addEventListener('mouseleave', hidePass);
+
+            // Touch events for mobile
+            btn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                showPass();
+            });
+            btn.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                hidePass();
+            });
+        });
+    });
 </script>

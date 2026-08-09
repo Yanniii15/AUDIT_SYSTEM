@@ -13,7 +13,6 @@
     int pendingAuditsCount = 0;
     int pendingSurrendersCount = 0;
     int pendingBranchVerificationsCount = 0;
-
     var currentController = ViewContext.RouteData.Values["controller"]?.ToString();
     var isHomeActive = currentController == "Home";
     var isAuditsActive = currentController == "Audits";
@@ -180,13 +179,14 @@
                     <span class="font-label-caps uppercase">Dashboard</span>
                 </a>
 
+                <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
+                   asp-controller="Audits" asp-action="Upload">
+                    <span class="material-symbols-outlined mr-space-3">upload_file</span>
+                    <span class="font-label-caps uppercase">New Audit</span>
+                </a>
+
                 @if (User.IsInRole("Buyer"))
                 {
-                    <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
-                       asp-controller="Audits" asp-action="Upload">
-                        <span class="material-symbols-outlined mr-space-3">upload_file</span>
-                        <span class="font-label-caps uppercase">New Audit</span>
-                    </a>
                     
                     <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
                        asp-controller="Home" asp-action="Index">
@@ -205,6 +205,7 @@
                         <span class="material-symbols-outlined mr-space-3">payments</span>
                         <span class="font-label-caps uppercase">Cash Surrender</span>
                     </a>
+
                 }
 
                 @if (User.IsInRole("Manager"))
@@ -245,6 +246,7 @@
                         <span class="material-symbols-outlined mr-space-3">assessment</span>
                         <span class="font-label-caps uppercase">Reports</span>
                     </a>
+
                 }
 
                 @if (User.IsInRole("Owner"))
@@ -274,27 +276,30 @@
                     </a>
                     
                     <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
-                       asp-controller="Account" asp-action="Register">
-                        <span class="material-symbols-outlined mr-space-3">group</span>
-                        <span class="font-label-caps uppercase">Users</span>
-                    </a>
-                    
-                    <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
-                       asp-controller="Establishments" asp-action="Index">
-                        <span class="material-symbols-outlined mr-space-3">domain</span>
-                        <span class="font-label-caps uppercase">Establishments</span>
-                    </a>
-                    
-                    <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
                        asp-controller="Users" asp-action="Index">
-                        <span class="material-symbols-outlined mr-space-3">account_balance_wallet</span>
-                        <span class="font-label-caps uppercase">Petty Cash</span>
+                        <span class="material-symbols-outlined mr-space-3">account_balance</span>
+                        <span class="font-label-caps uppercase">Vault Cash Control</span>
                     </a>
                     
                     <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
                        asp-controller="Reports" asp-action="Index">
                         <span class="material-symbols-outlined mr-space-3">assessment</span>
                         <span class="font-label-caps uppercase">Reports</span>
+                    </a>
+
+                }
+
+                @if (User.IsInRole("Admin"))
+                {
+                    <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
+                       asp-controller="Account" asp-action="Register">
+                        <span class="material-symbols-outlined mr-space-3">group</span>
+                        <span class="font-label-caps uppercase">Users Directory</span>
+                    </a>
+                    <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
+                       asp-controller="Establishments" asp-action="Index">
+                        <span class="material-symbols-outlined mr-space-3">storefront</span>
+                        <span class="font-label-caps uppercase">Establishments</span>
                     </a>
                     
                     <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 

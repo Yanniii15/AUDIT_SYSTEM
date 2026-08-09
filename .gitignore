@@ -43,3 +43,8 @@
 *.userosscache
 *.sln.docstates
 *.[Dd]ebug.log
+
+# Generated presentation artifacts
+*.pptx
+~$*.pptx
+presentation_qa/

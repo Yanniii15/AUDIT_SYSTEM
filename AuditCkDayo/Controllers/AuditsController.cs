@@ -31,17 +31,18 @@ namespace AuditCkDayo.Controllers
         }
 
         [HttpGet]
-        [Authorize(Roles = "Buyer")]
+        [Authorize(Roles = "Buyer,Owner,Manager,BranchStaff,Admin")]
         public IActionResult Upload()
         {
             return View();
         }
 
         [HttpPost]
-        [Authorize(Roles = "Buyer")]
+        [Authorize(Roles = "Buyer,Owner,Manager,BranchStaff,Admin")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ProcessUpload(List<IFormFile> receipts)
         {
+
             if (receipts == null || receipts.Count == 0)
             {
                 ModelState.AddModelError("", "Please upload at least one valid receipt image.");
@@ -134,7 +135,7 @@ namespace AuditCkDayo.Controllers
         }
 
         [HttpGet]
-        [Authorize(Roles = "Buyer")]
+        [Authorize(Roles = "Buyer,Owner,Manager,BranchStaff,Admin")]
         public async Task<IActionResult> Review()
         {
             var imageUrlsJson = HttpContext.Session.GetString("ReceiptImageUrls");
@@ -164,7 +165,7 @@ namespace AuditCkDayo.Controllers
         }
 
         [HttpPost]
-        [Authorize(Roles = "Buyer")]
+        [Authorize(Roles = "Buyer,Owner,Manager,BranchStaff,Admin")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> SubmitAudit(AuditSubmissionViewModel model)
         {
@@ -676,6 +677,7 @@ namespace AuditCkDayo.Controllers
                 return Challenge();
             }
 
+
             var buyer = await _context.Users.FirstOrDefaultAsync(u => u.Id == buyerId && !u.IsDeleted);
             if (buyer == null)
             {
@@ -714,6 +716,8 @@ namespace AuditCkDayo.Controllers
             {
                 return NotFound("Buyer not found.");
             }
+
+
 
             var reserved = await _context.SurrenderRequests
                 .Where(s => s.BuyerId == buyerId && s.Status == SurrenderStatus.Pending)
@@ -960,5 +964,6 @@ namespace AuditCkDayo.Controllers
             await _context.SaveChangesAsync();
             return RedirectToAction(nameof(Surrender));
         }
+
     }
 }

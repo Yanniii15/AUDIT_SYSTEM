@@ -101,7 +101,16 @@
                         {
                             @foreach (var audit in Model.RecentAudits)
                             {
-                                <tr class="hover:bg-surface-container-low/50 transition-colors">
+                                <tr class="hover:bg-surface-container-low/50 transition-colors cursor-pointer"
+                                    onclick="openReportsViewer(this)"
+                                    data-buyer="@audit.Buyer.Name"
+                                    data-establishment="@audit.Establishment.Name"
+                                    data-date="@audit.EntryDate.ToString("MMM dd, yyyy")"
+                                    data-amount="₱@audit.Amount.ToString("N2")"
+                                    data-description="@audit.Description"
+                                    data-notes="@audit.Notes"
+                                    data-details="@System.Text.Json.JsonSerializer.Serialize(audit.Details.Select(d => new { name = d.ItemName, qty = d.Quantity, price = d.Price, total = d.Total }))"
+                                    data-receipt-url="@(string.IsNullOrEmpty(audit.ReceiptImageUrl) ? "https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?q=80&w=600" : audit.ReceiptImageUrl)">
                                     <td class="px-space-6 py-space-4 text-on-surface">@audit.EntryDate.ToString("MMM dd, yyyy")</td>
                                     <td class="px-space-6 py-space-4 text-on-surface">@audit.Buyer.Name</td>
                                     <td class="px-space-6 py-space-4 text-on-surface-variant">@audit.Establishment.Name</td>
@@ -137,7 +146,16 @@
                                        (audit.Status == AuditCkDayo.Models.AuditStatus.Rejected ? "bg-audit-error/10 text-audit-error border-audit-error/20" :
                                        "bg-audit-pending/10 text-audit-pending border-audit-pending/20");
 
-                        <article class="bg-surface-container-lowest border border-surface-border rounded-xl p-space-4 flex flex-col gap-space-4 shadow-sm">
+                        <article class="bg-surface-container-lowest border border-surface-border rounded-xl p-space-4 flex flex-col gap-space-4 shadow-sm cursor-pointer hover:bg-surface-container-low/30 transition-colors"
+                                 onclick="openReportsViewer(this)"
+                                 data-buyer="@audit.Buyer.Name"
+                                 data-establishment="@audit.Establishment.Name"
+                                 data-date="@audit.EntryDate.ToString("MMM dd, yyyy")"
+                                 data-amount="₱@audit.Amount.ToString("N2")"
+                                 data-description="@audit.Description"
+                                 data-notes="@audit.Notes"
+                                 data-details="@System.Text.Json.JsonSerializer.Serialize(audit.Details.Select(d => new { name = d.ItemName, qty = d.Quantity, price = d.Price, total = d.Total }))"
+                                 data-receipt-url="@(string.IsNullOrEmpty(audit.ReceiptImageUrl) ? "https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?q=80&w=600" : audit.ReceiptImageUrl)">
                             <div class="flex justify-between items-start">
                                 <div class="flex gap-space-3 items-center">
                                     <div class="w-10 h-10 rounded-full bg-secondary-container text-secondary flex items-center justify-center font-bold text-[12px]">
@@ -261,3 +279,141 @@
         </section>
     </div>
 </section>
+
+<!-- Full Audit Viewer Modal -->
+<div id="reportsViewerModal" class="fixed inset-0 z-[100] hidden" role="dialog" aria-modal="true" aria-labelledby="reportsViewerTitle">
+    <div id="reportsViewerBackdrop" class="absolute inset-0 bg-primary/80 backdrop-blur-sm"></div>
+    <div class="relative z-10 h-full w-full p-space-6 flex items-center justify-center">
+        <section class="bg-surface-container-lowest border border-surface-border rounded-xl shadow-2xl w-full max-w-7xl max-h-[92vh] overflow-hidden grid grid-cols-1 lg:grid-cols-[minmax(0,1.4fr)_minmax(360px,0.6fr)]">
+            <div class="bg-surface-container-highest min-h-[420px] max-h-[92vh] flex flex-col items-center justify-center gap-space-4 p-space-6 overflow-auto">
+                <img id="viewer-receipt" src="" alt="Full receipt image" class="max-w-full max-h-[78vh] object-contain rounded-lg shadow-lg bg-white" />
+                <div id="viewer-receipt-error" class="hidden max-w-md text-center text-on-primary bg-primary/90 border border-on-primary/10 rounded-xl p-space-4">
+                    <p class="font-body-md text-[13px]">Receipt preview could not load here. Open the receipt image directly.</p>
+                </div>
+                <a id="viewer-receipt-link" href="#" target="_blank" rel="noopener" class="inline-flex items-center gap-space-2 bg-primary text-on-primary px-space-4 py-space-2 rounded-lg font-label-caps uppercase text-[11px] hover:bg-on-primary-fixed-variant transition-colors">
+                    <span class="material-symbols-outlined text-[16px]">open_in_new</span>
+                    Open Receipt Image
+                </a>
+            </div>
+            <aside class="p-space-6 overflow-y-auto max-h-[92vh] space-y-space-6">
+                <div class="flex items-start justify-between gap-space-4">
+                    <div>
+                        <span class="font-label-caps text-on-surface-variant uppercase text-[10px]">Full Audit Viewer</span>
+                        <h2 id="reportsViewerTitle" class="font-headline-md text-headline-md text-on-surface mt-1">Audit Details</h2>
+                    </div>
+                    <button type="button" id="closeReportsViewerBtn" class="bg-surface-container text-on-surface-variant hover:text-error border border-surface-border rounded-lg p-2 transition-colors cursor-pointer" aria-label="Close audit viewer">
+                        <span class="material-symbols-outlined">close</span>
+                    </button>
+                </div>
+                <dl class="grid grid-cols-1 gap-space-4 text-[13px]">
+                    <div>
+                        <dt class="font-label-caps text-on-surface-variant uppercase text-[10px]">Buyer</dt>
+                        <dd id="viewer-buyer" class="font-body-md text-on-surface"></dd>
+                    </div>
+                    <div>
+                        <dt class="font-label-caps text-on-surface-variant uppercase text-[10px]">Establishment</dt>
+                        <dd id="viewer-establishment" class="font-body-md text-on-surface"></dd>
+                    </div>
+                    <div>
+                        <dt class="font-label-caps text-on-surface-variant uppercase text-[10px]">Transaction Date</dt>
+                        <dd id="viewer-date" class="font-body-md text-on-surface"></dd>
+                    </div>
+                    <div>
+                        <dt class="font-label-caps text-on-surface-variant uppercase text-[10px]">Amount</dt>
+                        <dd id="viewer-amount" class="font-data-mono text-primary text-[22px] font-bold"></dd>
+                    </div>
+                    <div>
+                        <dt class="font-label-caps text-on-surface-variant uppercase text-[10px]">Description</dt>
+                        <dd id="viewer-description" class="font-body-md text-data-text"></dd>
+                    </div>
+                    <div>
+                        <dt class="font-label-caps text-on-surface-variant uppercase text-[10px]">Notes</dt>
+                        <dd id="viewer-notes" class="font-body-md text-on-surface-variant"></dd>
+                    </div>
+                </dl>
+                <div class="border-t border-surface-border pt-space-4">
+                    <h3 class="font-label-caps text-on-surface-variant uppercase text-[10px] mb-space-2">Line Items</h3>
+                    <div class="overflow-x-auto border border-surface-border rounded-lg">
+                        <table class="w-full text-left text-[11px]">
+                            <thead>
+                                <tr class="border-b border-surface-border text-on-surface-variant bg-surface-container-low">
+                                    <th class="px-3 py-2">Item</th>
+                                    <th class="px-3 py-2 text-center">Qty</th>
+                                    <th class="px-3 py-2 text-right">Price</th>
+                                    <th class="px-3 py-2 text-right">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody id="viewer-items-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </aside>
+        </section>
+    </div>
+</div>
+
+<script>
+    function renderLineItems(tbody, details) {
+        if (!tbody) return;
+        tbody.innerHTML = '';
+        if (!details || details.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center py-2 text-on-surface-variant">No items listed.</td></tr>';
+            return;
+        }
+
+        details.forEach(item => {
+            const tr = document.createElement('tr');
+            tr.className = 'border-b border-surface-border last:border-0 text-on-surface';
+            tr.innerHTML = `
+                <td class="px-3 py-2">${item.name}</td>
+                <td class="px-3 py-2 text-center">${item.qty}</td>
+                <td class="px-3 py-2 text-right">₱${Number(item.price).toFixed(2)}</td>
+                <td class="px-3 py-2 text-right">₱${Number(item.total).toFixed(2)}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function openReportsViewer(row) {
+        if (!row) return;
+        const details = JSON.parse(row.dataset.details || "[]");
+        const receiptUrl = row.dataset.receiptUrl;
+        const receipt = document.getElementById('viewer-receipt');
+        const receiptLink = document.getElementById('viewer-receipt-link');
+        const receiptError = document.getElementById('viewer-receipt-error');
+        
+        receiptError?.classList.add('hidden');
+        receipt?.classList.remove('hidden');
+        receipt.src = receiptUrl;
+        receipt.onerror = function () {
+            receipt.classList.add('hidden');
+            receiptError?.classList.remove('hidden');
+        };
+        receiptLink.href = receiptUrl;
+        
+        document.getElementById('viewer-buyer').innerText = row.dataset.buyer;
+        document.getElementById('viewer-establishment').innerText = row.dataset.establishment;
+        document.getElementById('viewer-date').innerText = row.dataset.date;
+        document.getElementById('viewer-amount').innerText = row.dataset.amount;
+        document.getElementById('viewer-description').innerText = row.dataset.description;
+        document.getElementById('viewer-notes').innerText = row.dataset.notes || "None";
+        
+        renderLineItems(document.getElementById('viewer-items-body'), details);
+
+        document.getElementById('reportsViewerModal').classList.remove('hidden');
+        document.body.classList.add('overflow-hidden');
+    }
+
+    function closeReportsViewer() {
+        document.getElementById('reportsViewerModal').classList.add('hidden');
+        document.body.classList.remove('overflow-hidden');
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        document.getElementById('closeReportsViewerBtn')?.addEventListener('click', closeReportsViewer);
+        document.getElementById('reportsViewerBackdrop')?.addEventListener('click', closeReportsViewer);
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') closeReportsViewer();
+        });
+    });
+</script>

@@ -26,7 +26,12 @@
         <!-- Password -->
         <div class="flex flex-col gap-space-2">
             <label asp-for="Password" class="font-label-caps text-on-surface-variant uppercase text-[10px] tracking-wider font-semibold">Password</label>
-            <input asp-for="Password" type="password" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" placeholder="••••••••" required />
+            <div class="relative">
+                <input asp-for="Password" type="password" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" id="loginPassInput" placeholder="••••••••" required />
+                <button class="absolute right-space-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50 hover:text-primary password-reveal-btn cursor-pointer bg-transparent border-0" data-input-id="loginPassInput" type="button">
+                    <span class="material-symbols-outlined text-[20px] eye-icon">visibility</span>
+                </button>
+            </div>
             <span asp-validation-for="Password" class="text-audit-error text-[11px]"></span>
         </div>
 
@@ -36,3 +41,40 @@
         </button>
     </form>
 </div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", () => {
+        document.querySelectorAll('.password-reveal-btn').forEach(btn => {
+            const inputId = btn.dataset.inputId;
+            const input = document.getElementById(inputId);
+            const icon = btn.querySelector('.eye-icon');
+
+            if (!input || !icon) return;
+
+            const showPass = () => {
+                input.type = 'text';
+                icon.innerText = 'visibility_off';
+            };
+
+            const hidePass = () => {
+                input.type = 'password';
+                icon.innerText = 'visibility';
+            };
+
+            // Mouse events
+            btn.addEventListener('mousedown', showPass);
+            btn.addEventListener('mouseup', hidePass);
+            btn.addEventListener('mouseleave', hidePass);
+
+            // Touch events for mobile
+            btn.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                showPass();
+            });
+            btn.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                hidePass();
+            });
+        });
+    });
+</script>

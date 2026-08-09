@@ -12,6 +12,7 @@ namespace AuditCkDayo.Models
         Cancelled
     }
 
+
     public class SurrenderRequest
     {
         [Key]
@@ -32,6 +33,8 @@ namespace AuditCkDayo.Models
 
         [Required]
         public SurrenderStatus Status { get; set; } = SurrenderStatus.Pending;
+
+
 
         [Required]
         public DateTime RequestDate { get; set; } = DateTime.UtcNow;

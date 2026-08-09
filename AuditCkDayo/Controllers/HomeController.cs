@@ -112,7 +112,7 @@ public class HomeController : Controller
         var establishments = await _context.Establishments.AsNoTracking().OrderBy(e => e.Name).ToListAsync();
         ViewBag.Establishments = new SelectList(establishments, "Id", "Name", model.EstablishmentId);
 
-        if (role == "Owner")
+        if (role == "Owner" || role == "Admin")
         {
             var buyers = await _context.Users
                 .AsNoTracking()
@@ -181,7 +181,8 @@ public class HomeController : Controller
         IQueryable<AuditItem> query = _context.AuditItems
             .AsNoTracking()
             .Include(a => a.Buyer)
-            .Include(a => a.Establishment);
+            .Include(a => a.Establishment)
+            .Include(a => a.Details);
 
         if (role == "Manager")
         {
@@ -220,24 +221,64 @@ public class HomeController : Controller
         }
 
         var audits = await query
-            .OrderByDescending(a => a.EntryDate)
+            .OrderBy(a => a.Establishment.Name)
+            .ThenByDescending(a => a.EntryDate)
             .ThenByDescending(a => a.Id)
             .ToListAsync();
 
         var csv = new StringBuilder();
-        csv.AppendLine("ID,Buyer,Establishment,Description,Date,Amount,Status");
-        foreach (var audit in audits)
+        
+        var groupedAudits = audits.GroupBy(a => a.Establishment.Name).OrderBy(g => g.Key);
+        
+        foreach (var group in groupedAudits)
         {
-            csv.AppendLine(string.Join(",", new[]
+            var establishmentName = group.Key;
+            
+            // Add section header row
+            csv.AppendLine($"ESTABLISHMENT: {EscapeCsv(establishmentName)},,,,,,,,");
+            
+            // Add table column headers for this section
+            csv.AppendLine("ID,Buyer,Description,Date,Audit Status,Item Name,Qty,Unit Price,Line Total");
+            
+            foreach (var audit in group)
             {
-                EscapeCsv($"AUD-{audit.Id}"),
-                EscapeCsv(audit.Buyer.Name),
-                EscapeCsv(audit.Establishment.Name),
-                EscapeCsv(audit.Description),
-                EscapeCsv(audit.EntryDate.ToString("yyyy-MM-dd")),
-                EscapeCsv(audit.Amount.ToString("N2")),
-                EscapeCsv(audit.Status.ToString())
-            }));
+                if (audit.Details != null && audit.Details.Any())
+                {
+                    foreach (var detail in audit.Details)
+                    {
+                        csv.AppendLine(string.Join(",", new[]
+                        {
+                            EscapeCsv($"AUD-{audit.Id}"),
+                            EscapeCsv(audit.Buyer.Name),
+                            EscapeCsv(audit.Description),
+                            EscapeCsv(audit.EntryDate.ToString("yyyy-MM-dd")),
+                            EscapeCsv(audit.Status.ToString()),
+                            EscapeCsv(detail.ItemName),
+                            EscapeCsv(detail.Quantity.ToString()),
+                            EscapeCsv(detail.Price.ToString("F2")),
+                            EscapeCsv(detail.Total.ToString("F2"))
+                        }));
+                    }
+                }
+                else
+                {
+                    csv.AppendLine(string.Join(",", new[]
+                    {
+                        EscapeCsv($"AUD-{audit.Id}"),
+                        EscapeCsv(audit.Buyer.Name),
+                        EscapeCsv(audit.Description),
+                        EscapeCsv(audit.EntryDate.ToString("yyyy-MM-dd")),
+                        EscapeCsv(audit.Status.ToString()),
+                        EscapeCsv("No items listed"),
+                        EscapeCsv("1"),
+                        EscapeCsv(audit.Amount.ToString("F2")),
+                        EscapeCsv(audit.Amount.ToString("F2"))
+                    }));
+                }
+            }
+            
+            // Add an empty line between different establishments
+            csv.AppendLine(",,,,,,,,");
         }
 
         var bytes = Encoding.UTF8.GetBytes(csv.ToString());

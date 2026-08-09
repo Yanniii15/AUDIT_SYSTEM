@@ -11,7 +11,7 @@ using AuditCkDayo.Models;
 
 namespace AuditCkDayo.Controllers
 {
-    [Authorize(Roles = "Owner,Manager")]
+    [Authorize(Roles = "Owner,Manager,Admin")]
     public class UsersController : Controller
     {
         private readonly AuditDbContext _context;
@@ -31,6 +31,12 @@ namespace AuditCkDayo.Controllers
             {
                 return Challenge();
             }
+
+            if (User.IsInRole("Admin"))
+            {
+                return Forbid();
+            }
+
 
             var isOwner = User.IsInRole("Owner");
             if (isOwner)
@@ -82,6 +88,10 @@ namespace AuditCkDayo.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> AddPcf(int id, decimal amount, string actionType)
         {
+            if (User.IsInRole("Admin"))
+            {
+                return Forbid();
+            }
             if (amount <= 0)
             {
                 TempData["Error"] = "Please enter a valid amount.";
@@ -259,7 +269,7 @@ namespace AuditCkDayo.Controllers
         }
 
         [HttpPost]
-        [Authorize(Roles = "Owner")]
+        [Authorize(Roles = "Admin")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> AssignManager(int id, int? managerId)
         {
@@ -278,7 +288,7 @@ namespace AuditCkDayo.Controllers
         }
 
         [HttpPost]
-        [Authorize(Roles = "Owner")]
+        [Authorize(Roles = "Admin")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Delete(int id)
         {

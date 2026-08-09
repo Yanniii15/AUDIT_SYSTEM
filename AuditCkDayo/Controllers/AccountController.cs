@@ -68,7 +68,7 @@ namespace AuditCkDayo.Controllers
         }
 
         [HttpGet]
-        [Authorize(Roles = "Owner")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> Register()
         {
             await PopulateRegistrationStats();
@@ -82,7 +82,7 @@ namespace AuditCkDayo.Controllers
         }
 
         [HttpGet]
-        [Authorize(Roles = "Owner")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> RegisterForm()
         {
             await PopulateRegistrationStats();
@@ -91,7 +91,7 @@ namespace AuditCkDayo.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [Authorize(Roles = "Owner")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> RegisterForm(RegisterViewModel model)
         {
             // Custom Password Requirements Validation
@@ -165,7 +165,7 @@ namespace AuditCkDayo.Controllers
         }
 
         [HttpGet]
-        [Authorize(Roles = "Owner")]
+        [Authorize(Roles = "Admin")]
         public async Task<IActionResult> CheckEmailAvailability(string email)
         {
             if (string.IsNullOrWhiteSpace(email))
