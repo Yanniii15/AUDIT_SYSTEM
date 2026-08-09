@@ -615,7 +615,7 @@ namespace AuditCkDayo.Controllers
                 if ((!string.IsNullOrEmpty(sessionUrl) && sessionUrl.Contains(safeFilename)) ||
                     sessionUrls.Any(u => u.Contains(safeFilename)))
                 {
-                    if (currentUserRole == "Owner" || currentUserRole == "Buyer")
+                    if (currentUserRole is "Owner" or "Buyer" or "Manager" or "BranchStaff" or "Admin")
                     {
                         var fileBytes = await System.IO.File.ReadAllBytesAsync(filePath);
                         return File(fileBytes, GetMimeType(filePath));

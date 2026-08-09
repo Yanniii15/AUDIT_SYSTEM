@@ -759,6 +759,42 @@ namespace AuditCkDayo.Tests
         }
 
         [Fact]
+        public async Task Receipt_AuthorizedSessionManager_ReturnsFile()
+        {
+            var filename = "test_receipt_session_manager.png";
+            var uploadsFolder = Path.Combine(AppContext.BaseDirectory, "App_Data", "uploads");
+            Directory.CreateDirectory(uploadsFolder);
+            var filePath = Path.Combine(uploadsFolder, filename);
+            var expectedBytes = new byte[] { 12, 13, 14 };
+            await File.WriteAllBytesAsync(filePath, expectedBytes);
+
+            try
+            {
+                using (var context = new AuditDbContext(_options))
+                {
+                    await SeedDataAsync(context);
+
+                    var session = new FakeSession();
+                    session.Set("ReceiptImageUrl", System.Text.Encoding.UTF8.GetBytes($"/Audits/Receipt/{filename}"));
+
+                    var controller = CreateController(context, 2, "Manager", session); // Bob Manager reviewing a just-uploaded receipt
+                    var result = await controller.Receipt(filename);
+
+                    var fileResult = Assert.IsType<FileContentResult>(result);
+                    Assert.Equal("image/png", fileResult.ContentType);
+                    Assert.Equal(expectedBytes, fileResult.FileContents);
+                }
+            }
+            finally
+            {
+                if (File.Exists(filePath))
+                {
+                    File.Delete(filePath);
+                }
+            }
+        }
+
+        [Fact]
         public async Task Receipt_AuthorizedBranchStaff_ReturnsFile()
         {
             var filename = "test_receipt_branchstaff.png";
