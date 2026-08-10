@@ -43,7 +43,19 @@ namespace AuditCkDayo.Controllers
                 TempData["Error"] = "Covered and covering manager must be different.";
             }
 
-            if (form.EndDate.Date < form.StartDate.Date)
+            if (form.StartDate == default)
+            {
+                ModelState.AddModelError(nameof(CoverageCreateForm.StartDate), "Start date is required.");
+                TempData["Error"] = "Start date is required.";
+            }
+
+            if (form.EndDate == default)
+            {
+                ModelState.AddModelError(nameof(CoverageCreateForm.EndDate), "End date is required.");
+                TempData["Error"] = "End date is required.";
+            }
+
+            if (form.StartDate != default && form.EndDate != default && form.EndDate.Date < form.StartDate.Date)
             {
                 ModelState.AddModelError(nameof(CoverageCreateForm.EndDate), "End date must be on or after start date.");
                 TempData["Error"] = "End date must be on or after start date.";

@@ -1548,6 +1548,16 @@ namespace AuditCkDayo.Tests
                     PasswordHash = "hash",
                     Role = UserRole.BranchStaff,
                     EstablishmentId = 1
+                },
+                new User
+                {
+                    Id = 4,
+                    Name = "Deleted Receiver",
+                    Email = "pcf-release-deleted-receiver@test.com",
+                    PasswordHash = "hash",
+                    Role = UserRole.BranchStaff,
+                    EstablishmentId = 1,
+                    IsDeleted = true
                 });
 
             await context.SaveChangesAsync();
@@ -1761,6 +1771,56 @@ namespace AuditCkDayo.Tests
             Assert.False(controller.ModelState.IsValid);
             Assert.True(controller.ModelState.ContainsKey(nameof(PcfReleaseViewModel.ReceiverName)));
             Assert.True(controller.ModelState.ContainsKey(nameof(PcfReleaseViewModel.Purpose)));
+            Assert.Empty(context.PcfReleases);
+            Assert.Empty(context.TreasuryCashFlows);
+            Assert.Empty(context.CashFlowEntries);
+        }
+
+        [Fact]
+        public async Task ReleasePcf_PostRequiresReceiverContextWithoutSaving()
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedReleaseLookupsAsync(context);
+            var controller = CreateController(context);
+            var model = new PcfReleaseViewModel
+            {
+                ReleaseDate = new DateTime(2026, 8, 16),
+                Amount = 50m
+            };
+
+            var result = await controller.ReleasePcf(model);
+
+            var viewResult = Assert.IsType<ViewResult>(result);
+            Assert.Same(model, viewResult.Model);
+            Assert.False(controller.ModelState.IsValid);
+            Assert.Contains(controller.ModelState[nameof(PcfReleaseViewModel.ReceiverName)]!.Errors, error => error.ErrorMessage.Contains("receiver", StringComparison.OrdinalIgnoreCase));
+            Assert.Empty(context.PcfReleases);
+            Assert.Empty(context.TreasuryCashFlows);
+            Assert.Empty(context.CashFlowEntries);
+        }
+
+        [Theory]
+        [InlineData(4)]
+        [InlineData(99)]
+        public async Task ReleasePcf_PostInvalidReceiverUserIdReturnsModelStateErrorWithoutSaving(int receiverUserId)
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedReleaseLookupsAsync(context);
+            var controller = CreateController(context);
+            var model = new PcfReleaseViewModel
+            {
+                ReleaseDate = new DateTime(2026, 8, 17),
+                Amount = 50m,
+                ReceiverUserId = receiverUserId,
+                EstablishmentId = 1
+            };
+
+            var result = await controller.ReleasePcf(model);
+
+            var viewResult = Assert.IsType<ViewResult>(result);
+            Assert.Same(model, viewResult.Model);
+            Assert.False(controller.ModelState.IsValid);
+            Assert.Contains(controller.ModelState[nameof(PcfReleaseViewModel.ReceiverUserId)]!.Errors, error => error.ErrorMessage.Contains("active", StringComparison.OrdinalIgnoreCase));
             Assert.Empty(context.PcfReleases);
             Assert.Empty(context.TreasuryCashFlows);
             Assert.Empty(context.CashFlowEntries);
@@ -2007,6 +2067,90 @@ namespace AuditCkDayo.Tests
             Assert.IsAssignableFrom<SelectList>(controller.ViewBag.ResponsibleManagers);
             Assert.IsAssignableFrom<SelectList>(controller.ViewBag.PcfReleases);
         }
+
+        [Theory]
+        [InlineData(PcfReleaseStatus.Settled)]
+        [InlineData(PcfReleaseStatus.Cancelled)]
+        public async Task Settlement_PostRejectsUnavailablePcfReleaseStatusesWithoutSaving(PcfReleaseStatus status)
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedSettlementLookupsAsync(context);
+            var release = new PcfRelease
+            {
+                Id = 20,
+                ReleasedByTreasuryUserId = 1,
+                ReceiverName = "Unavailable Receiver",
+                Amount = 300m,
+                ReleaseDate = new DateTime(2026, 8, 8),
+                Status = status
+            };
+            context.PcfReleases.Add(release);
+            await context.SaveChangesAsync();
+            var controller = CreateController(context);
+
+            var result = await controller.Settlement(new AuditSettlementViewModel
+            {
+                PcfReleaseId = release.Id,
+                ResponsibleManagerId = 2,
+                TotalPCReleased = 300m,
+                TotalAcceptedExpenses = 250m,
+                ActualChangeReturned = 50m
+            });
+
+            var viewResult = Assert.IsType<ViewResult>(result);
+            Assert.IsType<AuditSettlementViewModel>(viewResult.Model);
+            Assert.False(controller.ModelState.IsValid);
+            Assert.Contains(controller.ModelState[nameof(AuditSettlementViewModel.PcfReleaseId)]!.Errors, error => error.ErrorMessage.Contains("valid PCF release", StringComparison.OrdinalIgnoreCase));
+            Assert.DoesNotContain(await context.AuditSettlements.AsNoTracking().ToListAsync(), settlement => settlement.PcfReleaseId == release.Id);
+            Assert.IsAssignableFrom<SelectList>(controller.ViewBag.PcfReleases);
+        }
+
+        [Fact]
+        public async Task Settlement_PostRejectsAlreadyLinkedPcfReleaseWithoutSavingDuplicate()
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedSettlementLookupsAsync(context);
+            var release = new PcfRelease
+            {
+                Id = 21,
+                ReleasedByTreasuryUserId = 1,
+                ReceiverName = "Linked Receiver",
+                Amount = 400m,
+                ReleaseDate = new DateTime(2026, 8, 7),
+                Status = PcfReleaseStatus.Released
+            };
+            context.PcfReleases.Add(release);
+            context.AuditSettlements.Add(new AuditSettlement
+            {
+                PcfReleaseId = release.Id,
+                ResponsibleManagerId = 2,
+                ProcessedByUserId = 1,
+                TotalPCReleased = 400m,
+                TotalAcceptedExpenses = 300m,
+                ActualChangeReturned = 100m,
+                ExpectedChange = 100m,
+                ShortOverAmount = 0m,
+                Status = AuditSettlementStatus.Confirmed
+            });
+            await context.SaveChangesAsync();
+            var controller = CreateController(context);
+
+            var result = await controller.Settlement(new AuditSettlementViewModel
+            {
+                PcfReleaseId = release.Id,
+                ResponsibleManagerId = 2,
+                TotalPCReleased = 400m,
+                TotalAcceptedExpenses = 300m,
+                ActualChangeReturned = 100m
+            });
+
+            var viewResult = Assert.IsType<ViewResult>(result);
+            Assert.IsType<AuditSettlementViewModel>(viewResult.Model);
+            Assert.False(controller.ModelState.IsValid);
+            Assert.Contains(controller.ModelState[nameof(AuditSettlementViewModel.PcfReleaseId)]!.Errors, error => error.ErrorMessage.Contains("valid PCF release", StringComparison.OrdinalIgnoreCase));
+            Assert.Equal(1, await context.AuditSettlements.CountAsync(settlement => settlement.PcfReleaseId == release.Id));
+            Assert.IsAssignableFrom<SelectList>(controller.ViewBag.PcfReleases);
+        }
     }
 
     public class SalesReportUsabilityTests : IDisposable
@@ -2055,7 +2199,7 @@ namespace AuditCkDayo.Tests
             };
         }
 
-        private static async Task<SalesReport> SeedDraftSalesReportAsync(AuditDbContext context)
+        private static async Task<SalesReport> SeedDraftSalesReportAsync(AuditDbContext context, string fileName = "sales-report.jpg")
         {
             var treasuryUser = new User
             {
@@ -2111,7 +2255,7 @@ namespace AuditCkDayo.Tests
             {
                 DocumentType = DocumentType.DailySalesReport,
                 UploadedByUserId = treasuryUser.Id,
-                ImageUrl = "/SalesReports/Image/sales-report.jpg",
+                ImageUrl = $"/SalesReports/Image/{fileName}",
                 OcrStatus = OcrStatus.Parsed,
                 ReviewStatus = DocumentReviewStatus.Draft
             };
@@ -2167,6 +2311,15 @@ namespace AuditCkDayo.Tests
                 Notes = "Updated notes",
                 ImageUrl = "/SalesReports/Image/sales-report.jpg"
             };
+        }
+
+        private static string CreateSalesReportImageFile(string fileName)
+        {
+            var folder = Path.Combine(AppContext.BaseDirectory, "App_Data", "uploads", "sales-reports");
+            Directory.CreateDirectory(folder);
+            var filePath = Path.Combine(folder, fileName);
+            File.WriteAllBytes(filePath, new byte[] { 0xFF, 0xD8, 0xFF, 0xD9 });
+            return filePath;
         }
 
         [Fact]
@@ -2317,6 +2470,60 @@ namespace AuditCkDayo.Tests
             var savedReport = await context.SalesReports.AsNoTracking().SingleAsync();
             Assert.Equal(SalesReportStatus.Draft, savedReport.Status);
             Assert.Equal(900m, savedReport.ConfirmedCashToHandover);
+        }
+
+        [Fact]
+        public async Task Image_ForBranchStaffOutsideAssignedBranchIsForbidden()
+        {
+            using var context = new AuditDbContext(_options);
+            var fileName = $"sales-report-scope-{Guid.NewGuid():N}.jpg";
+            var filePath = CreateSalesReportImageFile(fileName);
+            try
+            {
+                await SeedDraftSalesReportAsync(context, fileName);
+                var controller = CreateController(context, 3, "BranchStaff");
+
+                var result = controller.Image(fileName);
+
+                Assert.IsType<ForbidResult>(result);
+            }
+            finally
+            {
+                if (File.Exists(filePath))
+                {
+                    File.Delete(filePath);
+                }
+            }
+        }
+
+        [Theory]
+        [InlineData(1, "Owner")]
+        [InlineData(1, "Manager")]
+        [InlineData(1, "Admin")]
+        [InlineData(2, "BranchStaff")]
+        public async Task Image_ForPrivilegedUsersAndAssignedBranchStaffServesSalesReportImage(int currentUserId, string currentUserRole)
+        {
+            using var context = new AuditDbContext(_options);
+            var fileName = $"sales-report-allowed-{Guid.NewGuid():N}.jpg";
+            var filePath = CreateSalesReportImageFile(fileName);
+            try
+            {
+                await SeedDraftSalesReportAsync(context, fileName);
+                var controller = CreateController(context, currentUserId, currentUserRole);
+
+                var result = controller.Image(fileName);
+
+                var fileResult = Assert.IsType<PhysicalFileResult>(result);
+                Assert.Equal(filePath, fileResult.FileName);
+                Assert.Equal("image/jpeg", fileResult.ContentType);
+            }
+            finally
+            {
+                if (File.Exists(filePath))
+                {
+                    File.Delete(filePath);
+                }
+            }
         }
 
         [Fact]
@@ -2515,6 +2722,28 @@ namespace AuditCkDayo.Tests
             Assert.Contains(controller.ModelState[nameof(CoverageCreateForm.EndDate)]!.Errors, error => error.ErrorMessage.Contains("End date", StringComparison.OrdinalIgnoreCase));
             Assert.Empty(await context.ManagerCoverages.ToListAsync());
             Assert.Equal("End date must be on or after start date.", controller.TempData["Error"]);
+        }
+
+        [Fact]
+        public async Task Create_RejectsDefaultCoverageDatesWithoutSaving()
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedManagersAsync(context);
+
+            var missingStartController = CreateController(context);
+            var missingStartResult = await missingStartController.Create(NewCoverageForm(2, 3, DateTime.MinValue, new DateTime(2026, 8, 12)));
+
+            Assert.IsType<ViewResult>(missingStartResult);
+            Assert.False(missingStartController.ModelState.IsValid);
+            Assert.Contains(missingStartController.ModelState[nameof(CoverageCreateForm.StartDate)]!.Errors, error => error.ErrorMessage.Contains("required", StringComparison.OrdinalIgnoreCase));
+
+            var missingEndController = CreateController(context);
+            var missingEndResult = await missingEndController.Create(NewCoverageForm(2, 3, new DateTime(2026, 8, 11), DateTime.MinValue));
+
+            Assert.IsType<ViewResult>(missingEndResult);
+            Assert.False(missingEndController.ModelState.IsValid);
+            Assert.Contains(missingEndController.ModelState[nameof(CoverageCreateForm.EndDate)]!.Errors, error => error.ErrorMessage.Contains("required", StringComparison.OrdinalIgnoreCase));
+            Assert.Empty(await context.ManagerCoverages.ToListAsync());
         }
 
         [Fact]

@@ -261,6 +261,26 @@ namespace AuditCkDayo.Controllers
                 return NotFound();
             }
 
+            var storedImageUrlSuffix = "/" + fileName;
+            var storedImageUrlWindowsSuffix = "\\" + fileName;
+            var report = _context.SalesReports
+                .AsNoTracking()
+                .Include(r => r.DocumentRecord)
+                .FirstOrDefault(r => r.DocumentRecord.DocumentType == DocumentType.DailySalesReport
+                    && (r.DocumentRecord.ImageUrl == fileName
+                        || r.DocumentRecord.ImageUrl.EndsWith(storedImageUrlSuffix)
+                        || r.DocumentRecord.ImageUrl.EndsWith(storedImageUrlWindowsSuffix)));
+
+            if (report == null)
+            {
+                return NotFound();
+            }
+
+            if (CurrentBranchStaffCannotAccess(report.EstablishmentId))
+            {
+                return Forbid();
+            }
+
             var filePath = Path.Combine(GetUploadsFolder(), fileName);
             if (!System.IO.File.Exists(filePath))
             {
@@ -405,6 +425,28 @@ namespace AuditCkDayo.Controllers
                 .Where(u => u.Id == currentUserId.Value && u.Role == UserRole.BranchStaff && !u.IsDeleted)
                 .Select(u => u.EstablishmentId)
                 .FirstOrDefaultAsync();
+
+            return !assignedEstablishmentId.HasValue || assignedEstablishmentId.Value != establishmentId;
+        }
+
+        private bool CurrentBranchStaffCannotAccess(int establishmentId)
+        {
+            if (!IsBranchStaff())
+            {
+                return false;
+            }
+
+            var currentUserId = GetCurrentUserId();
+            if (!currentUserId.HasValue)
+            {
+                return true;
+            }
+
+            var assignedEstablishmentId = _context.Users
+                .AsNoTracking()
+                .Where(u => u.Id == currentUserId.Value && u.Role == UserRole.BranchStaff && !u.IsDeleted)
+                .Select(u => u.EstablishmentId)
+                .FirstOrDefault();
 
             return !assignedEstablishmentId.HasValue || assignedEstablishmentId.Value != establishmentId;
         }

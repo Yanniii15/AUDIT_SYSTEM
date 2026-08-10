@@ -86,19 +86,43 @@ namespace AuditCkDayo.Controllers
                 ModelState.AddModelError(nameof(PcfReleaseViewModel.Amount), "Amount must be greater than zero.");
             }
 
+            var hasValidEstablishment = false;
             if (model.EstablishmentId.HasValue)
             {
-                var isValidBranch = await _context.Establishments
+                hasValidEstablishment = await _context.Establishments
                     .AsNoTracking()
                     .AnyAsync(e => e.Id == model.EstablishmentId.Value
                         && e.IsOperatingBranch
                         && e.IsActive
                         && !e.IsMiscellaneous);
 
-                if (!isValidBranch)
+                if (!hasValidEstablishment)
                 {
                     ModelState.AddModelError(nameof(PcfReleaseViewModel.EstablishmentId), "Select an active operating branch.");
                 }
+            }
+
+            model.ReceiverName = string.IsNullOrWhiteSpace(model.ReceiverName)
+                ? null
+                : model.ReceiverName.Trim();
+
+            var hasValidReceiverUser = false;
+            if (model.ReceiverUserId.HasValue)
+            {
+                hasValidReceiverUser = await _context.Users
+                    .AsNoTracking()
+                    .AnyAsync(u => u.Id == model.ReceiverUserId.Value && !u.IsDeleted);
+
+                if (!hasValidReceiverUser)
+                {
+                    ModelState.AddModelError(nameof(PcfReleaseViewModel.ReceiverUserId), "Select an active receiver user.");
+                }
+            }
+
+            var hasReceiverName = !string.IsNullOrWhiteSpace(model.ReceiverName);
+            if (!hasValidReceiverUser && !hasReceiverName && !hasValidEstablishment)
+            {
+                ModelState.AddModelError(nameof(PcfReleaseViewModel.ReceiverName), "Provide a receiver user, receiver name, or establishment.");
             }
 
             if (model.ReceiverName?.Length > 100)
@@ -233,11 +257,14 @@ namespace AuditCkDayo.Controllers
 
             if (model.PcfReleaseId.HasValue)
             {
-                var pcfReleaseExists = await _context.PcfReleases
+                var pcfReleaseAvailable = await _context.PcfReleases
                     .AsNoTracking()
-                    .AnyAsync(r => r.Id == model.PcfReleaseId.Value);
+                    .AnyAsync(r => r.Id == model.PcfReleaseId.Value
+                        && r.Status != PcfReleaseStatus.Settled
+                        && r.Status != PcfReleaseStatus.Cancelled
+                        && !_context.AuditSettlements.Any(s => s.PcfReleaseId == r.Id));
 
-                if (!pcfReleaseExists)
+                if (!pcfReleaseAvailable)
                 {
                     ModelState.AddModelError(nameof(AuditSettlementViewModel.PcfReleaseId), "Select a valid PCF release.");
                 }
