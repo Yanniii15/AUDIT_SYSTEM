@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
+using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -1480,12 +1481,12 @@ namespace AuditCkDayo.Tests
             _connection.Dispose();
         }
 
-        private static SalesReportsController CreateController(AuditDbContext context, int currentUserId = 1)
+        private static SalesReportsController CreateController(AuditDbContext context, int currentUserId = 1, string currentUserRole = "Owner")
         {
             var claims = new List<Claim>
             {
                 new Claim(ClaimTypes.NameIdentifier, currentUserId.ToString()),
-                new Claim(ClaimTypes.Role, "Owner")
+                new Claim(ClaimTypes.Role, currentUserRole)
             };
 
             var httpContext = new DefaultHttpContext
@@ -1515,6 +1516,26 @@ namespace AuditCkDayo.Tests
                 IsTreasury = true
             };
 
+            var branchStaff = new User
+            {
+                Id = 2,
+                Name = "Branch Staff",
+                Email = "sales-report-branch@test.com",
+                PasswordHash = "hash",
+                Role = UserRole.BranchStaff,
+                EstablishmentId = 1
+            };
+
+            var outsideBranchStaff = new User
+            {
+                Id = 3,
+                Name = "Outside Branch Staff",
+                Email = "sales-report-outside-branch@test.com",
+                PasswordHash = "hash",
+                Role = UserRole.BranchStaff,
+                EstablishmentId = 2
+            };
+
             var establishment = new Establishment
             {
                 Id = 1,
@@ -1523,8 +1544,16 @@ namespace AuditCkDayo.Tests
                 IsActive = true
             };
 
-            context.Users.Add(treasuryUser);
-            context.Establishments.Add(establishment);
+            var otherEstablishment = new Establishment
+            {
+                Id = 2,
+                Name = "CKR Other Branch",
+                IsOperatingBranch = true,
+                IsActive = true
+            };
+
+            context.Users.AddRange(treasuryUser, branchStaff, outsideBranchStaff);
+            context.Establishments.AddRange(establishment, otherEstablishment);
             await context.SaveChangesAsync();
 
             var document = new DocumentRecord
@@ -1687,6 +1716,127 @@ namespace AuditCkDayo.Tests
             Assert.Equal(DocumentReviewStatus.Draft, savedDocument.ReviewStatus);
             Assert.Null(savedDocument.ConfirmedByUserId);
             Assert.Null(savedDocument.ConfirmedAt);
+        }
+
+        [Fact]
+        public async Task Upload_ForBranchStaffShowsOnlyAssignedOperatingBranch()
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedDraftSalesReportAsync(context);
+            var controller = CreateController(context, 2, "BranchStaff");
+
+            var result = await controller.Upload();
+
+            Assert.IsType<ViewResult>(result);
+            var establishments = Assert.IsType<SelectList>((object)controller.ViewBag.Establishments);
+            var item = Assert.Single(establishments.AsEnumerable().ToList());
+            Assert.Equal("1", item.Value);
+            Assert.Equal("CKR Sales Branch", item.Text);
+        }
+
+        [Fact]
+        public async Task Upload_PostForBranchStaffOutsideAssignedBranchIsForbiddenBeforeSaving()
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedDraftSalesReportAsync(context);
+            var controller = CreateController(context, 2, "BranchStaff");
+
+            var result = await controller.Upload(2, new DateTime(2026, 8, 9), new DateTime(2026, 8, 10), "Cashier", null);
+
+            Assert.IsType<ForbidResult>(result);
+            Assert.Equal(1, await context.DocumentRecords.CountAsync());
+            Assert.Equal(1, await context.SalesReports.CountAsync());
+        }
+
+        [Fact]
+        public async Task Review_ForBranchStaffOutsideAssignedBranchIsForbidden()
+        {
+            using var context = new AuditDbContext(_options);
+            var report = await SeedDraftSalesReportAsync(context);
+            var controller = CreateController(context, 3, "BranchStaff");
+            var model = BuildReviewModel(report, 1500m);
+
+            var getResult = await controller.Review(report.Id);
+            var postResult = await controller.Review(model, "Confirm");
+
+            Assert.IsType<ForbidResult>(getResult);
+            Assert.IsType<ForbidResult>(postResult);
+            Assert.Empty(await context.CashFlowEntries.AsNoTracking().ToListAsync());
+
+            var savedReport = await context.SalesReports.AsNoTracking().SingleAsync();
+            Assert.Equal(SalesReportStatus.Draft, savedReport.Status);
+            Assert.Equal(900m, savedReport.ConfirmedCashToHandover);
+        }
+
+        [Fact]
+        public async Task Review_SaveDraftAfterConfirmationIsBlockedWithoutChangingConfirmedStateOrEntry()
+        {
+            using var context = new AuditDbContext(_options);
+            var report = await SeedDraftSalesReportAsync(context);
+            var confirmController = CreateController(context);
+            var confirmModel = BuildReviewModel(report, 1250m);
+            await confirmController.Review(confirmModel, "Confirm");
+
+            context.ChangeTracker.Clear();
+
+            var draftController = CreateController(context);
+            var draftModel = BuildReviewModel(report, 999m);
+
+            var result = await draftController.Review(draftModel, "SaveDraft");
+
+            Assert.IsType<ViewResult>(result);
+            Assert.False(draftController.ModelState.IsValid);
+            Assert.Equal("Confirmed sales reports cannot be saved as drafts.", draftController.TempData["Error"]);
+
+            var savedReport = await context.SalesReports.AsNoTracking().SingleAsync();
+            Assert.Equal(SalesReportStatus.Confirmed, savedReport.Status);
+            Assert.Equal(1, savedReport.ConfirmedByUserId);
+            Assert.NotNull(savedReport.ConfirmedAt);
+            Assert.Equal(1250m, savedReport.ConfirmedCashToHandover);
+
+            var savedDocument = await context.DocumentRecords.AsNoTracking().SingleAsync();
+            Assert.Equal(DocumentReviewStatus.Confirmed, savedDocument.ReviewStatus);
+            Assert.Equal(1, savedDocument.ConfirmedByUserId);
+            Assert.NotNull(savedDocument.ConfirmedAt);
+
+            var entry = Assert.Single(await context.CashFlowEntries.AsNoTracking().ToListAsync());
+            Assert.Equal(1250m, entry.Amount);
+        }
+
+        [Fact]
+        public async Task CashFlowEntries_RejectDuplicateSourceDocumentSalesCategory()
+        {
+            using var context = new AuditDbContext(_options);
+            var report = await SeedDraftSalesReportAsync(context);
+
+            context.TreasuryCashFlows.Add(new TreasuryCashFlow
+            {
+                TreasuryUserId = 1,
+                CashFlowDate = report.HandoverDate.Date,
+                Entries = new List<CashFlowEntry>
+                {
+                    new CashFlowEntry
+                    {
+                        Direction = CashFlowDirection.In,
+                        Category = CashFlowCategory.Sales,
+                        EstablishmentId = report.EstablishmentId,
+                        SourceDocumentId = report.DocumentRecordId,
+                        Amount = 100m,
+                        CreatedByUserId = 1
+                    },
+                    new CashFlowEntry
+                    {
+                        Direction = CashFlowDirection.In,
+                        Category = CashFlowCategory.Sales,
+                        EstablishmentId = report.EstablishmentId,
+                        SourceDocumentId = report.DocumentRecordId,
+                        Amount = 200m,
+                        CreatedByUserId = 1
+                    }
+                }
+            });
+
+            await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync());
         }
     }
 

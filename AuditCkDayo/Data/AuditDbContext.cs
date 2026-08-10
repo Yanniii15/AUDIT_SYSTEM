@@ -285,6 +285,10 @@ namespace AuditCkDayo.Data
                 .HasMaxLength(50);
 
             modelBuilder.Entity<CashFlowEntry>()
+                .HasIndex(e => new { e.SourceDocumentId, e.Category })
+                .IsUnique();
+
+            modelBuilder.Entity<CashFlowEntry>()
                 .HasOne(e => e.Establishment)
                 .WithMany()
                 .HasForeignKey(e => e.EstablishmentId)

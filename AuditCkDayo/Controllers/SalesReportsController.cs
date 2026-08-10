@@ -36,7 +36,18 @@ namespace AuditCkDayo.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Upload(int establishmentId, DateTime businessDate, DateTime handoverDate, string? cashierName, IFormFile? reportImage)
         {
+            var currentUserId = GetCurrentUserId();
+            if (!currentUserId.HasValue)
+            {
+                return Challenge();
+            }
+
             await PopulateEstablishments(establishmentId);
+
+            if (await CurrentBranchStaffCannotAccessAsync(establishmentId))
+            {
+                return Forbid();
+            }
 
             if (!await IsValidOperatingBranchAsync(establishmentId))
             {
@@ -69,11 +80,6 @@ namespace AuditCkDayo.Controllers
                 return View();
             }
 
-            var currentUserId = GetCurrentUserId();
-            if (!currentUserId.HasValue)
-            {
-                return Challenge();
-            }
 
             var uploadsFolder = GetUploadsFolder();
             Directory.CreateDirectory(uploadsFolder);
@@ -157,6 +163,11 @@ namespace AuditCkDayo.Controllers
                 return NotFound();
             }
 
+            if (await CurrentBranchStaffCannotAccessAsync(report.EstablishmentId))
+            {
+                return Forbid();
+            }
+
             await PopulateEstablishments(report.EstablishmentId);
             return View(ToReviewModel(report));
         }
@@ -179,6 +190,11 @@ namespace AuditCkDayo.Controllers
                 return NotFound();
             }
 
+            if (await CurrentBranchStaffCannotAccessAsync(report.EstablishmentId) || await CurrentBranchStaffCannotAccessAsync(model.EstablishmentId))
+            {
+                return Forbid();
+            }
+
             await PopulateEstablishments(model.EstablishmentId);
             model.ImageUrl = report.DocumentRecord.ImageUrl;
 
@@ -192,9 +208,17 @@ namespace AuditCkDayo.Controllers
                 return View(model);
             }
 
+            var isConfirmAction = string.Equals(actionType, "Confirm", StringComparison.OrdinalIgnoreCase);
+            if (!isConfirmAction && (report.Status == SalesReportStatus.Confirmed || report.DocumentRecord.ReviewStatus == DocumentReviewStatus.Confirmed))
+            {
+                ModelState.AddModelError(string.Empty, "Confirmed sales reports cannot be saved as drafts.");
+                TempData["Error"] = "Confirmed sales reports cannot be saved as drafts.";
+                return View(ToReviewModel(report));
+            }
+
             ApplyReviewModel(report, model);
 
-            if (string.Equals(actionType, "Confirm", StringComparison.OrdinalIgnoreCase))
+            if (isConfirmAction)
             {
                 var currentUserId = GetCurrentUserId();
                 if (!currentUserId.HasValue)
@@ -217,6 +241,10 @@ namespace AuditCkDayo.Controllers
             {
                 report.Status = SalesReportStatus.Draft;
                 report.DocumentRecord.ReviewStatus = DocumentReviewStatus.Draft;
+                report.ConfirmedByUserId = null;
+                report.ConfirmedAt = null;
+                report.DocumentRecord.ConfirmedByUserId = null;
+                report.DocumentRecord.ConfirmedAt = null;
 
                 TempData["Message"] = "Sales report draft saved.";
             }
@@ -354,6 +382,33 @@ namespace AuditCkDayo.Controllers
             return int.TryParse(currentUserIdValue, out var currentUserId) ? currentUserId : null;
         }
 
+        private bool IsBranchStaff()
+        {
+            return string.Equals(User.FindFirstValue(ClaimTypes.Role), UserRole.BranchStaff.ToString(), StringComparison.OrdinalIgnoreCase);
+        }
+
+        private async Task<bool> CurrentBranchStaffCannotAccessAsync(int establishmentId)
+        {
+            if (!IsBranchStaff())
+            {
+                return false;
+            }
+
+            var currentUserId = GetCurrentUserId();
+            if (!currentUserId.HasValue)
+            {
+                return true;
+            }
+
+            var assignedEstablishmentId = await _context.Users
+                .AsNoTracking()
+                .Where(u => u.Id == currentUserId.Value && u.Role == UserRole.BranchStaff && !u.IsDeleted)
+                .Select(u => u.EstablishmentId)
+                .FirstOrDefaultAsync();
+
+            return !assignedEstablishmentId.HasValue || assignedEstablishmentId.Value != establishmentId;
+        }
+
         private async Task<bool> IsValidOperatingBranchAsync(int establishmentId)
         {
             return await _context.Establishments
@@ -363,11 +418,30 @@ namespace AuditCkDayo.Controllers
 
         private async Task PopulateEstablishments(int? selectedId = null)
         {
-            var establishments = await _context.Establishments
+            var query = _context.Establishments
                 .AsNoTracking()
-                .Where(e => e.IsOperatingBranch && e.IsActive && !e.IsMiscellaneous)
+                .Where(e => e.IsOperatingBranch && e.IsActive && !e.IsMiscellaneous);
+
+            if (IsBranchStaff())
+            {
+                var currentUserId = GetCurrentUserId();
+                var assignedEstablishmentId = currentUserId.HasValue
+                    ? await _context.Users
+                        .AsNoTracking()
+                        .Where(u => u.Id == currentUserId.Value && u.Role == UserRole.BranchStaff && !u.IsDeleted)
+                        .Select(u => u.EstablishmentId)
+                        .FirstOrDefaultAsync()
+                    : null;
+
+                query = assignedEstablishmentId.HasValue
+                    ? query.Where(e => e.Id == assignedEstablishmentId.Value)
+                    : query.Where(e => false);
+            }
+
+            var establishments = await query
                 .OrderBy(e => e.Name)
                 .ToListAsync();
+
             ViewBag.Establishments = new SelectList(establishments, "Id", "Name", selectedId);
         }
 
