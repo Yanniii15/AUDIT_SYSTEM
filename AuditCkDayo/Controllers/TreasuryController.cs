@@ -207,6 +207,15 @@ namespace AuditCkDayo.Controllers
                 return Unauthorized();
             }
 
+            var currentUserExists = await _context.Users
+                .AsNoTracking()
+                .AnyAsync(u => u.Id == currentUserId && !u.IsDeleted);
+
+            if (!currentUserExists)
+            {
+                return Forbid();
+            }
+
             if (model.TotalPCReleased < 0m)
             {
                 ModelState.AddModelError(nameof(AuditSettlementViewModel.TotalPCReleased), "Total PC released cannot be negative.");

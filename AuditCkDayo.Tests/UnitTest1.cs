@@ -1946,6 +1946,43 @@ namespace AuditCkDayo.Tests
         }
 
         [Fact]
+        public async Task Settlement_PostMissingCurrentUserDoesNotSave()
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedSettlementLookupsAsync(context);
+            var controller = CreateController(context, currentUserId: 99, currentUserRole: "Owner");
+
+            var result = await controller.Settlement(new AuditSettlementViewModel
+            {
+                ResponsibleManagerId = 2,
+                TotalPCReleased = 100m,
+                TotalAcceptedExpenses = 75m,
+                ActualChangeReturned = 25m
+            });
+
+            Assert.IsType<ForbidResult>(result);
+            Assert.Empty(context.AuditSettlements);
+        }
+
+        [Fact]
+        public async Task Settlement_PostDeletedCurrentUserDoesNotSave()
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedSettlementLookupsAsync(context);
+            var controller = CreateController(context, currentUserId: 3, currentUserRole: "Manager");
+
+            var result = await controller.Settlement(new AuditSettlementViewModel
+            {
+                TotalPCReleased = 100m,
+                TotalAcceptedExpenses = 75m,
+                ActualChangeReturned = 25m
+            });
+
+            Assert.IsType<ForbidResult>(result);
+            Assert.Empty(context.AuditSettlements);
+        }
+
+        [Fact]
         public async Task Settlement_PostNegativeAmountsDoNotSaveAndRepopulateLookups()
         {
             using var context = new AuditDbContext(_options);
