@@ -678,12 +678,13 @@ namespace AuditCkDayo.Migrations
                 {
                     b.HasOne("AuditCkDayo.Models.User", "ConfirmedByUser")
                         .WithMany()
-                        .HasForeignKey("ConfirmedByUserId");
+                        .HasForeignKey("ConfirmedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("AuditCkDayo.Models.User", "UploadedByUser")
                         .WithMany()
                         .HasForeignKey("UploadedByUserId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("ConfirmedByUser");

@@ -1211,6 +1211,24 @@ namespace AuditCkDayo.Tests
                 Assert.Equal(22000m, line.Total);
             }
         }
+
+        [Fact]
+        public void DocumentRecord_UserRelationships_RestrictDeletes()
+        {
+            var options = new DbContextOptionsBuilder<AuditDbContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .Options;
+
+            using var context = new AuditDbContext(options);
+            var documentRecord = context.Model.FindEntityType(typeof(DocumentRecord))!;
+            var uploadedBy = documentRecord.GetForeignKeys()
+                .Single(fk => fk.Properties.Single().Name == nameof(DocumentRecord.UploadedByUserId));
+            var confirmedBy = documentRecord.GetForeignKeys()
+                .Single(fk => fk.Properties.Single().Name == nameof(DocumentRecord.ConfirmedByUserId));
+
+            Assert.Equal(DeleteBehavior.Restrict, uploadedBy.DeleteBehavior);
+            Assert.Equal(DeleteBehavior.Restrict, confirmedBy.DeleteBehavior);
+        }
     }
     }
 }

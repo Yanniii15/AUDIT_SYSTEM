@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace AuditCkDayo.Migrations
 {
     [DbContext(typeof(AuditDbContext))]
-    [Migration("20260810144636_SalesReportDocuments")]
+    [Migration("20260810145414_SalesReportDocuments")]
     partial class SalesReportDocuments
     {
         /// <inheritdoc />
@@ -681,12 +681,13 @@ namespace AuditCkDayo.Migrations
                 {
                     b.HasOne("AuditCkDayo.Models.User", "ConfirmedByUser")
                         .WithMany()
-                        .HasForeignKey("ConfirmedByUserId");
+                        .HasForeignKey("ConfirmedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("AuditCkDayo.Models.User", "UploadedByUser")
                         .WithMany()
                         .HasForeignKey("UploadedByUserId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("ConfirmedByUser");

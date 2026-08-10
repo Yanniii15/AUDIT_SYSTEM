@@ -40,13 +40,14 @@ namespace AuditCkDayo.Migrations
                         name: "FK_DocumentRecords_Users_ConfirmedByUserId",
                         column: x => x.ConfirmedByUserId,
                         principalTable: "Users",
-                        principalColumn: "Id");
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
                         name: "FK_DocumentRecords_Users_UploadedByUserId",
                         column: x => x.UploadedByUserId,
                         principalTable: "Users",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        onDelete: ReferentialAction.Restrict);
                 })
                 .Annotation("MySql:CharSet", "utf8mb4");
 

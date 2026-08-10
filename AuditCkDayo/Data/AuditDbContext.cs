@@ -211,6 +211,18 @@ namespace AuditCkDayo.Data
                 .HasConversion<string>()
                 .HasMaxLength(50);
 
+            modelBuilder.Entity<DocumentRecord>()
+                .HasOne(d => d.UploadedByUser)
+                .WithMany()
+                .HasForeignKey(d => d.UploadedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<DocumentRecord>()
+                .HasOne(d => d.ConfirmedByUser)
+                .WithMany()
+                .HasForeignKey(d => d.ConfirmedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
             modelBuilder.Entity<SalesReport>()
                 .Property(s => s.Status)
                 .HasConversion<string>()
