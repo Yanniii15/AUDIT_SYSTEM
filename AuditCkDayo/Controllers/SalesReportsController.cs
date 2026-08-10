@@ -323,7 +323,8 @@ namespace AuditCkDayo.Controllers
                 .FirstOrDefault(r => r.DocumentRecord.DocumentType == DocumentType.DailySalesReport
                     && (r.DocumentRecord.ImageUrl == fileName
                         || r.DocumentRecord.ImageUrl.EndsWith(storedImageUrlSuffix)
-                        || r.DocumentRecord.ImageUrl.EndsWith(storedImageUrlWindowsSuffix)));
+                        || r.DocumentRecord.ImageUrl.EndsWith(storedImageUrlWindowsSuffix)
+                        || (r.ImageUrlsJson != null && r.ImageUrlsJson.Contains(fileName))));
 
             if (report == null)
             {

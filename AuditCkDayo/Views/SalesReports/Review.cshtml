@@ -378,5 +378,41 @@
             denomInput.addEventListener('input', () => calculateRowTotal(row));
             qtyInput.addEventListener('input', () => calculateRowTotal(row));
         });
+
+        // Lightbox Modal Handlers
+        const mainPreview = document.getElementById('main-preview');
+        const lightbox = document.getElementById('lightboxModal');
+        const lightboxImg = document.getElementById('lightbox-img');
+
+        function openLightbox() {
+            if (lightbox && lightboxImg && mainPreview) {
+                lightboxImg.src = mainPreview.src;
+                lightbox.classList.remove('hidden');
+                document.body.classList.add('overflow-hidden');
+            }
+        }
+
+        function closeLightbox() {
+            if (lightbox) {
+                lightbox.classList.add('hidden');
+                document.body.classList.remove('overflow-hidden');
+            }
+        }
+
+        mainPreview?.addEventListener('click', openLightbox);
+        window.closeLightbox = closeLightbox;
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeLightbox();
+        });
     });
 </script>
+
+<!-- Lightbox Modal for Full Image View -->
+<div id="lightboxModal" class="fixed inset-0 z-[100] hidden" role="dialog" aria-modal="true" aria-labelledby="lightboxTitle">
+    <div class="absolute inset-0 bg-primary/90 backdrop-blur-sm cursor-pointer" onclick="closeLightbox()"></div>
+    <div class="relative z-10 h-full w-full p-space-6 flex flex-col items-center justify-center" onclick="closeLightbox()">
+        <span id="lightboxTitle" class="sr-only">Receipt Lightbox View</span>
+        <img src="" id="lightbox-img" class="max-w-full max-h-[88vh] object-contain rounded-lg shadow-2xl bg-white border border-surface-border" />
+        <span class="text-on-primary/60 text-[11px] font-label-caps uppercase mt-space-3 pointer-events-none">Click anywhere to close</span>
+    </div>
+</div>
