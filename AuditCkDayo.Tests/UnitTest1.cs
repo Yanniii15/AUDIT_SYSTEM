@@ -369,6 +369,39 @@ namespace AuditCkDayo.Tests
             }
         }
 
+        [Fact]
+        public async Task Delete_UserWithUploadedDocuments_ArchivesUserInsteadOfHardDeleting()
+        {
+            using (var context = new AuditDbContext(_options))
+            {
+                await SeedDataAsync(context);
+                
+                // Add a document record uploaded by David Buyer (Id 4)
+                context.DocumentRecords.Add(new DocumentRecord
+                {
+                    DocumentType = DocumentType.ExpenseReceipt,
+                    UploadedByUserId = 4,
+                    ImageUrl = "sample.jpg",
+                    OcrStatus = OcrStatus.NotStarted,
+                    ReviewStatus = DocumentReviewStatus.Uploaded
+                });
+                await context.SaveChangesAsync();
+
+                var controller = CreateController(context, 1, "Admin");
+                
+                // Admin deletes David Buyer (Id 4)
+                var result = await controller.Delete(4);
+
+                var redirectResult = Assert.IsType<RedirectToActionResult>(result);
+                Assert.Equal("Register", redirectResult.ActionName);
+                Assert.Equal("User 'David Buyer' has been archived.", controller.TempData["Message"]);
+
+                var buyer = await context.Users.FindAsync(4);
+                Assert.NotNull(buyer);
+                Assert.True(buyer.IsDeleted);
+            }
+        }
+
     public class FakeOcrService : IOcrService
     {
         public Task<OcrResult> ParseReceiptAsync(List<Stream> receiptStreams)

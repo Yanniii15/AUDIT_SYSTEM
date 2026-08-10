@@ -309,7 +309,12 @@ namespace AuditCkDayo.Controllers
             var hasAuditItems = await _context.AuditItems.AnyAsync(a => a.BuyerId == id || a.VerifiedById == id);
             var hasLedgerEntries = await _context.PettyCashLedgers.AnyAsync(l => l.UserId == id || l.CounterpartyUserId == id);
             var hasSurrenders = await _context.SurrenderRequests.AnyAsync(s => s.BuyerId == id || s.ActionByUserId == id);
-            if (hasAuditItems || hasLedgerEntries || hasSurrenders)
+            var hasDocuments = await _context.DocumentRecords.AnyAsync(d => d.UploadedByUserId == id || d.ConfirmedByUserId == id);
+            var hasPcfReleases = await _context.PcfReleases.AnyAsync(p => p.ReceiverUserId == id || p.ReleasedByTreasuryUserId == id);
+            var hasSettlements = await _context.AuditSettlements.AnyAsync(s => s.ProcessedByUserId == id);
+            var hasCoverages = await _context.ManagerCoverages.AnyAsync(c => c.CoveredManagerId == id || c.CoveringManagerId == id || c.CreatedByUserId == id);
+
+            if (hasAuditItems || hasLedgerEntries || hasSurrenders || hasDocuments || hasPcfReleases || hasSettlements || hasCoverages)
             {
                 var archivedStaffMembers = await _context.Users.Where(u => u.ManagerId == id).ToListAsync();
                 foreach (var staff in archivedStaffMembers)
