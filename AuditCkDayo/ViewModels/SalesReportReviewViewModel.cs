@@ -10,12 +10,15 @@ namespace AuditCkDayo.ViewModels
         [Required]
         public int EstablishmentId { get; set; }
 
+        [StringLength(100)]
         public string? CashierName { get; set; }
 
         [Required]
+        [DataType(DataType.Date)]
         public DateTime BusinessDate { get; set; } = DateTime.Today;
 
         [Required]
+        [DataType(DataType.Date)]
         public DateTime HandoverDate { get; set; } = DateTime.Today;
 
         [Range(0, double.MaxValue)]
@@ -36,9 +39,13 @@ namespace AuditCkDayo.ViewModels
         [Range(0, double.MaxValue)]
         public decimal OtherPaymentAmount { get; set; }
 
+        [StringLength(50)]
         public string? ReceiptNumberStart { get; set; }
+        [StringLength(50)]
         public string? ReceiptNumberEnd { get; set; }
+        [StringLength(100)]
         public string? WitnessName { get; set; }
+        [StringLength(255)]
         public string? Notes { get; set; }
         public string ImageUrl { get; set; } = string.Empty;
     }

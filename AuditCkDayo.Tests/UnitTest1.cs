@@ -1457,6 +1457,239 @@ namespace AuditCkDayo.Tests
         }
     }
 
+    public class SalesReportUsabilityTests : IDisposable
+    {
+        private readonly SqliteConnection _connection;
+        private readonly DbContextOptions<AuditDbContext> _options;
+
+        public SalesReportUsabilityTests()
+        {
+            _connection = new SqliteConnection("Filename=:memory:");
+            _connection.Open();
+
+            _options = new DbContextOptionsBuilder<AuditDbContext>()
+                .UseSqlite(_connection)
+                .Options;
+
+            using var context = new AuditDbContext(_options);
+            context.Database.EnsureCreated();
+        }
+
+        public void Dispose()
+        {
+            _connection.Dispose();
+        }
+
+        private static SalesReportsController CreateController(AuditDbContext context, int currentUserId = 1)
+        {
+            var claims = new List<Claim>
+            {
+                new Claim(ClaimTypes.NameIdentifier, currentUserId.ToString()),
+                new Claim(ClaimTypes.Role, "Owner")
+            };
+
+            var httpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"))
+            };
+
+            return new SalesReportsController(context, new FakeOcrService())
+            {
+                ControllerContext = new ControllerContext
+                {
+                    HttpContext = httpContext
+                },
+                TempData = new TempDataDictionary(httpContext, new FakeTempDataProvider())
+            };
+        }
+
+        private static async Task<SalesReport> SeedDraftSalesReportAsync(AuditDbContext context)
+        {
+            var treasuryUser = new User
+            {
+                Id = 1,
+                Name = "Treasury Owner",
+                Email = "sales-report-owner@test.com",
+                PasswordHash = "hash",
+                Role = UserRole.Owner,
+                IsTreasury = true
+            };
+
+            var establishment = new Establishment
+            {
+                Id = 1,
+                Name = "CKR Sales Branch",
+                IsOperatingBranch = true,
+                IsActive = true
+            };
+
+            context.Users.Add(treasuryUser);
+            context.Establishments.Add(establishment);
+            await context.SaveChangesAsync();
+
+            var document = new DocumentRecord
+            {
+                DocumentType = DocumentType.DailySalesReport,
+                UploadedByUserId = treasuryUser.Id,
+                ImageUrl = "/SalesReports/Image/sales-report.jpg",
+                OcrStatus = OcrStatus.Parsed,
+                ReviewStatus = DocumentReviewStatus.Draft
+            };
+
+            context.DocumentRecords.Add(document);
+            await context.SaveChangesAsync();
+
+            var report = new SalesReport
+            {
+                DocumentRecordId = document.Id,
+                EstablishmentId = establishment.Id,
+                CashierName = "Initial Cashier",
+                BusinessDate = new DateTime(2026, 8, 9),
+                HandoverDate = new DateTime(2026, 8, 10),
+                GrossSales = 1000m,
+                CashOut = 100m,
+                ConfirmedCashToHandover = 900m,
+                GCashAmount = 50m,
+                CreditAmount = 25m,
+                OtherPaymentAmount = 10m,
+                ReceiptNumberStart = "A-100",
+                ReceiptNumberEnd = "A-199",
+                WitnessName = "Initial Witness",
+                Notes = "Initial notes",
+                Status = SalesReportStatus.Draft
+            };
+
+            context.SalesReports.Add(report);
+            await context.SaveChangesAsync();
+
+            return report;
+        }
+
+        private static SalesReportReviewViewModel BuildReviewModel(SalesReport report, decimal confirmedCash)
+        {
+            return new SalesReportReviewViewModel
+            {
+                SalesReportId = report.Id,
+                DocumentRecordId = report.DocumentRecordId,
+                EstablishmentId = report.EstablishmentId,
+                CashierName = "Updated Cashier",
+                BusinessDate = new DateTime(2026, 8, 9),
+                HandoverDate = new DateTime(2026, 8, 10),
+                GrossSales = confirmedCash + 100m,
+                CashOut = 100m,
+                ConfirmedCashToHandover = confirmedCash,
+                GCashAmount = 75m,
+                CreditAmount = 50m,
+                OtherPaymentAmount = 25m,
+                ReceiptNumberStart = "B-200",
+                ReceiptNumberEnd = "B-299",
+                WitnessName = "Updated Witness",
+                Notes = "Updated notes",
+                ImageUrl = "/SalesReports/Image/sales-report.jpg"
+            };
+        }
+
+        [Fact]
+        public async Task Review_ConfirmCreatesThenUpdatesOneSalesCashInEntryAndRecomputesFlow()
+        {
+            using var context = new AuditDbContext(_options);
+            var report = await SeedDraftSalesReportAsync(context);
+
+            var firstController = CreateController(context);
+            var firstModel = BuildReviewModel(report, 1250m);
+
+            var firstResult = await firstController.Review(firstModel, "Confirm");
+
+            var firstRedirect = Assert.IsType<RedirectToActionResult>(firstResult);
+            Assert.Equal(nameof(SalesReportsController.Review), firstRedirect.ActionName);
+
+            var firstEntry = Assert.Single(await context.CashFlowEntries.AsNoTracking().ToListAsync());
+            Assert.Equal(CashFlowDirection.In, firstEntry.Direction);
+            Assert.Equal(CashFlowCategory.Sales, firstEntry.Category);
+            Assert.Equal(1250m, firstEntry.Amount);
+            Assert.Equal(report.EstablishmentId, firstEntry.EstablishmentId);
+            Assert.Equal(report.DocumentRecordId, firstEntry.SourceDocumentId);
+
+            var firstFlow = await context.TreasuryCashFlows
+                .Include(f => f.Entries)
+                .AsNoTracking()
+                .SingleAsync(f => f.CashFlowDate == firstModel.HandoverDate.Date);
+            Assert.Equal(1250m, firstFlow.TotalCashIn);
+            Assert.Equal(0m, firstFlow.TotalCashOut);
+            Assert.Equal(1250m, firstFlow.NetCashFlow);
+            Assert.Equal(1250m, firstFlow.ClosingBalance);
+            Assert.Single(firstFlow.Entries);
+
+            context.ChangeTracker.Clear();
+
+            var secondController = CreateController(context);
+            var secondModel = BuildReviewModel(report, 1750m);
+
+            var secondResult = await secondController.Review(secondModel, "Confirm");
+
+            var secondRedirect = Assert.IsType<RedirectToActionResult>(secondResult);
+            Assert.Equal(nameof(SalesReportsController.Review), secondRedirect.ActionName);
+
+            var updatedEntry = Assert.Single(await context.CashFlowEntries.AsNoTracking().ToListAsync());
+            Assert.Equal(firstEntry.Id, updatedEntry.Id);
+            Assert.Equal(CashFlowDirection.In, updatedEntry.Direction);
+            Assert.Equal(CashFlowCategory.Sales, updatedEntry.Category);
+            Assert.Equal(1750m, updatedEntry.Amount);
+            Assert.Equal(report.EstablishmentId, updatedEntry.EstablishmentId);
+            Assert.Equal(report.DocumentRecordId, updatedEntry.SourceDocumentId);
+            Assert.Equal(1, updatedEntry.ConfirmedByUserId);
+
+            var updatedFlow = await context.TreasuryCashFlows
+                .Include(f => f.Entries)
+                .AsNoTracking()
+                .SingleAsync(f => f.CashFlowDate == secondModel.HandoverDate.Date);
+            Assert.Equal(1750m, updatedFlow.TotalCashIn);
+            Assert.Equal(0m, updatedFlow.TotalCashOut);
+            Assert.Equal(1750m, updatedFlow.NetCashFlow);
+            Assert.Equal(1750m, updatedFlow.ClosingBalance);
+            Assert.Single(updatedFlow.Entries);
+
+            var savedReport = await context.SalesReports.AsNoTracking().SingleAsync();
+            Assert.Equal(SalesReportStatus.Confirmed, savedReport.Status);
+            Assert.Equal(1, savedReport.ConfirmedByUserId);
+            Assert.NotNull(savedReport.ConfirmedAt);
+            Assert.Equal(1750m, savedReport.ConfirmedCashToHandover);
+
+            var savedDocument = await context.DocumentRecords.AsNoTracking().SingleAsync();
+            Assert.Equal(DocumentReviewStatus.Confirmed, savedDocument.ReviewStatus);
+            Assert.Equal(1, savedDocument.ConfirmedByUserId);
+            Assert.NotNull(savedDocument.ConfirmedAt);
+        }
+
+        [Fact]
+        public async Task Review_SaveDraftUpdatesReportWithoutPostingTreasuryCashFlow()
+        {
+            using var context = new AuditDbContext(_options);
+            var report = await SeedDraftSalesReportAsync(context);
+            var controller = CreateController(context);
+            var model = BuildReviewModel(report, 1500m);
+
+            var result = await controller.Review(model, "SaveDraft");
+
+            var redirect = Assert.IsType<RedirectToActionResult>(result);
+            Assert.Equal(nameof(SalesReportsController.Review), redirect.ActionName);
+            Assert.Empty(await context.TreasuryCashFlows.AsNoTracking().ToListAsync());
+            Assert.Empty(await context.CashFlowEntries.AsNoTracking().ToListAsync());
+
+            var savedReport = await context.SalesReports.AsNoTracking().SingleAsync();
+            Assert.Equal(SalesReportStatus.Draft, savedReport.Status);
+            Assert.Null(savedReport.ConfirmedByUserId);
+            Assert.Null(savedReport.ConfirmedAt);
+            Assert.Equal("Updated Cashier", savedReport.CashierName);
+            Assert.Equal(1500m, savedReport.ConfirmedCashToHandover);
+
+            var savedDocument = await context.DocumentRecords.AsNoTracking().SingleAsync();
+            Assert.Equal(DocumentReviewStatus.Draft, savedDocument.ReviewStatus);
+            Assert.Null(savedDocument.ConfirmedByUserId);
+            Assert.Null(savedDocument.ConfirmedAt);
+        }
+    }
+
     public class AuditSettlementTests
     {
         [Theory]
