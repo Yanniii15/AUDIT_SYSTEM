@@ -1320,9 +1320,9 @@ namespace AuditCkDayo.Tests
             _connection.Dispose();
         }
 
-        private static ManagerCoverage NewCoverage(int coveredManagerId, int coveringManagerId, DateTime? startDate = null, DateTime? endDate = null)
+        private static CoverageCreateForm NewCoverageForm(int coveredManagerId, int coveringManagerId, DateTime? startDate = null, DateTime? endDate = null)
         {
-            return new ManagerCoverage
+            return new CoverageCreateForm
             {
                 CoveredManagerId = coveredManagerId,
                 CoveringManagerId = coveringManagerId,
@@ -1339,7 +1339,9 @@ namespace AuditCkDayo.Tests
             context.Users.AddRange(
                 new User { Id = 1, Name = "Alice Owner", Email = "coverage-owner@test.com", PasswordHash = "hash", Role = UserRole.Owner },
                 new User { Id = 2, Name = "Bob Manager", Email = "coverage-bob@test.com", PasswordHash = "hash", Role = UserRole.Manager },
-                new User { Id = 3, Name = "Cara Manager", Email = "coverage-cara@test.com", PasswordHash = "hash", Role = UserRole.Manager });
+                new User { Id = 3, Name = "Cara Manager", Email = "coverage-cara@test.com", PasswordHash = "hash", Role = UserRole.Manager },
+                new User { Id = 4, Name = "Drew Buyer", Email = "coverage-buyer@test.com", PasswordHash = "hash", Role = UserRole.Buyer },
+                new User { Id = 5, Name = "Deleted Manager", Email = "coverage-deleted@test.com", PasswordHash = "hash", Role = UserRole.Manager, IsDeleted = true });
 
             await context.SaveChangesAsync();
         }
@@ -1374,11 +1376,11 @@ namespace AuditCkDayo.Tests
             await SeedManagersAsync(context);
             var controller = CreateController(context);
 
-            var result = await controller.Create(NewCoverage(2, 2));
+            var result = await controller.Create(NewCoverageForm(2, 2));
 
             var viewResult = Assert.IsType<ViewResult>(result);
             Assert.False(controller.ModelState.IsValid);
-            Assert.Contains(controller.ModelState[nameof(ManagerCoverage.CoveringManagerId)]!.Errors, error => error.ErrorMessage.Contains("different", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(controller.ModelState[nameof(CoverageCreateForm.CoveringManagerId)]!.Errors, error => error.ErrorMessage.Contains("different", StringComparison.OrdinalIgnoreCase));
             Assert.Empty(await context.ManagerCoverages.ToListAsync());
             Assert.Equal("Covered and covering manager must be different.", controller.TempData["Error"]);
             Assert.NotNull(viewResult.Model);
@@ -1391,13 +1393,45 @@ namespace AuditCkDayo.Tests
             await SeedManagersAsync(context);
             var controller = CreateController(context);
 
-            var result = await controller.Create(NewCoverage(2, 3, new DateTime(2026, 8, 12), new DateTime(2026, 8, 11)));
+            var result = await controller.Create(NewCoverageForm(2, 3, new DateTime(2026, 8, 12), new DateTime(2026, 8, 11)));
 
             Assert.IsType<ViewResult>(result);
             Assert.False(controller.ModelState.IsValid);
-            Assert.Contains(controller.ModelState[nameof(ManagerCoverage.EndDate)]!.Errors, error => error.ErrorMessage.Contains("End date", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(controller.ModelState[nameof(CoverageCreateForm.EndDate)]!.Errors, error => error.ErrorMessage.Contains("End date", StringComparison.OrdinalIgnoreCase));
             Assert.Empty(await context.ManagerCoverages.ToListAsync());
             Assert.Equal("End date must be on or after start date.", controller.TempData["Error"]);
+        }
+
+        [Fact]
+        public async Task Create_RejectsNonManagerOrDeletedManagerWithoutSaving()
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedManagersAsync(context);
+            var controller = CreateController(context);
+
+            var result = await controller.Create(NewCoverageForm(2, 4));
+
+            Assert.IsType<ViewResult>(result);
+            Assert.False(controller.ModelState.IsValid);
+            Assert.Contains(controller.ModelState[nameof(CoverageCreateForm.CoveringManagerId)]!.Errors, error => error.ErrorMessage.Contains("active manager", StringComparison.OrdinalIgnoreCase));
+            Assert.Empty(await context.ManagerCoverages.ToListAsync());
+            Assert.Equal("Covered and covering managers must be active managers.", controller.TempData["Error"]);
+        }
+
+        [Fact]
+        public async Task Create_RejectsDeletedManagerWithoutSaving()
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedManagersAsync(context);
+            var controller = CreateController(context);
+
+            var result = await controller.Create(NewCoverageForm(5, 3));
+
+            Assert.IsType<ViewResult>(result);
+            Assert.False(controller.ModelState.IsValid);
+            Assert.Contains(controller.ModelState[nameof(CoverageCreateForm.CoveredManagerId)]!.Errors, error => error.ErrorMessage.Contains("active manager", StringComparison.OrdinalIgnoreCase));
+            Assert.Empty(await context.ManagerCoverages.ToListAsync());
+            Assert.Equal("Covered and covering managers must be active managers.", controller.TempData["Error"]);
         }
 
         [Fact]
@@ -1407,7 +1441,7 @@ namespace AuditCkDayo.Tests
             await SeedManagersAsync(context);
             var controller = CreateController(context);
 
-            var result = await controller.Create(NewCoverage(2, 3));
+            var result = await controller.Create(NewCoverageForm(2, 3));
 
             var redirectResult = Assert.IsType<RedirectToActionResult>(result);
             Assert.Equal(nameof(CoverageController.Index), redirectResult.ActionName);
