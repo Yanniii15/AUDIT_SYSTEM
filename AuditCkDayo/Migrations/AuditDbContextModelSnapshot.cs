@@ -181,10 +181,15 @@ namespace AuditCkDayo.Migrations
                     b.Property<int>("Quantity")
                         .HasColumnType("int");
 
+                    b.Property<int?>("SalesReportId")
+                        .HasColumnType("int");
+
                     b.Property<decimal>("Total")
                         .HasColumnType("decimal(12,2)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("SalesReportId");
 
                     b.ToTable("CashBreakdownLines");
                 });
@@ -659,6 +664,16 @@ namespace AuditCkDayo.Migrations
                     b.Navigation("AuditItem");
                 });
 
+            modelBuilder.Entity("AuditCkDayo.Models.CashBreakdownLine", b =>
+                {
+                    b.HasOne("AuditCkDayo.Models.SalesReport", "SalesReport")
+                        .WithMany("CashBreakdownLines")
+                        .HasForeignKey("SalesReportId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("SalesReport");
+                });
+
             modelBuilder.Entity("AuditCkDayo.Models.DocumentRecord", b =>
                 {
                     b.HasOne("AuditCkDayo.Models.User", "ConfirmedByUser")
@@ -781,6 +796,11 @@ namespace AuditCkDayo.Migrations
             modelBuilder.Entity("AuditCkDayo.Models.Establishment", b =>
                 {
                     b.Navigation("AuditItems");
+                });
+
+            modelBuilder.Entity("AuditCkDayo.Models.SalesReport", b =>
+                {
+                    b.Navigation("CashBreakdownLines");
                 });
 
             modelBuilder.Entity("AuditCkDayo.Models.User", b =>

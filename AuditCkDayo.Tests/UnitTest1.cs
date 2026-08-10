@@ -1140,6 +1140,77 @@ namespace AuditCkDayo.Tests
             Assert.Equal(OcrStatus.Parsed, document.OcrStatus);
             Assert.Equal(DocumentReviewStatus.Draft, document.ReviewStatus);
         }
+
+        [Fact]
+        public void SalesReport_CanPersistCashBreakdownLinesThroughCollection()
+        {
+            using var connection = new SqliteConnection("DataSource=:memory:");
+            connection.Open();
+
+            var options = new DbContextOptionsBuilder<AuditDbContext>()
+                .UseSqlite(connection)
+                .Options;
+
+            using (var context = new AuditDbContext(options))
+            {
+                context.Database.EnsureCreated();
+
+                var uploader = new User
+                {
+                    Name = "Uploader",
+                    Email = "uploader@example.com",
+                    PasswordHash = "hash",
+                    Role = UserRole.BranchStaff
+                };
+                var establishment = new Establishment { Name = "CKR Branch 5" };
+                context.Users.Add(uploader);
+                context.Establishments.Add(establishment);
+                context.SaveChanges();
+
+                var document = new DocumentRecord
+                {
+                    DocumentType = DocumentType.DailySalesReport,
+                    UploadedByUserId = uploader.Id,
+                    ImageUrl = "/SalesReports/Document/sample.jpg",
+                    OcrStatus = OcrStatus.Parsed,
+                    ReviewStatus = DocumentReviewStatus.Draft
+                };
+
+                var report = new SalesReport
+                {
+                    DocumentRecord = document,
+                    EstablishmentId = establishment.Id,
+                    BusinessDate = new DateTime(2026, 8, 5),
+                    HandoverDate = new DateTime(2026, 8, 6),
+                    GrossSales = 29528m,
+                    CashOut = 6858.29m,
+                    ConfirmedCashToHandover = 22669.71m,
+                    Status = SalesReportStatus.Draft
+                };
+                report.CashBreakdownLines.Add(new CashBreakdownLine
+                {
+                    OwnerType = CashBreakdownOwnerType.SalesReport,
+                    Denomination = 1000m,
+                    Quantity = 22,
+                    Total = 22000m
+                });
+
+                context.SalesReports.Add(report);
+                context.SaveChanges();
+            }
+
+            using (var context = new AuditDbContext(options))
+            {
+                var savedReport = context.SalesReports
+                    .Include(r => r.CashBreakdownLines)
+                    .Single();
+
+                var line = Assert.Single(savedReport.CashBreakdownLines);
+                Assert.Equal(CashBreakdownOwnerType.SalesReport, line.OwnerType);
+                Assert.Equal(savedReport.Id, line.SalesReportId);
+                Assert.Equal(22000m, line.Total);
+            }
+        }
     }
     }
 }

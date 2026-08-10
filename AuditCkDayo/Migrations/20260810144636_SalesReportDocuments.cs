@@ -13,25 +13,6 @@ namespace AuditCkDayo.Migrations
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.CreateTable(
-                name: "CashBreakdownLines",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("MySql:ValueGenerationStrategy", MySqlValueGenerationStrategy.IdentityColumn),
-                    OwnerType = table.Column<string>(type: "varchar(50)", maxLength: 50, nullable: false)
-                        .Annotation("MySql:CharSet", "utf8mb4"),
-                    OwnerId = table.Column<int>(type: "int", nullable: false),
-                    Denomination = table.Column<decimal>(type: "decimal(12,2)", nullable: false),
-                    Quantity = table.Column<int>(type: "int", nullable: false),
-                    Total = table.Column<decimal>(type: "decimal(12,2)", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_CashBreakdownLines", x => x.Id);
-                })
-                .Annotation("MySql:CharSet", "utf8mb4");
-
-            migrationBuilder.CreateTable(
                 name: "DocumentRecords",
                 columns: table => new
                 {
@@ -128,6 +109,37 @@ namespace AuditCkDayo.Migrations
                         principalColumn: "Id");
                 })
                 .Annotation("MySql:CharSet", "utf8mb4");
+
+            migrationBuilder.CreateTable(
+                name: "CashBreakdownLines",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("MySql:ValueGenerationStrategy", MySqlValueGenerationStrategy.IdentityColumn),
+                    OwnerType = table.Column<string>(type: "varchar(50)", maxLength: 50, nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
+                    OwnerId = table.Column<int>(type: "int", nullable: false),
+                    SalesReportId = table.Column<int>(type: "int", nullable: true),
+                    Denomination = table.Column<decimal>(type: "decimal(12,2)", nullable: false),
+                    Quantity = table.Column<int>(type: "int", nullable: false),
+                    Total = table.Column<decimal>(type: "decimal(12,2)", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_CashBreakdownLines", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_CashBreakdownLines_SalesReports_SalesReportId",
+                        column: x => x.SalesReportId,
+                        principalTable: "SalesReports",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                })
+                .Annotation("MySql:CharSet", "utf8mb4");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_CashBreakdownLines_SalesReportId",
+                table: "CashBreakdownLines",
+                column: "SalesReportId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_DocumentRecords_ConfirmedByUserId",

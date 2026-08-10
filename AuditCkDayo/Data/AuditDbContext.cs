@@ -229,7 +229,10 @@ namespace AuditCkDayo.Data
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<SalesReport>()
-                .Ignore(s => s.CashBreakdownLines);
+                .HasMany(s => s.CashBreakdownLines)
+                .WithOne(c => c.SalesReport)
+                .HasForeignKey(c => c.SalesReportId)
+                .OnDelete(DeleteBehavior.Cascade);
 
             modelBuilder.Entity<CashBreakdownLine>()
                 .Property(c => c.OwnerType)

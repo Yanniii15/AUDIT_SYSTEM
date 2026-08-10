@@ -21,6 +21,11 @@ namespace AuditCkDayo.Models
         [Required]
         public int OwnerId { get; set; }
 
+        public int? SalesReportId { get; set; }
+
+        [ForeignKey("SalesReportId")]
+        public virtual SalesReport? SalesReport { get; set; }
+
         [Required]
         [Column(TypeName = "decimal(12,2)")]
         public decimal Denomination { get; set; }
