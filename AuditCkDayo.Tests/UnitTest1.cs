@@ -1297,6 +1297,131 @@ namespace AuditCkDayo.Tests
             Assert.Equal(expectedShortOver, settlement.ShortOverAmount);
         }
     }
+    public class CoverageUsabilityTests : IDisposable
+    {
+        private readonly SqliteConnection _connection;
+        private readonly DbContextOptions<AuditDbContext> _options;
+
+        public CoverageUsabilityTests()
+        {
+            _connection = new SqliteConnection("Filename=:memory:");
+            _connection.Open();
+
+            _options = new DbContextOptionsBuilder<AuditDbContext>()
+                .UseSqlite(_connection)
+                .Options;
+
+            using var context = new AuditDbContext(_options);
+            context.Database.EnsureCreated();
+        }
+
+        public void Dispose()
+        {
+            _connection.Dispose();
+        }
+
+        private static ManagerCoverage NewCoverage(int coveredManagerId, int coveringManagerId, DateTime? startDate = null, DateTime? endDate = null)
+        {
+            return new ManagerCoverage
+            {
+                CoveredManagerId = coveredManagerId,
+                CoveringManagerId = coveringManagerId,
+                StartDate = startDate ?? new DateTime(2026, 8, 11),
+                EndDate = endDate ?? new DateTime(2026, 8, 12),
+                Scope = CoverageScope.All,
+                Reason = "Manager leave",
+                IsActive = true
+            };
+        }
+
+        private async Task SeedManagersAsync(AuditDbContext context)
+        {
+            context.Users.AddRange(
+                new User { Id = 1, Name = "Alice Owner", Email = "coverage-owner@test.com", PasswordHash = "hash", Role = UserRole.Owner },
+                new User { Id = 2, Name = "Bob Manager", Email = "coverage-bob@test.com", PasswordHash = "hash", Role = UserRole.Manager },
+                new User { Id = 3, Name = "Cara Manager", Email = "coverage-cara@test.com", PasswordHash = "hash", Role = UserRole.Manager });
+
+            await context.SaveChangesAsync();
+        }
+
+        private CoverageController CreateController(AuditDbContext context, int currentUserId = 1)
+        {
+            var claims = new List<Claim>
+            {
+                new Claim(ClaimTypes.NameIdentifier, currentUserId.ToString()),
+                new Claim(ClaimTypes.Role, "Owner")
+            };
+
+            var httpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"))
+            };
+
+            return new CoverageController(context)
+            {
+                ControllerContext = new ControllerContext
+                {
+                    HttpContext = httpContext
+                },
+                TempData = new TempDataDictionary(httpContext, new FakeTempDataProvider())
+            };
+        }
+
+        [Fact]
+        public async Task Create_RejectsSameCoveredAndCoveringManager()
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedManagersAsync(context);
+            var controller = CreateController(context);
+
+            var result = await controller.Create(NewCoverage(2, 2));
+
+            var viewResult = Assert.IsType<ViewResult>(result);
+            Assert.False(controller.ModelState.IsValid);
+            Assert.Contains(controller.ModelState[nameof(ManagerCoverage.CoveringManagerId)]!.Errors, error => error.ErrorMessage.Contains("different", StringComparison.OrdinalIgnoreCase));
+            Assert.Empty(await context.ManagerCoverages.ToListAsync());
+            Assert.Equal("Covered and covering manager must be different.", controller.TempData["Error"]);
+            Assert.NotNull(viewResult.Model);
+        }
+
+        [Fact]
+        public async Task Create_RejectsInvalidDateRangeWithoutSaving()
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedManagersAsync(context);
+            var controller = CreateController(context);
+
+            var result = await controller.Create(NewCoverage(2, 3, new DateTime(2026, 8, 12), new DateTime(2026, 8, 11)));
+
+            Assert.IsType<ViewResult>(result);
+            Assert.False(controller.ModelState.IsValid);
+            Assert.Contains(controller.ModelState[nameof(ManagerCoverage.EndDate)]!.Errors, error => error.ErrorMessage.Contains("End date", StringComparison.OrdinalIgnoreCase));
+            Assert.Empty(await context.ManagerCoverages.ToListAsync());
+            Assert.Equal("End date must be on or after start date.", controller.TempData["Error"]);
+        }
+
+        [Fact]
+        public async Task Create_SavesValidCoverageWithCreatorAndActiveStatus()
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedManagersAsync(context);
+            var controller = CreateController(context);
+
+            var result = await controller.Create(NewCoverage(2, 3));
+
+            var redirectResult = Assert.IsType<RedirectToActionResult>(result);
+            Assert.Equal(nameof(CoverageController.Index), redirectResult.ActionName);
+
+            var coverage = Assert.Single(await context.ManagerCoverages.ToListAsync());
+            Assert.Equal(2, coverage.CoveredManagerId);
+            Assert.Equal(3, coverage.CoveringManagerId);
+            Assert.Equal(1, coverage.CreatedByUserId);
+            Assert.True(coverage.IsActive);
+            Assert.True(coverage.CoversDate(new DateTime(2026, 8, 11)));
+            Assert.Equal("Coverage assignment created.", controller.TempData["Message"]);
+        }
+    }
+
     public class ManagerCoverageTests
     {
         [Fact]

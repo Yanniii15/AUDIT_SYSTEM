@@ -1,7 +1,146 @@
 @model List<AuditCkDayo.Models.ManagerCoverage>
+@using AuditCkDayo.Models
+@using Microsoft.AspNetCore.Mvc.Rendering
 @{
     ViewData["Title"] = "Manager Coverage";
+    var managerUsers = ViewBag.ManagerUsers as SelectList ?? new SelectList(Enumerable.Empty<User>(), "Id", "Name");
 }
 
-<h1 class="font-headline-lg text-headline-lg text-on-surface">Manager Coverage</h1>
-<p class="text-on-surface-variant">Temporary coverage lets one treasury manager process another manager's assigned work without permanent reassignment.</p>
+<div class="relative flex flex-col lg:flex-row gap-space-6 items-start justify-between">
+    <div class="flex flex-col gap-space-2 max-w-3xl">
+        <div class="flex items-center gap-space-2 text-primary">
+            <span class="material-symbols-outlined text-[20px]">supervisor_account</span>
+            <span class="font-label-caps uppercase tracking-widest text-on-surface-variant">Treasury Controls</span>
+        </div>
+        <h1 class="font-headline-lg text-headline-lg text-on-surface">Manager Coverage</h1>
+        <p class="font-body-md text-on-surface-variant leading-relaxed">
+            Temporary coverage lets one treasury manager process another manager's assigned work without permanent reassignment.
+        </p>
+    </div>
+    <article class="min-w-[220px] bg-primary text-on-primary rounded-xl shadow-sm p-space-6">
+        <span class="font-label-caps uppercase tracking-widest text-primary-fixed-dim text-[10px]">Active Assignments</span>
+        <strong class="block font-headline-lg text-headline-lg mt-space-2">@Model.Count(c => c.IsActive)</strong>
+    </article>
+</div>
+
+@if (TempData["Message"] != null)
+{
+    <div class="p-space-4 bg-audit-success/10 border border-audit-success/20 rounded-xl text-audit-success font-body-md flex items-center justify-between shadow-sm">
+        <span><i class="bi bi-check-circle-fill me-2"></i> @TempData["Message"]</span>
+        <button onclick="this.parentElement.remove()" class="material-symbols-outlined text-[18px] hover:scale-110 transition-transform">close</button>
+    </div>
+}
+@if (TempData["Error"] != null)
+{
+    <div class="p-space-4 bg-audit-error/10 border border-audit-error/20 rounded-xl text-audit-error font-body-md flex items-center justify-between shadow-sm">
+        <span><i class="bi bi-exclamation-triangle-fill me-2"></i> @TempData["Error"]</span>
+        <button onclick="this.parentElement.remove()" class="material-symbols-outlined text-[18px] hover:scale-110 transition-transform">close</button>
+    </div>
+}
+
+<section class="grid grid-cols-1 xl:grid-cols-[minmax(320px,420px)_1fr] gap-space-6 pb-space-8">
+    <form asp-controller="Coverage" asp-action="Create" method="post" class="bg-surface-container-lowest rounded-xl shadow-sm border border-surface-border/50 p-space-6 flex flex-col gap-space-4">
+        @Html.AntiForgeryToken()
+        <div>
+            <h2 class="font-headline-sm text-headline-sm text-on-surface">Create Coverage</h2>
+            <p class="font-body-md text-on-surface-variant mt-space-1">Assign a manager to temporarily cover another manager for a defined date range.</p>
+        </div>
+
+        <div class="grid grid-cols-1 gap-space-4">
+            <label class="flex flex-col gap-space-2">
+                <span class="font-label-caps uppercase tracking-wider text-on-surface-variant text-[11px]">Covered Manager</span>
+                <select name="CoveredManagerId" class="bg-surface-container-low border border-surface-border rounded-lg px-space-3 py-space-3 text-on-surface focus:outline-none focus:border-primary/60" asp-items="managerUsers" required>
+                    <option value="">Choose manager</option>
+                </select>
+            </label>
+
+            <label class="flex flex-col gap-space-2">
+                <span class="font-label-caps uppercase tracking-wider text-on-surface-variant text-[11px]">Covering Manager</span>
+                <select name="CoveringManagerId" class="bg-surface-container-low border border-surface-border rounded-lg px-space-3 py-space-3 text-on-surface focus:outline-none focus:border-primary/60" asp-items="managerUsers" required>
+                    <option value="">Choose manager</option>
+                </select>
+            </label>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-space-4">
+                <label class="flex flex-col gap-space-2">
+                    <span class="font-label-caps uppercase tracking-wider text-on-surface-variant text-[11px]">Start Date</span>
+                    <input type="date" name="StartDate" class="bg-surface-container-low border border-surface-border rounded-lg px-space-3 py-space-3 text-on-surface focus:outline-none focus:border-primary/60" required />
+                </label>
+                <label class="flex flex-col gap-space-2">
+                    <span class="font-label-caps uppercase tracking-wider text-on-surface-variant text-[11px]">End Date</span>
+                    <input type="date" name="EndDate" class="bg-surface-container-low border border-surface-border rounded-lg px-space-3 py-space-3 text-on-surface focus:outline-none focus:border-primary/60" required />
+                </label>
+            </div>
+
+            <label class="flex flex-col gap-space-2">
+                <span class="font-label-caps uppercase tracking-wider text-on-surface-variant text-[11px]">Scope</span>
+                <select name="Scope" class="bg-surface-container-low border border-surface-border rounded-lg px-space-3 py-space-3 text-on-surface focus:outline-none focus:border-primary/60" asp-items="Html.GetEnumSelectList<CoverageScope>()" required>
+                </select>
+            </label>
+
+            <label class="flex flex-col gap-space-2">
+                <span class="font-label-caps uppercase tracking-wider text-on-surface-variant text-[11px]">Reason</span>
+                <textarea name="Reason" rows="3" maxlength="255" class="bg-surface-container-low border border-surface-border rounded-lg px-space-3 py-space-3 text-on-surface focus:outline-none focus:border-primary/60" placeholder="Vacation, branch visit, emergency coverage..."></textarea>
+            </label>
+
+            <label class="flex items-center gap-space-3 rounded-lg border border-surface-border bg-surface-container-low px-space-3 py-space-3">
+                <input type="checkbox" name="IsActive" value="true" checked class="h-4 w-4 accent-primary" />
+                <input type="hidden" name="IsActive" value="false" />
+                <span class="font-body-md text-on-surface">Active immediately</span>
+            </label>
+        </div>
+
+        <button type="submit" class="bg-primary text-on-primary rounded-lg px-space-5 py-space-3 font-label-caps uppercase tracking-wider hover:brightness-110 transition-all shadow-sm">
+            Save Coverage
+        </button>
+    </form>
+
+    <div class="bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden border border-surface-border/50">
+        <div class="p-space-6 border-b border-surface-border">
+            <h2 class="font-headline-sm text-headline-sm text-on-surface">Existing Coverage</h2>
+            <p class="font-body-md text-on-surface-variant mt-space-1">Current and scheduled coverage assignments for treasury managers.</p>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="bg-surface-container-low border-b border-surface-border">
+                        <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">Covered Manager</th>
+                        <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">Covering Manager</th>
+                        <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">Date Range</th>
+                        <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">Scope</th>
+                        <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">Status</th>
+                        <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">Reason</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-surface-border">
+                    @if (Model.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="6" class="px-space-6 py-space-8 text-center text-on-surface-variant font-body-md">No coverage assignments yet.</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var coverage in Model)
+                        {
+                            var statusStyle = coverage.IsActive ? "bg-audit-success/10 text-audit-success border-audit-success/20" : "bg-surface-container text-on-surface-variant border-surface-border";
+                            <tr class="hover:bg-surface-container-low/30 transition-colors">
+                                <td class="px-space-6 py-space-4 font-body-md font-semibold text-on-surface">@coverage.CoveredManager?.Name</td>
+                                <td class="px-space-6 py-space-4 font-body-md text-on-surface">@coverage.CoveringManager?.Name</td>
+                                <td class="px-space-6 py-space-4 font-data-mono text-on-surface-variant">@coverage.StartDate.ToString("MMM d, yyyy") - @coverage.EndDate.ToString("MMM d, yyyy")</td>
+                                <td class="px-space-6 py-space-4">
+                                    <span class="px-space-3 py-0.5 rounded-full text-[10px] font-label-caps uppercase border bg-secondary-container text-on-secondary-container border-secondary/20">@coverage.Scope</span>
+                                </td>
+                                <td class="px-space-6 py-space-4">
+                                    <span class="px-space-3 py-0.5 rounded-full text-[10px] font-label-caps uppercase border @statusStyle">@(coverage.IsActive ? "Active" : "Inactive")</span>
+                                </td>
+                                <td class="px-space-6 py-space-4 font-body-md text-on-surface-variant">@(string.IsNullOrWhiteSpace(coverage.Reason) ? "—" : coverage.Reason)</td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</section>
