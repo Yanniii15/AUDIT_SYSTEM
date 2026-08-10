@@ -48,3 +48,6 @@
 *.pptx
 ~$*.pptx
 presentation_qa/
+
+# Ignore isolated implementation worktrees.
+/.worktrees/
