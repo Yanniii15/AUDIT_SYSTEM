@@ -36,7 +36,7 @@
 
         <label class="flex flex-col gap-space-2">
             <span class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Receiver Name</span>
-            <input asp-for="ReceiverName" class="bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-space-3 text-on-surface focus:outline-none focus:border-primary" placeholder="Name for external or walk-up receiver" />
+            <input asp-for="ReceiverName" maxlength="100" class="bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-space-3 text-on-surface focus:outline-none focus:border-primary" placeholder="Name for external or walk-up receiver" />
             <span asp-validation-for="ReceiverName" class="text-audit-error text-[11px]"></span>
         </label>
     </div>

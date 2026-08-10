@@ -86,6 +86,31 @@ namespace AuditCkDayo.Controllers
                 ModelState.AddModelError(nameof(PcfReleaseViewModel.Amount), "Amount must be greater than zero.");
             }
 
+            if (model.EstablishmentId.HasValue)
+            {
+                var isValidBranch = await _context.Establishments
+                    .AsNoTracking()
+                    .AnyAsync(e => e.Id == model.EstablishmentId.Value
+                        && e.IsOperatingBranch
+                        && e.IsActive
+                        && !e.IsMiscellaneous);
+
+                if (!isValidBranch)
+                {
+                    ModelState.AddModelError(nameof(PcfReleaseViewModel.EstablishmentId), "Select an active operating branch.");
+                }
+            }
+
+            if (model.ReceiverName?.Length > 100)
+            {
+                ModelState.AddModelError(nameof(PcfReleaseViewModel.ReceiverName), "Receiver name must be 100 characters or fewer.");
+            }
+
+            if (model.Purpose?.Length > 255)
+            {
+                ModelState.AddModelError(nameof(PcfReleaseViewModel.Purpose), "Purpose must be 255 characters or fewer.");
+            }
+
             if (!ModelState.IsValid)
             {
                 await PopulateReleasePcfLookupsAsync(model);
@@ -157,7 +182,7 @@ namespace AuditCkDayo.Controllers
 
             var establishments = await _context.Establishments
                 .AsNoTracking()
-                .Where(e => e.IsOperatingBranch && e.IsActive)
+                .Where(e => e.IsOperatingBranch && e.IsActive && !e.IsMiscellaneous)
                 .OrderBy(e => e.Name)
                 .ToListAsync();
 

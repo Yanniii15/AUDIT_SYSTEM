@@ -1520,6 +1520,14 @@ namespace AuditCkDayo.Tests
                     Name = "Inactive Branch",
                     IsOperatingBranch = true,
                     IsActive = false
+                },
+                new Establishment
+                {
+                    Id = 3,
+                    Name = "Miscellaneous Location",
+                    IsOperatingBranch = true,
+                    IsActive = true,
+                    IsMiscellaneous = true
                 });
 
             context.Users.AddRange(
@@ -1564,6 +1572,7 @@ namespace AuditCkDayo.Tests
             var establishments = Assert.IsAssignableFrom<SelectList>((object)controller.ViewBag.Establishments);
             Assert.Contains(establishments, item => item.Value == "1" && item.Text == "Operating Branch");
             Assert.DoesNotContain(establishments, item => item.Value == "2");
+            Assert.DoesNotContain(establishments, item => item.Value == "3");
         }
 
         [Fact]
@@ -1700,6 +1709,61 @@ namespace AuditCkDayo.Tests
             Assert.Empty(context.CashFlowEntries);
             Assert.IsAssignableFrom<SelectList>(controller.ViewBag.ReceiverUsers);
             Assert.IsAssignableFrom<SelectList>(controller.ViewBag.Establishments);
+        }
+
+        [Fact]
+        public async Task ReleasePcf_PostInvalidBranchDoesNotSaveAndRepopulatesLookups()
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedReleaseLookupsAsync(context);
+            var controller = CreateController(context);
+            var model = new PcfReleaseViewModel
+            {
+                ReleaseDate = new DateTime(2026, 8, 14),
+                Amount = 50m,
+                ReceiverUserId = 2,
+                EstablishmentId = 3
+            };
+
+            var result = await controller.ReleasePcf(model);
+
+            var viewResult = Assert.IsType<ViewResult>(result);
+            Assert.Same(model, viewResult.Model);
+            Assert.False(controller.ModelState.IsValid);
+            Assert.True(controller.ModelState.ContainsKey(nameof(PcfReleaseViewModel.EstablishmentId)));
+            Assert.Empty(context.PcfReleases);
+            Assert.Empty(context.TreasuryCashFlows);
+            Assert.Empty(context.CashFlowEntries);
+            var establishments = Assert.IsAssignableFrom<SelectList>((object)controller.ViewBag.Establishments);
+            Assert.DoesNotContain(establishments, item => item.Value == "3");
+        }
+
+        [Fact]
+        public async Task ReleasePcf_PostOverlongReceiverNameAndPurposeDoesNotSave()
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedReleaseLookupsAsync(context);
+            var controller = CreateController(context);
+            var model = new PcfReleaseViewModel
+            {
+                ReleaseDate = new DateTime(2026, 8, 15),
+                Amount = 50m,
+                ReceiverUserId = 2,
+                EstablishmentId = 1,
+                ReceiverName = new string('R', 101),
+                Purpose = new string('P', 256)
+            };
+
+            var result = await controller.ReleasePcf(model);
+
+            var viewResult = Assert.IsType<ViewResult>(result);
+            Assert.Same(model, viewResult.Model);
+            Assert.False(controller.ModelState.IsValid);
+            Assert.True(controller.ModelState.ContainsKey(nameof(PcfReleaseViewModel.ReceiverName)));
+            Assert.True(controller.ModelState.ContainsKey(nameof(PcfReleaseViewModel.Purpose)));
+            Assert.Empty(context.PcfReleases);
+            Assert.Empty(context.TreasuryCashFlows);
+            Assert.Empty(context.CashFlowEntries);
         }
     }
 

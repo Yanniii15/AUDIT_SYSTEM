@@ -5,6 +5,7 @@ namespace AuditCkDayo.ViewModels
     public class PcfReleaseViewModel
     {
         public int? ReceiverUserId { get; set; }
+        [MaxLength(100)]
         public string? ReceiverName { get; set; }
         public int? EstablishmentId { get; set; }
 
@@ -15,6 +16,7 @@ namespace AuditCkDayo.ViewModels
         [Required]
         public DateTime ReleaseDate { get; set; } = DateTime.Today;
 
+        [MaxLength(255)]
         public string? Purpose { get; set; }
     }
 }
