@@ -14,6 +14,7 @@ namespace AuditCkDayo.Services
         public int? AssignedEstablishmentId { get; set; }
         public int? CostCenterId { get; set; }
         public string? CombinedDestinationId { get; set; }
+        public string? AllocationNotes { get; set; }
     }
 
     public class OcrResult

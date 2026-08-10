@@ -295,7 +295,8 @@ namespace AuditCkDayo.Controllers
                             Price = item.Price,
                             Total = item.Total,
                             AssignedEstablishmentId = assignedBranchId,
-                            CostCenterId = costCenterId
+                            CostCenterId = costCenterId,
+                            AllocationNotes = item.AllocationNotes
                         };
                         auditItem.Details.Add(detail);
                     }

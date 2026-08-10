@@ -140,7 +140,8 @@
                                     <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-20">Qty</th>
                                     <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-28 text-right">Price (₱)</th>
                                     <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-28 text-right">Total (₱)</th>
-                                    <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-48">Split Destination / Allocation</th>
+                                    <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-48">Split Destination</th>
+                                    <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-40">Remarks / Custom Cost Center</th>
                                     <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-12 text-center">Action</th>
                                 </tr>
                             </thead>
@@ -190,6 +191,10 @@
                                                     }
                                                 }
                                             </select>
+                                        </td>
+                                        <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2">
+                                            <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Remarks</label>
+                                            <input asp-for="Items[i].AllocationNotes" class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none remarks-input" placeholder="Optional notes/remarks..." />
                                         </td>
                                         <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2 text-center flex items-center justify-end lg:justify-center">
                                             <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Action</label>
@@ -272,7 +277,13 @@
                 destSelect.name = `Items[${idx}].CombinedDestinationId`;
                 destSelect.id = `Items_${idx}__CombinedDestinationId`;
             }
-        });
+
+            // Update remarks input
+            const remarksInput = row.querySelector('.remarks-input');
+            if (remarksInput) {
+                remarksInput.name = `Items[${idx}].AllocationNotes`;
+                remarksInput.id = `Items_${idx}__AllocationNotes`;
+            }
     }
 
     function calculateRowTotal(row) {
@@ -327,6 +338,10 @@
                 <select class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none destination-select">
                     ${destinationOptions}
                 </select>
+            </td>
+            <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2">
+                <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Remarks</label>
+                <input class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none remarks-input" placeholder="Optional notes/remarks..." />
             </td>
             <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2 text-center flex items-center justify-end lg:justify-center">
                 <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Action</label>
