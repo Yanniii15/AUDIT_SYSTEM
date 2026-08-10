@@ -5,6 +5,7 @@ namespace AuditCkDayo.ViewModels
     public class AuditSettlementViewModel
     {
         public int? PcfReleaseId { get; set; }
+        public int? ResponsibleManagerId { get; set; }
         public string? ReceiverName { get; set; }
 
         [Range(0, double.MaxValue)]

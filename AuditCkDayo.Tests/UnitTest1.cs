@@ -1767,6 +1767,211 @@ namespace AuditCkDayo.Tests
         }
     }
 
+    public class AuditSettlementUsabilityTests : IDisposable
+    {
+        private readonly SqliteConnection _connection;
+        private readonly DbContextOptions<AuditDbContext> _options;
+
+        public AuditSettlementUsabilityTests()
+        {
+            _connection = new SqliteConnection("Filename=:memory:");
+            _connection.Open();
+
+            _options = new DbContextOptionsBuilder<AuditDbContext>()
+                .UseSqlite(_connection)
+                .Options;
+
+            using var context = new AuditDbContext(_options);
+            context.Database.EnsureCreated();
+        }
+
+        public void Dispose()
+        {
+            _connection.Dispose();
+        }
+
+        private static TreasuryController CreateController(AuditDbContext context, int currentUserId = 1, string currentUserRole = "Owner")
+        {
+            var claims = new List<Claim>
+            {
+                new Claim(ClaimTypes.NameIdentifier, currentUserId.ToString()),
+                new Claim(ClaimTypes.Role, currentUserRole)
+            };
+
+            var httpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"))
+            };
+
+            return new TreasuryController(context)
+            {
+                ControllerContext = new ControllerContext
+                {
+                    HttpContext = httpContext
+                },
+                TempData = new TempDataDictionary(httpContext, new FakeTempDataProvider())
+            };
+        }
+
+        private static async Task SeedSettlementLookupsAsync(AuditDbContext context)
+        {
+            context.Users.AddRange(
+                new User
+                {
+                    Id = 1,
+                    Name = "Treasury Owner",
+                    Email = "settlement-owner@test.com",
+                    PasswordHash = "hash",
+                    Role = UserRole.Owner,
+                    IsTreasury = true
+                },
+                new User
+                {
+                    Id = 2,
+                    Name = "Active Manager",
+                    Email = "settlement-manager@test.com",
+                    PasswordHash = "hash",
+                    Role = UserRole.Manager
+                },
+                new User
+                {
+                    Id = 3,
+                    Name = "Deleted Manager",
+                    Email = "settlement-deleted-manager@test.com",
+                    PasswordHash = "hash",
+                    Role = UserRole.Manager,
+                    IsDeleted = true
+                });
+
+            context.PcfReleases.AddRange(
+                new PcfRelease
+                {
+                    Id = 10,
+                    ReleasedByTreasuryUserId = 1,
+                    ReceiverName = "Branch Receiver",
+                    Amount = 500m,
+                    ReleaseDate = new DateTime(2026, 8, 10),
+                    Status = PcfReleaseStatus.Released
+                },
+                new PcfRelease
+                {
+                    Id = 11,
+                    ReleasedByTreasuryUserId = 1,
+                    ReceiverName = "Settled Receiver",
+                    Amount = 250m,
+                    ReleaseDate = new DateTime(2026, 8, 9),
+                    Status = PcfReleaseStatus.Settled
+                });
+
+            await context.SaveChangesAsync();
+        }
+
+        [Fact]
+        public async Task Settlement_GetLoadsViewModelManagersAndAvailablePcfReleases()
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedSettlementLookupsAsync(context);
+            var controller = CreateController(context);
+
+            var result = await controller.Settlement();
+
+            var viewResult = Assert.IsType<ViewResult>(result);
+            Assert.IsType<AuditSettlementViewModel>(viewResult.Model);
+
+            var managers = Assert.IsAssignableFrom<SelectList>((object)controller.ViewBag.ResponsibleManagers);
+            Assert.Contains(managers, item => item.Value == "2" && item.Text == "Active Manager");
+            Assert.DoesNotContain(managers, item => item.Value == "3");
+
+            var releases = Assert.IsAssignableFrom<SelectList>((object)controller.ViewBag.PcfReleases);
+            Assert.Contains(releases, item => item.Value == "10");
+            Assert.DoesNotContain(releases, item => item.Value == "11");
+        }
+
+        [Fact]
+        public async Task Settlement_PostCreatesConfirmedSettlementWithSelectedManagerRecomputedAmountsAndPcfLink()
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedSettlementLookupsAsync(context);
+            var controller = CreateController(context, currentUserId: 1, currentUserRole: "Owner");
+            var model = new AuditSettlementViewModel
+            {
+                PcfReleaseId = 10,
+                ResponsibleManagerId = 2,
+                ReceiverName = "  Settlement Receiver  ",
+                TotalPCReleased = 500m,
+                TotalAcceptedExpenses = 375.25m,
+                ActualChangeReturned = 100m
+            };
+
+            var result = await controller.Settlement(model);
+
+            var redirect = Assert.IsType<RedirectToActionResult>(result);
+            Assert.Equal(nameof(TreasuryController.Settlement), redirect.ActionName);
+            Assert.Equal("Audit settlement saved.", controller.TempData["Message"]);
+
+            var settlement = await context.AuditSettlements.AsNoTracking().SingleAsync();
+            Assert.Equal(10, settlement.PcfReleaseId);
+            Assert.Equal(1, settlement.ProcessedByUserId);
+            Assert.Equal(2, settlement.ResponsibleManagerId);
+            Assert.Equal("Settlement Receiver", settlement.ReceiverName);
+            Assert.Equal(500m, settlement.TotalPCReleased);
+            Assert.Equal(375.25m, settlement.TotalAcceptedExpenses);
+            Assert.Equal(124.75m, settlement.ExpectedChange);
+            Assert.Equal(100m, settlement.ActualChangeReturned);
+            Assert.Equal(-24.75m, settlement.ShortOverAmount);
+            Assert.Equal(AuditSettlementStatus.Confirmed, settlement.Status);
+        }
+
+        [Theory]
+        [InlineData("Manager")]
+        [InlineData("Owner")]
+        [InlineData("Admin")]
+        public async Task Settlement_PostFallsBackToCurrentPrivilegedUserWhenNoManagerSelected(string role)
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedSettlementLookupsAsync(context);
+            var controller = CreateController(context, currentUserId: 1, currentUserRole: role);
+
+            var result = await controller.Settlement(new AuditSettlementViewModel
+            {
+                TotalPCReleased = 100m,
+                TotalAcceptedExpenses = 80m,
+                ActualChangeReturned = 20m
+            });
+
+            Assert.IsType<RedirectToActionResult>(result);
+            var settlement = await context.AuditSettlements.AsNoTracking().SingleAsync();
+            Assert.Equal(1, settlement.ResponsibleManagerId);
+            Assert.Equal(1, settlement.ProcessedByUserId);
+        }
+
+        [Fact]
+        public async Task Settlement_PostNegativeAmountsDoNotSaveAndRepopulateLookups()
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedSettlementLookupsAsync(context);
+            var controller = CreateController(context);
+
+            var result = await controller.Settlement(new AuditSettlementViewModel
+            {
+                ResponsibleManagerId = 2,
+                TotalPCReleased = -1m,
+                TotalAcceptedExpenses = -2m,
+                ActualChangeReturned = -3m
+            });
+
+            var viewResult = Assert.IsType<ViewResult>(result);
+            Assert.IsType<AuditSettlementViewModel>(viewResult.Model);
+            Assert.False(controller.ModelState.IsValid);
+            Assert.True(controller.ModelState.ContainsKey(nameof(AuditSettlementViewModel.TotalPCReleased)));
+            Assert.True(controller.ModelState.ContainsKey(nameof(AuditSettlementViewModel.TotalAcceptedExpenses)));
+            Assert.True(controller.ModelState.ContainsKey(nameof(AuditSettlementViewModel.ActualChangeReturned)));
+            Assert.Empty(context.AuditSettlements);
+            Assert.IsAssignableFrom<SelectList>(controller.ViewBag.ResponsibleManagers);
+            Assert.IsAssignableFrom<SelectList>(controller.ViewBag.PcfReleases);
+        }
+    }
+
     public class SalesReportUsabilityTests : IDisposable
     {
         private readonly SqliteConnection _connection;

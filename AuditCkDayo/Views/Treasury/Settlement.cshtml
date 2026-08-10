@@ -3,5 +3,94 @@
     ViewData["Title"] = "Audit Settlement";
 }
 
-<h1 class="font-headline-lg text-headline-lg text-on-surface">Audit Settlement</h1>
-<p class="text-on-surface-variant">Compare PCF released, accepted expenses, actual change returned, and short/over result.</p>
+<div class="space-y-6">
+    <div>
+        <h1 class="font-headline-lg text-headline-lg text-on-surface">Audit Settlement</h1>
+        <p class="text-on-surface-variant">Compare PCF released, accepted expenses, actual change returned, and short/over result.</p>
+    </div>
+
+    @if (TempData["Message"] is string message)
+    {
+        <div class="rounded-lg bg-green-50 px-4 py-3 text-green-800" role="status">@message</div>
+    }
+
+    <form asp-action="Settlement" method="post" class="space-y-5 rounded-xl border border-outline-variant bg-surface-container-low p-6">
+        @Html.AntiForgeryToken()
+        <div asp-validation-summary="ModelOnly" class="text-error"></div>
+
+        <div>
+            <label asp-for="PcfReleaseId" class="block font-medium text-on-surface">PCF release (optional)</label>
+            <select asp-for="PcfReleaseId" asp-items="ViewBag.PcfReleases" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2">
+                <option value="">No linked PCF release</option>
+            </select>
+            <span asp-validation-for="PcfReleaseId" class="text-sm text-error"></span>
+        </div>
+
+        <div>
+            <label asp-for="ReceiverName" class="block font-medium text-on-surface">Receiver name</label>
+            <input asp-for="ReceiverName" maxlength="100" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2" />
+            <span asp-validation-for="ReceiverName" class="text-sm text-error"></span>
+        </div>
+
+        <div>
+            <label asp-for="ResponsibleManagerId" class="block font-medium text-on-surface">Responsible manager</label>
+            <select asp-for="ResponsibleManagerId" asp-items="ViewBag.ResponsibleManagers" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2">
+                <option value="">Use me as responsible manager</option>
+            </select>
+            <span asp-validation-for="ResponsibleManagerId" class="text-sm text-error"></span>
+        </div>
+
+        <div class="grid gap-4 md:grid-cols-3">
+            <div>
+                <label asp-for="TotalPCReleased" class="block font-medium text-on-surface">Total PC released</label>
+                <input asp-for="TotalPCReleased" type="number" min="0" step="0.01" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2 settlement-amount" data-settlement-field="released" />
+                <span asp-validation-for="TotalPCReleased" class="text-sm text-error"></span>
+            </div>
+            <div>
+                <label asp-for="TotalAcceptedExpenses" class="block font-medium text-on-surface">Accepted expenses</label>
+                <input asp-for="TotalAcceptedExpenses" type="number" min="0" step="0.01" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2 settlement-amount" data-settlement-field="expenses" />
+                <span asp-validation-for="TotalAcceptedExpenses" class="text-sm text-error"></span>
+            </div>
+            <div>
+                <label asp-for="ActualChangeReturned" class="block font-medium text-on-surface">Actual change returned</label>
+                <input asp-for="ActualChangeReturned" type="number" min="0" step="0.01" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2 settlement-amount" data-settlement-field="actual" />
+                <span asp-validation-for="ActualChangeReturned" class="text-sm text-error"></span>
+            </div>
+        </div>
+
+        <div class="rounded-lg bg-surface-container p-4 text-on-surface-variant">
+            <p><strong>Expected change:</strong> <span id="expected-change">@Model.ExpectedChange.ToString("N2")</span> = total released - accepted expenses.</p>
+            <p><strong>Short/over:</strong> <span id="short-over">@Model.ShortOverAmount.ToString("N2")</span> = actual change returned - expected change.</p>
+        </div>
+
+        <div class="flex flex-wrap gap-3">
+            <button type="submit" class="rounded-lg bg-primary px-4 py-2 font-medium text-on-primary">Save settlement</button>
+            <a asp-controller="Treasury" asp-action="Index" class="rounded-lg border border-outline px-4 py-2 font-medium text-on-surface">Back to Treasury</a>
+        </div>
+    </form>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+    <script>
+        (() => {
+            const released = document.querySelector('[data-settlement-field="released"]');
+            const expenses = document.querySelector('[data-settlement-field="expenses"]');
+            const actual = document.querySelector('[data-settlement-field="actual"]');
+            const expected = document.getElementById('expected-change');
+            const shortOver = document.getElementById('short-over');
+
+            const numberValue = element => Number.parseFloat(element?.value || '0') || 0;
+            const format = value => value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            const update = () => {
+                const expectedChange = numberValue(released) - numberValue(expenses);
+                const shortOverAmount = numberValue(actual) - expectedChange;
+                expected.textContent = format(expectedChange);
+                shortOver.textContent = format(shortOverAmount);
+            };
+
+            document.querySelectorAll('.settlement-amount').forEach(input => input.addEventListener('input', update));
+            update();
+        })();
+    </script>
+}

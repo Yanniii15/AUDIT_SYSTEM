@@ -191,9 +191,130 @@ namespace AuditCkDayo.Controllers
         }
 
         [HttpGet]
-        public IActionResult Settlement()
+        public async Task<IActionResult> Settlement()
         {
-            return View(new AuditSettlementViewModel());
+            var model = new AuditSettlementViewModel();
+            await PopulateSettlementLookupsAsync(model);
+            return View(model);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Settlement(AuditSettlementViewModel model)
+        {
+            if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var currentUserId))
+            {
+                return Unauthorized();
+            }
+
+            if (model.TotalPCReleased < 0m)
+            {
+                ModelState.AddModelError(nameof(AuditSettlementViewModel.TotalPCReleased), "Total PC released cannot be negative.");
+            }
+
+            if (model.TotalAcceptedExpenses < 0m)
+            {
+                ModelState.AddModelError(nameof(AuditSettlementViewModel.TotalAcceptedExpenses), "Total accepted expenses cannot be negative.");
+            }
+
+            if (model.ActualChangeReturned < 0m)
+            {
+                ModelState.AddModelError(nameof(AuditSettlementViewModel.ActualChangeReturned), "Actual change returned cannot be negative.");
+            }
+
+            if (model.PcfReleaseId.HasValue)
+            {
+                var pcfReleaseExists = await _context.PcfReleases
+                    .AsNoTracking()
+                    .AnyAsync(r => r.Id == model.PcfReleaseId.Value);
+
+                if (!pcfReleaseExists)
+                {
+                    ModelState.AddModelError(nameof(AuditSettlementViewModel.PcfReleaseId), "Select a valid PCF release.");
+                }
+            }
+
+            var responsibleManagerId = currentUserId;
+            if (model.ResponsibleManagerId.HasValue)
+            {
+                var managerExists = await _context.Users
+                    .AsNoTracking()
+                    .AnyAsync(u => u.Id == model.ResponsibleManagerId.Value
+                        && u.Role == UserRole.Manager
+                        && !u.IsDeleted);
+
+                if (managerExists)
+                {
+                    responsibleManagerId = model.ResponsibleManagerId.Value;
+                }
+                else
+                {
+                    ModelState.AddModelError(nameof(AuditSettlementViewModel.ResponsibleManagerId), "Select an active manager.");
+                }
+            }
+
+            model.ReceiverName = model.ReceiverName?.Trim();
+            if (model.ReceiverName?.Length > 100)
+            {
+                ModelState.AddModelError(nameof(AuditSettlementViewModel.ReceiverName), "Receiver name must be 100 characters or fewer.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                await PopulateSettlementLookupsAsync(model);
+                return View(model);
+            }
+
+            var settlement = new AuditSettlement
+            {
+                PcfReleaseId = model.PcfReleaseId,
+                ReceiverName = model.ReceiverName,
+                ResponsibleManagerId = responsibleManagerId,
+                ProcessedByUserId = currentUserId,
+                TotalPCReleased = model.TotalPCReleased,
+                TotalAcceptedExpenses = model.TotalAcceptedExpenses,
+                ActualChangeReturned = model.ActualChangeReturned,
+                Status = AuditSettlementStatus.Confirmed
+            };
+
+            settlement.Recompute();
+
+            _context.AuditSettlements.Add(settlement);
+            await _context.SaveChangesAsync();
+
+            TempData["Message"] = "Audit settlement saved.";
+            return RedirectToAction(nameof(Settlement));
+        }
+
+        private async Task PopulateSettlementLookupsAsync(AuditSettlementViewModel model)
+        {
+            var managers = await _context.Users
+                .AsNoTracking()
+                .Where(u => u.Role == UserRole.Manager && !u.IsDeleted)
+                .OrderBy(u => u.Name)
+                .ToListAsync();
+
+            var settledReleaseIds = _context.AuditSettlements
+                .AsNoTracking()
+                .Where(s => s.PcfReleaseId.HasValue)
+                .Select(s => s.PcfReleaseId!.Value);
+
+            var availablePcfReleases = await _context.PcfReleases
+                .AsNoTracking()
+                .Where(r => r.Status != PcfReleaseStatus.Settled
+                    && r.Status != PcfReleaseStatus.Cancelled
+                    && (r.Id == model.PcfReleaseId || !settledReleaseIds.Contains(r.Id)))
+                .OrderByDescending(r => r.ReleaseDate)
+                .ThenBy(r => r.Id)
+                .Select(r => new
+                {
+                    r.Id,
+                    Display = $"#{r.Id} - {(r.ReceiverName ?? r.ReceiverUser!.Name)} - {r.Amount:n2}"
+                })
+                .ToListAsync();
+
+            ViewBag.ResponsibleManagers = new SelectList(managers, "Id", "Name", model.ResponsibleManagerId);
+            ViewBag.PcfReleases = new SelectList(availablePcfReleases, "Id", "Display", model.PcfReleaseId);
         }
     }
 }
