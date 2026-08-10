@@ -4,6 +4,16 @@
 @{
     ViewData["Title"] = "Manager Coverage";
     var managerUsers = ViewBag.ManagerUsers as SelectList ?? new SelectList(Enumerable.Empty<User>(), "Id", "Name");
+    var scopeOptions = new List<SelectListItem>
+    {
+        new("All treasury duties", CoverageScope.All.ToString()),
+        new("Sales reports", CoverageScope.SalesReports.ToString()),
+        new("Treasury cash-in", CoverageScope.TreasuryCashIn.ToString()),
+        new("PCF release", CoverageScope.PcfRelease.ToString()),
+        new("Audit settlement", CoverageScope.AuditSettlement.ToString()),
+        new("Buyer audits", CoverageScope.BuyerAudits.ToString()),
+        new("Branch handovers", CoverageScope.BranchHandovers.ToString())
+    };
 }
 
 <div class="relative flex flex-col lg:flex-row gap-space-6 items-start justify-between">
@@ -74,7 +84,7 @@
 
             <label class="flex flex-col gap-space-2">
                 <span class="font-label-caps uppercase tracking-wider text-on-surface-variant text-[11px]">Scope</span>
-                <select name="Scope" class="bg-surface-container-low border border-surface-border rounded-lg px-space-3 py-space-3 text-on-surface focus:outline-none focus:border-primary/60" asp-items="Html.GetEnumSelectList<CoverageScope>()" required>
+                <select name="Scope" class="bg-surface-container-low border border-surface-border rounded-lg px-space-3 py-space-3 text-on-surface focus:outline-none focus:border-primary/60" asp-items="scopeOptions" required>
                 </select>
             </label>
 
