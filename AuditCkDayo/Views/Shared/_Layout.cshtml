@@ -179,11 +179,14 @@
                     <span class="font-label-caps uppercase">Dashboard</span>
                 </a>
 
+                @if (!User.IsInRole("BranchStaff"))
+                {
                 <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
                    asp-controller="Audits" asp-action="Upload">
                     <span class="material-symbols-outlined mr-space-3">upload_file</span>
                     <span class="font-label-caps uppercase">New Audit</span>
                 </a>
+                }
 
                 @if (User.IsInRole("Buyer"))
                 {
@@ -353,6 +356,12 @@
                         }
                     </a>
                     
+                    <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary"
+                       asp-controller="SalesReports" asp-action="Upload">
+                        <span class="material-symbols-outlined mr-space-3">receipt_long</span>
+                        <span class="font-label-caps uppercase">Daily Sales</span>
+                    </a>
+
                     <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
                        asp-controller="Reports" asp-action="Index">
                         <span class="material-symbols-outlined mr-space-3">assessment</span>

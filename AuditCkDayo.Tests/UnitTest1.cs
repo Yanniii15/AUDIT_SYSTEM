@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -2797,6 +2798,32 @@ namespace AuditCkDayo.Tests
             Assert.True(coverage.IsActive);
             Assert.True(coverage.CoversDate(new DateTime(2026, 8, 11)));
             Assert.Equal("Coverage assignment created.", controller.TempData["Message"]);
+        }
+    }
+
+    public class BranchStaffNavigationPolicyTests
+    {
+        [Theory]
+        [InlineData(nameof(AuditsController.Upload))]
+        [InlineData(nameof(AuditsController.ProcessUpload))]
+        public void ReceiptAuditEntryPoints_DoNotAllowBranchStaff(string actionName)
+        {
+            var method = typeof(AuditsController).GetMethods()
+                .Single(method => method.Name == actionName);
+
+            var authorize = Assert.Single(method.GetCustomAttributes(typeof(AuthorizeAttribute), inherit: false).Cast<AuthorizeAttribute>());
+
+            Assert.DoesNotContain("BranchStaff", authorize.Roles ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+        }
+
+        [Fact]
+        public void SalesReportUpload_AllowsBranchStaff()
+        {
+            var authorize = Assert.Single(typeof(SalesReportsController)
+                .GetCustomAttributes(typeof(AuthorizeAttribute), inherit: false)
+                .Cast<AuthorizeAttribute>());
+
+            Assert.Contains("BranchStaff", authorize.Roles ?? string.Empty, StringComparison.OrdinalIgnoreCase);
         }
     }
 
