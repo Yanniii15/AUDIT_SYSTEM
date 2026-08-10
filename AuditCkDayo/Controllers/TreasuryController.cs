@@ -185,6 +185,27 @@ namespace AuditCkDayo.Controllers
 
             flow.Entries.Add(entry);
             flow.RecomputeTotals();
+            if (model.ReceiverUserId.HasValue)
+            {
+                var receiver = await _context.Users.FirstOrDefaultAsync(u => u.Id == model.ReceiverUserId.Value && !u.IsDeleted);
+                if (receiver != null)
+                {
+                    receiver.PcfBalance += model.Amount;
+                    receiver.DailyStartingFloat += model.Amount;
+
+                    var ledger = new PettyCashLedger
+                    {
+                        UserId = receiver.Id,
+                        TransactionType = LedgerTransactionType.VaultFunding,
+                        Amount = model.Amount,
+                        ResultingBalance = receiver.PcfBalance,
+                        Timestamp = DateTime.Now,
+                        Notes = $"PCF release from vault: {model.Purpose ?? "Funding"}"
+                    };
+                    _context.PettyCashLedgers.Add(ledger);
+                }
+            }
+
             _context.PcfReleases.Add(release);
 
             await _context.SaveChangesAsync();
