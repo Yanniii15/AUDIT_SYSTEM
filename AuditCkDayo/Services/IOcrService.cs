@@ -20,6 +20,12 @@ namespace AuditCkDayo.Services
         public List<OcrItemResult> Items { get; set; } = new();
     }
 
+    public class DenominationOcrResult
+    {
+        public decimal Denomination { get; set; }
+        public int Quantity { get; set; }
+    }
+
     public class SalesReportOcrResult
     {
         public string? CashierName { get; set; }
@@ -33,6 +39,7 @@ namespace AuditCkDayo.Services
         public string? ReceiptNumberStart { get; set; }
         public string? ReceiptNumberEnd { get; set; }
         public string? WitnessName { get; set; }
+        public List<DenominationOcrResult> Denominations { get; set; } = new();
         public string? RawJson { get; set; }
     }
 

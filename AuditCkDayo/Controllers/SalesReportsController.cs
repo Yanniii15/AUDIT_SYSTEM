@@ -164,6 +164,19 @@ namespace AuditCkDayo.Controllers
                 Status = SalesReportStatus.Draft
             };
             report.ImageUrls = savedUrls;
+            if (ocrResult?.Denominations != null)
+            {
+                foreach (var denom in ocrResult.Denominations)
+                {
+                    report.CashBreakdownLines.Add(new CashBreakdownLine
+                    {
+                        OwnerType = CashBreakdownOwnerType.SalesReport,
+                        Denomination = denom.Denomination,
+                        Quantity = denom.Quantity,
+                        Total = denom.Denomination * denom.Quantity
+                    });
+                }
+            }
 
             _context.SalesReports.Add(report);
             await _context.SaveChangesAsync();
