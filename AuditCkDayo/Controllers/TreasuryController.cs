@@ -22,5 +22,17 @@ namespace AuditCkDayo.Controllers
             var model = new TreasuryCashFlowViewModel { CashFlowDate = flowDate };
             return View(model);
         }
+
+        [HttpGet]
+        public IActionResult ReleasePcf()
+        {
+            return View(new PcfReleaseViewModel());
+        }
+
+        [HttpGet]
+        public IActionResult Settlement()
+        {
+            return View(new AuditSettlementViewModel());
+        }
     }
 }

@@ -1256,5 +1256,27 @@ namespace AuditCkDayo.Tests
             Assert.Equal(69740m, flow.ClosingBalance);
         }
     }
+
+    public class AuditSettlementTests
+    {
+        [Theory]
+        [InlineData(5000, 3000, 2000, 0)]
+        [InlineData(5000, 3000, 1500, -500)]
+        [InlineData(5000, 3000, 2500, 500)]
+        public void Settlement_ComputesShortOver(decimal released, decimal expenses, decimal actualChange, decimal expectedShortOver)
+        {
+            var settlement = new AuditSettlement
+            {
+                TotalPCReleased = released,
+                TotalAcceptedExpenses = expenses,
+                ActualChangeReturned = actualChange
+            };
+
+            settlement.Recompute();
+
+            Assert.Equal(released - expenses, settlement.ExpectedChange);
+            Assert.Equal(expectedShortOver, settlement.ShortOverAmount);
+        }
+    }
 }
 }

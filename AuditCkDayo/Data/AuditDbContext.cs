@@ -21,6 +21,8 @@ namespace AuditCkDayo.Data
         public DbSet<CashBreakdownLine> CashBreakdownLines { get; set; }
         public DbSet<TreasuryCashFlow> TreasuryCashFlows { get; set; }
         public DbSet<CashFlowEntry> CashFlowEntries { get; set; }
+        public DbSet<PcfRelease> PcfReleases { get; set; }
+        public DbSet<AuditSettlement> AuditSettlements { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -317,6 +319,66 @@ namespace AuditCkDayo.Data
                 .HasForeignKey(e => e.ConfirmedByUserId)
                 .OnDelete(DeleteBehavior.Restrict);
 
+
+            // PcfRelease configuration
+            modelBuilder.Entity<PcfRelease>()
+                .Property(p => p.Status)
+                .HasConversion<string>()
+                .HasMaxLength(50);
+
+            modelBuilder.Entity<PcfRelease>()
+                .HasOne(p => p.ReleasedByTreasuryUser)
+                .WithMany()
+                .HasForeignKey(p => p.ReleasedByTreasuryUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<PcfRelease>()
+                .HasOne(p => p.ReceiverUser)
+                .WithMany()
+                .HasForeignKey(p => p.ReceiverUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<PcfRelease>()
+                .HasOne(p => p.Establishment)
+                .WithMany()
+                .HasForeignKey(p => p.EstablishmentId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<PcfRelease>()
+                .HasOne(p => p.CashFlowEntry)
+                .WithMany()
+                .HasForeignKey(p => p.CashFlowEntryId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // AuditSettlement configuration
+            modelBuilder.Entity<AuditSettlement>()
+                .Property(a => a.Status)
+                .HasConversion<string>()
+                .HasMaxLength(50);
+
+            modelBuilder.Entity<AuditSettlement>()
+                .HasOne(a => a.PcfRelease)
+                .WithMany()
+                .HasForeignKey(a => a.PcfReleaseId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<AuditSettlement>()
+                .HasOne(a => a.ReceiverUser)
+                .WithMany()
+                .HasForeignKey(a => a.ReceiverUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<AuditSettlement>()
+                .HasOne(a => a.ResponsibleManager)
+                .WithMany()
+                .HasForeignKey(a => a.ResponsibleManagerId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<AuditSettlement>()
+                .HasOne(a => a.ProcessedByUser)
+                .WithMany()
+                .HasForeignKey(a => a.ProcessedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
             // Notification configuration
             modelBuilder.Entity<Notification>()
                 .HasOne(n => n.User)
