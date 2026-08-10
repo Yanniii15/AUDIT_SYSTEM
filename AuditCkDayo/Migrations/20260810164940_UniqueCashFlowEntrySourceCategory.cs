@@ -10,28 +10,28 @@ namespace AuditCkDayo.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropIndex(
-                name: "IX_CashFlowEntries_SourceDocumentId",
-                table: "CashFlowEntries");
-
             migrationBuilder.CreateIndex(
                 name: "IX_CashFlowEntries_SourceDocumentId_Category",
                 table: "CashFlowEntries",
                 columns: new[] { "SourceDocumentId", "Category" },
                 unique: true);
+
+            migrationBuilder.DropIndex(
+                name: "IX_CashFlowEntries_SourceDocumentId",
+                table: "CashFlowEntries");
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropIndex(
-                name: "IX_CashFlowEntries_SourceDocumentId_Category",
-                table: "CashFlowEntries");
-
             migrationBuilder.CreateIndex(
                 name: "IX_CashFlowEntries_SourceDocumentId",
                 table: "CashFlowEntries",
                 column: "SourceDocumentId");
+
+            migrationBuilder.DropIndex(
+                name: "IX_CashFlowEntries_SourceDocumentId_Category",
+                table: "CashFlowEntries");
         }
     }
 }
