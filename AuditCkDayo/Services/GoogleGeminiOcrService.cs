@@ -177,6 +177,18 @@ namespace AuditCkDayo.Services
             return result;
         }
 
+        public async Task<SalesReportOcrResult> ParseSalesReportAsync(Stream imageStream)
+        {
+            var receiptResult = await ParseReceiptAsync(new List<Stream> { imageStream });
+            return new SalesReportOcrResult
+            {
+                BusinessDate = receiptResult.TransactionDate,
+                GrossSales = receiptResult.TotalAmount,
+                ConfirmedCashToHandover = receiptResult.TotalAmount,
+                RawJson = System.Text.Json.JsonSerializer.Serialize(receiptResult)
+            };
+        }
+
         private class GeminiOcrResult
         {
             public decimal? TotalAmount { get; set; }

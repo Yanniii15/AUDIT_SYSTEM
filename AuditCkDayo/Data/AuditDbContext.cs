@@ -16,6 +16,9 @@ namespace AuditCkDayo.Data
         public DbSet<SurrenderRequest> SurrenderRequests { get; set; }
         public DbSet<Notification> Notifications { get; set; }
         public DbSet<CostCenter> CostCenters { get; set; }
+        public DbSet<DocumentRecord> DocumentRecords { get; set; }
+        public DbSet<SalesReport> SalesReports { get; set; }
+        public DbSet<CashBreakdownLine> CashBreakdownLines { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -191,6 +194,47 @@ namespace AuditCkDayo.Data
                 .WithMany()
                 .HasForeignKey(s => s.ActionByUserId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // DocumentRecord configuration
+            modelBuilder.Entity<DocumentRecord>()
+                .Property(d => d.DocumentType)
+                .HasConversion<string>()
+                .HasMaxLength(50);
+
+            modelBuilder.Entity<DocumentRecord>()
+                .Property(d => d.OcrStatus)
+                .HasConversion<string>()
+                .HasMaxLength(50);
+
+            modelBuilder.Entity<DocumentRecord>()
+                .Property(d => d.ReviewStatus)
+                .HasConversion<string>()
+                .HasMaxLength(50);
+
+            modelBuilder.Entity<SalesReport>()
+                .Property(s => s.Status)
+                .HasConversion<string>()
+                .HasMaxLength(50);
+
+            modelBuilder.Entity<SalesReport>()
+                .HasOne(s => s.DocumentRecord)
+                .WithMany()
+                .HasForeignKey(s => s.DocumentRecordId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<SalesReport>()
+                .HasOne(s => s.Establishment)
+                .WithMany()
+                .HasForeignKey(s => s.EstablishmentId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<SalesReport>()
+                .Ignore(s => s.CashBreakdownLines);
+
+            modelBuilder.Entity<CashBreakdownLine>()
+                .Property(c => c.OwnerType)
+                .HasConversion<string>()
+                .HasMaxLength(50);
 
             // Notification configuration
             modelBuilder.Entity<Notification>()

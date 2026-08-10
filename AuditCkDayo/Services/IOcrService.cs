@@ -20,8 +20,25 @@ namespace AuditCkDayo.Services
         public List<OcrItemResult> Items { get; set; } = new();
     }
 
+    public class SalesReportOcrResult
+    {
+        public string? CashierName { get; set; }
+        public DateTime? BusinessDate { get; set; }
+        public decimal GrossSales { get; set; }
+        public decimal CashOut { get; set; }
+        public decimal ConfirmedCashToHandover { get; set; }
+        public decimal GCashAmount { get; set; }
+        public decimal CreditAmount { get; set; }
+        public decimal OtherPaymentAmount { get; set; }
+        public string? ReceiptNumberStart { get; set; }
+        public string? ReceiptNumberEnd { get; set; }
+        public string? WitnessName { get; set; }
+        public string? RawJson { get; set; }
+    }
+
     public interface IOcrService
     {
         Task<OcrResult> ParseReceiptAsync(List<Stream> imageStreams);
+        Task<SalesReportOcrResult> ParseSalesReportAsync(Stream imageStream);
     }
 }

@@ -44,6 +44,18 @@ namespace AuditCkDayo.Services
             return combinedResult;
         }
 
+        public async Task<SalesReportOcrResult> ParseSalesReportAsync(Stream imageStream)
+        {
+            var receiptResult = await ParseReceiptAsync(new List<Stream> { imageStream });
+            return new SalesReportOcrResult
+            {
+                BusinessDate = receiptResult.TransactionDate,
+                GrossSales = receiptResult.TotalAmount,
+                ConfirmedCashToHandover = receiptResult.TotalAmount,
+                RawJson = System.Text.Json.JsonSerializer.Serialize(receiptResult)
+            };
+        }
+
         private async Task<OcrResult> ParseSingleReceiptAsync(Stream imageStream)
         {
             var result = new OcrResult();

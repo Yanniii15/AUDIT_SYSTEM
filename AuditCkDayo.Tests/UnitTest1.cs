@@ -377,6 +377,17 @@ namespace AuditCkDayo.Tests
                 Items = new List<OcrItemResult>()
             });
         }
+
+        public Task<SalesReportOcrResult> ParseSalesReportAsync(Stream imageStream)
+        {
+            return Task.FromResult(new SalesReportOcrResult
+            {
+                BusinessDate = DateTime.Today,
+                GrossSales = 100.00m,
+                ConfirmedCashToHandover = 100.00m,
+                RawJson = "{}"
+            });
+        }
     }
 
     public class FakeWebHostEnvironment : Microsoft.AspNetCore.Hosting.IWebHostEnvironment
@@ -1091,6 +1102,43 @@ namespace AuditCkDayo.Tests
             Assert.Equal(2, detail.AssignedEstablishmentId);
             Assert.Null(detail.CostCenterId);
             Assert.Equal(ReceiptLineStatus.HasReceipt, detail.ReceiptStatus);
+        }
+    }
+
+    public class SalesReportModelTests
+    {
+        [Fact]
+        public void SalesReport_ConfirmedCashToHandover_IsEditableBeforeConfirmation()
+        {
+            var report = new SalesReport
+            {
+                EstablishmentId = 1,
+                BusinessDate = new DateTime(2026, 8, 5),
+                HandoverDate = new DateTime(2026, 8, 6),
+                GrossSales = 29528m,
+                CashOut = 6858.29m,
+                ConfirmedCashToHandover = 22669.71m,
+                Status = SalesReportStatus.Draft
+            };
+
+            Assert.Equal(SalesReportStatus.Draft, report.Status);
+            Assert.Equal(22669.71m, report.ConfirmedCashToHandover);
+        }
+
+        [Fact]
+        public void DocumentRecord_CanRepresentSalesReportDocument()
+        {
+            var document = new DocumentRecord
+            {
+                DocumentType = DocumentType.DailySalesReport,
+                ImageUrl = "/SalesReports/Document/sample.jpg",
+                OcrStatus = OcrStatus.Parsed,
+                ReviewStatus = DocumentReviewStatus.Draft
+            };
+
+            Assert.Equal(DocumentType.DailySalesReport, document.DocumentType);
+            Assert.Equal(OcrStatus.Parsed, document.OcrStatus);
+            Assert.Equal(DocumentReviewStatus.Draft, document.ReviewStatus);
         }
     }
     }
