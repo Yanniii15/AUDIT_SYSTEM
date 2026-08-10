@@ -48,5 +48,15 @@ namespace AuditCkDayo.ViewModels
         [StringLength(255)]
         public string? Notes { get; set; }
         public string ImageUrl { get; set; } = string.Empty;
+        public List<string>? ImageUrls { get; set; }
+        public List<CashBreakdownLineViewModel> Items { get; set; } = new();
+    }
+
+    public class CashBreakdownLineViewModel
+    {
+        public int Id { get; set; }
+        public decimal Denomination { get; set; }
+        public int Quantity { get; set; }
+        public decimal Total { get; set; }
     }
 }

@@ -31,14 +31,14 @@ namespace AuditCkDayo.Controllers
         }
 
         [HttpGet]
-        [Authorize(Roles = "Buyer,Owner,Manager,Admin")]
+        [Authorize(Roles = "Buyer,Owner,Manager,BranchStaff,Admin")]
         public IActionResult Upload()
         {
             return View();
         }
 
         [HttpPost]
-        [Authorize(Roles = "Buyer,Owner,Manager,Admin")]
+        [Authorize(Roles = "Buyer,Owner,Manager,BranchStaff,Admin")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ProcessUpload(List<IFormFile> receipts)
         {

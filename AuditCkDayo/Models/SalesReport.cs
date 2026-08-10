@@ -84,6 +84,33 @@ namespace AuditCkDayo.Models
 
         public DateTime? ConfirmedAt { get; set; }
 
+        public string? ImageUrlsJson { get; set; }
+
+        [NotMapped]
+        public List<string> ImageUrls
+        {
+            get
+            {
+                if (string.IsNullOrEmpty(ImageUrlsJson))
+                {
+                    return string.IsNullOrEmpty(DocumentRecord?.ImageUrl) 
+                        ? new List<string>() 
+                        : new List<string> { DocumentRecord.ImageUrl };
+                }
+                try
+                {
+                    return System.Text.Json.JsonSerializer.Deserialize<List<string>>(ImageUrlsJson) ?? new List<string>();
+                }
+                catch
+                {
+                    return string.IsNullOrEmpty(DocumentRecord?.ImageUrl) 
+                        ? new List<string>() 
+                        : new List<string> { DocumentRecord.ImageUrl };
+                }
+            }
+            set => ImageUrlsJson = System.Text.Json.JsonSerializer.Serialize(value);
+        }
+
         public virtual ICollection<CashBreakdownLine> CashBreakdownLines { get; set; } = new List<CashBreakdownLine>();
     }
 }

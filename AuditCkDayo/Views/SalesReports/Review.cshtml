@@ -13,7 +13,7 @@
         </div>
         <h1 class="font-headline-lg text-headline-lg text-on-surface">Review Daily Sales Report</h1>
         <p class="font-body-md text-on-surface-variant leading-relaxed">
-            Edit the draft values, save work in progress, or confirm to post one cash-in entry to the handover date.
+            Verify the information from the daily sales report scan. Adjust any errors, verify the breakdown, and confirm to post cash-in.
         </p>
     </div>
 
@@ -32,151 +32,351 @@
         </div>
     }
 
-    <div class="grid grid-cols-1 xl:grid-cols-[minmax(320px,420px)_1fr] gap-space-6 items-start">
-        <aside class="bg-surface-container-lowest rounded-xl shadow-sm border border-surface-border/50 overflow-hidden xl:sticky xl:top-24">
-            <div class="bg-surface-container-low px-space-5 py-space-4 border-b border-surface-border flex items-center justify-between">
-                <span class="font-label-caps uppercase tracking-wider text-on-surface-variant text-[11px]">Uploaded Image</span>
-                <span class="material-symbols-outlined text-primary text-[18px]">image</span>
-            </div>
-            <div class="bg-surface-container-highest p-space-4 min-h-[320px] flex items-center justify-center">
-                @if (!string.IsNullOrWhiteSpace(Model.ImageUrl))
-                {
-                    <a href="@Model.ImageUrl" target="_blank" rel="noopener" class="block w-full">
-                        <img src="@Model.ImageUrl" alt="Uploaded sales report" class="max-h-[560px] w-full object-contain rounded-lg border border-surface-border/50 bg-white shadow-sm" />
-                    </a>
-                }
-                else
-                {
-                    <div class="text-center text-on-surface-variant font-body-md">No image is attached to this sales report.</div>
-                }
-            </div>
-            @if (!string.IsNullOrWhiteSpace(Model.ImageUrl))
-            {
+    <div class="grid grid-cols-12 gap-space-8 items-start my-space-4">
+        <!-- Left Column: Sales Report Images Preview -->
+        <div class="col-span-12 lg:col-span-5">
+            <div class="bg-surface-container-lowest rounded-xl shadow-sm border border-surface-border overflow-hidden sticky top-24">
+                <div class="p-space-4 bg-surface-container-low border-b border-surface-border flex justify-between items-center">
+                    <span class="font-label-caps text-on-surface-variant uppercase text-[10px]">Uploaded Images (@(Model.ImageUrls?.Count ?? 1))</span>
+                    <span class="material-symbols-outlined text-primary text-[18px]">image</span>
+                </div>
+                
+                <!-- Large Image Preview -->
+                <div class="p-space-4 bg-surface-container-highest flex flex-col items-center justify-center min-h-[350px] relative">
+                    <img id="main-preview" src="@Model.ImageUrl" class="max-w-full max-h-[500px] object-contain rounded-lg border border-surface-border/50 shadow-sm cursor-pointer hover:scale-[1.01] transition-transform duration-300" alt="Sales Report Upload" />
+                </div>
                 <div class="p-space-3 bg-surface-container-low border-t border-surface-border text-center">
-                    <a href="@Model.ImageUrl" target="_blank" rel="noopener" class="font-label-caps uppercase tracking-wider text-primary text-[11px] hover:underline">
-                        Open image in new tab
-                    </a>
+                    <span class="text-on-surface-variant text-[11px] font-label-caps uppercase"><span class="material-symbols-outlined text-[14px] align-middle">zoom_in</span> Tap to Inspect</span>
                 </div>
-            }
-        </aside>
 
-        <section class="bg-surface-container-lowest rounded-xl shadow-sm border border-surface-border/50 overflow-hidden">
-            <div class="bg-primary px-space-6 py-space-4 flex justify-between items-center">
-                <span class="text-on-primary font-label-caps uppercase tracking-tighter text-[11px]">Editable Report Values</span>
-                <span class="text-on-primary/60 text-[10px] font-data-mono">DOC #@Model.DocumentRecordId</span>
+                <!-- Thumbnail Selector -->
+                @if (Model.ImageUrls != null && Model.ImageUrls.Count > 1)
+                {
+                    <div class="p-space-3 bg-surface-container-low border-t border-surface-border flex gap-2 overflow-x-auto">
+                        @for (int i = 0; i < Model.ImageUrls.Count; i++)
+                        {
+                            <div class="w-16 h-16 flex-shrink-0 bg-black rounded border border-surface-border overflow-hidden cursor-pointer hover:border-primary transition-all @(i == 0 ? "ring-2 ring-primary" : "")" onclick="setPreview(this, '@Model.ImageUrls[i]')">
+                                <img src="@Model.ImageUrls[i]" class="w-full h-full object-contain" />
+                            </div>
+                        }
+                    </div>
+                }
             </div>
+        </div>
 
-            <form asp-controller="SalesReports" asp-action="Review" method="post" class="p-space-8 space-y-space-6">
-                @Html.AntiForgeryToken()
-                <div asp-validation-summary="ModelOnly" class="text-audit-error bg-audit-error/10 border border-audit-error/20 p-space-4 rounded-lg text-body-md text-center"></div>
-
-                <input type="hidden" asp-for="SalesReportId" />
-                <input type="hidden" asp-for="DocumentRecordId" />
-                <input type="hidden" asp-for="ImageUrl" />
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-space-4">
-                    <label class="flex flex-col gap-space-2 md:col-span-2">
-                        <span class="font-label-caps uppercase tracking-wider text-on-surface-variant text-[11px]">Operating Branch</span>
-                        <select asp-for="EstablishmentId" asp-items="establishments" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" required>
-                            <option value="">Select branch...</option>
-                        </select>
-                        <span asp-validation-for="EstablishmentId" class="text-audit-error text-[11px]"></span>
-                    </label>
-
-                    <label class="flex flex-col gap-space-2">
-                        <span class="font-label-caps uppercase tracking-wider text-on-surface-variant text-[11px]">Business Date</span>
-                        <input asp-for="BusinessDate" type="date" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" required />
-                        <span asp-validation-for="BusinessDate" class="text-audit-error text-[11px]"></span>
-                    </label>
-
-                    <label class="flex flex-col gap-space-2">
-                        <span class="font-label-caps uppercase tracking-wider text-on-surface-variant text-[11px]">Handover Date</span>
-                        <input asp-for="HandoverDate" type="date" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" required />
-                        <span asp-validation-for="HandoverDate" class="text-audit-error text-[11px]"></span>
-                    </label>
-
-                    <label class="flex flex-col gap-space-2 md:col-span-2">
-                        <span class="font-label-caps uppercase tracking-wider text-on-surface-variant text-[11px]">Cashier Name</span>
-                        <input asp-for="CashierName" maxlength="100" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" />
-                        <span asp-validation-for="CashierName" class="text-audit-error text-[11px]"></span>
-                    </label>
+        <!-- Right Column: Reconciliation Form -->
+        <div class="col-span-12 lg:col-span-7">
+            <div class="bg-surface-container-lowest rounded-xl shadow-sm border border-surface-border overflow-hidden">
+                <div class="bg-primary px-space-6 py-space-4 flex justify-between items-center">
+                    <span class="text-on-primary font-label-caps uppercase tracking-tighter text-[11px]">Sales Reconciliation Form</span>
+                    <span class="text-on-primary/60 text-[10px] font-data-mono">DOC #@Model.DocumentRecordId</span>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-space-4">
-                    <label class="flex flex-col gap-space-2">
-                        <span class="font-label-caps uppercase tracking-wider text-on-surface-variant text-[11px]">Gross Sales</span>
-                        <input asp-for="GrossSales" type="number" min="0" step="0.01" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" />
-                        <span asp-validation-for="GrossSales" class="text-audit-error text-[11px]"></span>
-                    </label>
+                <form asp-controller="SalesReports" asp-action="Review" method="post" class="p-space-8 space-y-space-6" id="reviewForm">
+                    @Html.AntiForgeryToken()
+                    <div asp-validation-summary="ModelOnly" class="text-audit-error bg-audit-error/10 border border-audit-error/20 p-space-4 rounded-lg text-body-md text-center"></div>
+                    
+                    <input type="hidden" asp-for="SalesReportId" />
+                    <input type="hidden" asp-for="DocumentRecordId" />
+                    <input type="hidden" asp-for="ImageUrl" />
+                    @if (Model.ImageUrls != null)
+                    {
+                        for (int i = 0; i < Model.ImageUrls.Count; i++)
+                        {
+                            <input type="hidden" name="ImageUrls[@i]" value="@Model.ImageUrls[i]" />
+                        }
+                    }
 
-                    <label class="flex flex-col gap-space-2">
-                        <span class="font-label-caps uppercase tracking-wider text-on-surface-variant text-[11px]">Cash Out</span>
-                        <input asp-for="CashOut" type="number" min="0" step="0.01" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" />
-                        <span asp-validation-for="CashOut" class="text-audit-error text-[11px]"></span>
-                    </label>
+                    <!-- Metadata summary -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-space-4 my-space-4">
+                        <div class="bg-surface-container-low rounded-lg p-space-3 border border-surface-border">
+                            <div class="text-[9px] uppercase font-bold text-on-surface-variant tracking-wider mb-1">Status</div>
+                            <div class="flex items-center gap-1.5 text-body-md font-body-md text-on-surface">
+                                <span class="material-symbols-outlined text-[16px] text-primary">info</span>
+                                @(Model.SalesReportId.HasValue ? "Reviewing Draft" : "New Intake")
+                            </div>
+                        </div>
+                        <div class="bg-surface-container-low rounded-xl p-space-4 border-l-4 border-primary shadow-sm flex flex-col justify-center">
+                            <span class="font-label-caps text-on-surface-variant uppercase text-[9px] tracking-wider">Total Cash to Handover</span>
+                            <div class="flex items-baseline gap-space-1 mt-1 font-body-md">
+                                <span class="text-primary font-bold text-[20px]">₱</span>
+                                <span class="font-data-mono text-primary font-bold text-[28px]" id="claimed-amount-display">@Model.ConfirmedCashToHandover.ToString("N2")</span>
+                                <span class="text-on-surface-variant text-[10px] font-label-caps uppercase ml-2">PHP</span>
+                            </div>
+                        </div>
+                    </div>
 
-                    <label class="flex flex-col gap-space-2">
-                        <span class="font-label-caps uppercase tracking-wider text-on-surface-variant text-[11px]">Cash to Handover</span>
-                        <input asp-for="ConfirmedCashToHandover" type="number" min="0" step="0.01" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" />
-                        <span asp-validation-for="ConfirmedCashToHandover" class="text-audit-error text-[11px]"></span>
-                    </label>
+                    <!-- Establishment and Cashier -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-space-6">
+                        <div class="flex flex-col gap-space-2 md:col-span-2">
+                            <label asp-for="EstablishmentId" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Operating Branch</label>
+                            <select asp-for="EstablishmentId" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface appearance-none cursor-pointer" asp-items="establishments" required>
+                                <option value="">Select branch...</option>
+                            </select>
+                            <span asp-validation-for="EstablishmentId" class="text-audit-error text-[11px]"></span>
+                        </div>
 
-                    <label class="flex flex-col gap-space-2">
-                        <span class="font-label-caps uppercase tracking-wider text-on-surface-variant text-[11px]">GCash</span>
-                        <input asp-for="GCashAmount" type="number" min="0" step="0.01" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" />
-                        <span asp-validation-for="GCashAmount" class="text-audit-error text-[11px]"></span>
-                    </label>
+                        <div class="flex flex-col gap-space-2">
+                            <label asp-for="BusinessDate" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Business Date</label>
+                            <input asp-for="BusinessDate" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="date" required />
+                            <span asp-validation-for="BusinessDate" class="text-audit-error text-[11px]"></span>
+                        </div>
 
-                    <label class="flex flex-col gap-space-2">
-                        <span class="font-label-caps uppercase tracking-wider text-on-surface-variant text-[11px]">Credit</span>
-                        <input asp-for="CreditAmount" type="number" min="0" step="0.01" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" />
-                        <span asp-validation-for="CreditAmount" class="text-audit-error text-[11px]"></span>
-                    </label>
+                        <div class="flex flex-col gap-space-2">
+                            <label asp-for="HandoverDate" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Handover Date</label>
+                            <input asp-for="HandoverDate" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="date" required />
+                            <span asp-validation-for="HandoverDate" class="text-audit-error text-[11px]"></span>
+                        </div>
 
-                    <label class="flex flex-col gap-space-2">
-                        <span class="font-label-caps uppercase tracking-wider text-on-surface-variant text-[11px]">Other Payments</span>
-                        <input asp-for="OtherPaymentAmount" type="number" min="0" step="0.01" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" />
-                        <span asp-validation-for="OtherPaymentAmount" class="text-audit-error text-[11px]"></span>
-                    </label>
-                </div>
+                        <div class="flex flex-col gap-space-2 md:col-span-2">
+                            <label asp-for="CashierName" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Cashier Name</label>
+                            <input asp-for="CashierName" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" maxlength="100" />
+                            <span asp-validation-for="CashierName" class="text-audit-error text-[11px]"></span>
+                        </div>
+                    </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-space-4">
-                    <label class="flex flex-col gap-space-2">
-                        <span class="font-label-caps uppercase tracking-wider text-on-surface-variant text-[11px]">Receipt Start</span>
-                        <input asp-for="ReceiptNumberStart" maxlength="50" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" />
-                        <span asp-validation-for="ReceiptNumberStart" class="text-audit-error text-[11px]"></span>
-                    </label>
+                    <!-- Explicit Summary Values -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-space-4 pt-space-4 border-t border-surface-border">
+                        <div class="flex flex-col gap-space-2">
+                            <label asp-for="GrossSales" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Gross Sales (₱)</label>
+                            <input asp-for="GrossSales" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" min="0" step="0.01" required />
+                            <span asp-validation-for="GrossSales" class="text-audit-error text-[11px]"></span>
+                        </div>
 
-                    <label class="flex flex-col gap-space-2">
-                        <span class="font-label-caps uppercase tracking-wider text-on-surface-variant text-[11px]">Receipt End</span>
-                        <input asp-for="ReceiptNumberEnd" maxlength="50" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" />
-                        <span asp-validation-for="ReceiptNumberEnd" class="text-audit-error text-[11px]"></span>
-                    </label>
+                        <div class="flex flex-col gap-space-2">
+                            <label asp-for="CashOut" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Cash Out (₱)</label>
+                            <input asp-for="CashOut" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" min="0" step="0.01" required />
+                            <span asp-validation-for="CashOut" class="text-audit-error text-[11px]"></span>
+                        </div>
 
-                    <label class="flex flex-col gap-space-2 md:col-span-2">
-                        <span class="font-label-caps uppercase tracking-wider text-on-surface-variant text-[11px]">Witness Name</span>
-                        <input asp-for="WitnessName" maxlength="100" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" />
-                        <span asp-validation-for="WitnessName" class="text-audit-error text-[11px]"></span>
-                    </label>
+                        <div class="flex flex-col gap-space-2">
+                            <label asp-for="ConfirmedCashToHandover" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Cash to Handover (₱)</label>
+                            <input asp-for="ConfirmedCashToHandover" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" min="0" step="0.01" required id="confirmedCashToHandover" />
+                            <span asp-validation-for="ConfirmedCashToHandover" class="text-audit-error text-[11px]"></span>
+                        </div>
 
-                    <label class="flex flex-col gap-space-2 md:col-span-2">
-                        <span class="font-label-caps uppercase tracking-wider text-on-surface-variant text-[11px]">Notes</span>
-                        <textarea asp-for="Notes" rows="3" maxlength="255" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface resize-none"></textarea>
-                        <span asp-validation-for="Notes" class="text-audit-error text-[11px]"></span>
-                    </label>
-                </div>
+                        <div class="flex flex-col gap-space-2">
+                            <label asp-for="GCashAmount" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">GCash Amount (₱)</label>
+                            <input asp-for="GCashAmount" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" min="0" step="0.01" required />
+                            <span asp-validation-for="GCashAmount" class="text-audit-error text-[11px]"></span>
+                        </div>
 
-                <div class="flex flex-col sm:flex-row gap-space-3 pt-space-5 border-t border-surface-border">
-                    <button type="submit" name="actionType" value="SaveDraft" class="bg-surface-container text-primary border border-primary/20 px-space-6 py-3 rounded-lg font-label-caps uppercase tracking-widest hover:bg-primary/10 transition-all flex items-center justify-center gap-space-2 text-[12px]">
-                        <span class="material-symbols-outlined text-[18px]">save</span>
-                        Save Draft
-                    </button>
-                    <button type="submit" name="actionType" value="Confirm" class="bg-primary text-on-primary px-space-8 py-3 rounded-lg font-label-caps uppercase tracking-widest hover:bg-primary/95 transition-all flex items-center justify-center gap-space-2 shadow-md text-[12px]">
-                        <span class="material-symbols-outlined text-[18px]">check_circle</span>
-                        Confirm to Treasury
-                    </button>
-                </div>
-            </form>
-        </section>
+                        <div class="flex flex-col gap-space-2">
+                            <label asp-for="CreditAmount" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Credit Amount (₱)</label>
+                            <input asp-for="CreditAmount" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" min="0" step="0.01" required />
+                            <span asp-validation-for="CreditAmount" class="text-audit-error text-[11px]"></span>
+                        </div>
+
+                        <div class="flex flex-col gap-space-2">
+                            <label asp-for="OtherPaymentAmount" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Other Payment (₱)</label>
+                            <input asp-for="OtherPaymentAmount" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" min="0" step="0.01" required />
+                            <span asp-validation-for="OtherPaymentAmount" class="text-audit-error text-[11px]"></span>
+                        </div>
+                    </div>
+
+                    <!-- Receipt Ranges and Metadata -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-space-6">
+                        <div class="flex flex-col gap-space-2">
+                            <label asp-for="ReceiptNumberStart" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Receipt Number Start</label>
+                            <input asp-for="ReceiptNumberStart" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" />
+                            <span asp-validation-for="ReceiptNumberStart" class="text-audit-error text-[11px]"></span>
+                        </div>
+
+                        <div class="flex flex-col gap-space-2">
+                            <label asp-for="ReceiptNumberEnd" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Receipt Number End</label>
+                            <input asp-for="ReceiptNumberEnd" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" />
+                            <span asp-validation-for="ReceiptNumberEnd" class="text-audit-error text-[11px]"></span>
+                        </div>
+
+                        <div class="flex flex-col gap-space-2 md:col-span-2">
+                            <label asp-for="WitnessName" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Witness Name</label>
+                            <input asp-for="WitnessName" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" />
+                            <span asp-validation-for="WitnessName" class="text-audit-error text-[11px]"></span>
+                        </div>
+
+                        <div class="flex flex-col gap-space-2 md:col-span-2">
+                            <label asp-for="Notes" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Notes</label>
+                            <textarea asp-for="Notes" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface resize-none" rows="2"></textarea>
+                            <span asp-validation-for="Notes" class="text-audit-error text-[11px]"></span>
+                        </div>
+                    </div>
+
+                    <!-- Line Items / Cash Breakdown Grid -->
+                    <div class="pt-space-4 border-t border-surface-border">
+                        <h4 class="font-headline-sm text-headline-sm text-[16px] text-on-surface mb-space-4 flex items-center gap-space-2">
+                            <span class="material-symbols-outlined text-primary">list_alt</span>
+                            Cash Denomination Breakdown
+                        </h4>
+                        
+                        <div class="border border-surface-border rounded-xl">
+                            <table class="w-full text-left border-collapse block lg:table">
+                                <thead class="hidden lg:table-header-group">
+                                    <tr class="bg-surface-container-low border-b border-surface-border">
+                                        <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px]">Denomination</th>
+                                        <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-28">Quantity</th>
+                                        <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-32 text-right">Total (₱)</th>
+                                        <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-12 text-center">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="line-items-body" class="divide-y divide-surface-border block lg:table-row-group space-y-space-4 lg:space-y-0 p-space-4 lg:p-0">
+                                    @for (int i = 0; i < Model.Items.Count; i++)
+                                    {
+                                        <tr class="hover:bg-surface-container-low/30 transition-colors line-item-row block lg:table-row grid grid-cols-2 gap-x-space-4 gap-y-space-3 p-space-4 border border-surface-border lg:border-0 rounded-xl bg-surface-container-lowest lg:bg-transparent shadow-sm lg:shadow-none">
+                                            <td class="col-span-2 lg:col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2">
+                                                <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Denomination</label>
+                                                <input asp-for="Items[i].Denomination" class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-data-mono text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none denom-input" type="number" step="0.01" required />
+                                            </td>
+                                            <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2">
+                                                <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Quantity</label>
+                                                <input asp-for="Items[i].Quantity" class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none text-center qty-input" type="number" min="0" required />
+                                            </td>
+                                            <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2 text-right">
+                                                <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Total (₱)</label>
+                                                <input asp-for="Items[i].Total" class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none text-right total-input" type="number" step="0.01" readonly />
+                                            </td>
+                                            <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2 text-center flex items-center justify-end lg:justify-center">
+                                                <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Action</label>
+                                                <button type="button" class="text-audit-error hover:scale-110 transition-transform remove-row-btn" onclick="removeRow(this)">
+                                                    <span class="material-symbols-outlined text-[18px]">delete</span>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="mt-space-3 flex justify-end">
+                            <button type="button" class="bg-surface-container text-on-surface border border-surface-border px-4 py-2 rounded-lg font-label-caps hover:bg-surface-container-high transition-all text-[11px] uppercase flex items-center gap-1 shadow-sm" onclick="addRow()">
+                                <span class="material-symbols-outlined text-[16px]">add</span> Add Line
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Form Actions -->
+                    <div class="flex flex-col sm:flex-row gap-space-3 pt-space-5 border-t border-surface-border">
+                        <button type="submit" name="actionType" value="SaveDraft" class="bg-surface-container text-primary border border-primary/20 px-space-6 py-3 rounded-lg font-label-caps uppercase tracking-widest hover:bg-primary/10 transition-all flex items-center justify-center gap-space-2 text-[12px]">
+                            <span class="material-symbols-outlined text-[18px]">save</span>
+                            Save Draft
+                        </button>
+                        <button type="submit" name="actionType" value="Confirm" class="bg-primary text-on-primary px-space-8 py-3 rounded-lg font-label-caps uppercase tracking-widest hover:bg-primary/95 transition-all flex items-center justify-center gap-space-2 shadow-md text-[12px]">
+                            <span class="material-symbols-outlined text-[18px]">check_circle</span>
+                            Confirm to Treasury
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 </div>
+
+<script>
+    function setPreview(el, src) {
+        document.getElementById('main-preview').src = src;
+        el.parentElement.querySelectorAll('.ring-2').forEach(thumb => {
+            thumb.classList.remove('ring-2', 'ring-primary');
+        });
+        el.classList.add('ring-2', 'ring-primary');
+    }
+
+    function reindexRows() {
+        const rows = document.querySelectorAll('#line-items-body .line-item-row');
+        rows.forEach((row, idx) => {
+            const denomInput = row.querySelector('.denom-input');
+            if (denomInput) {
+                denomInput.name = `Items[${idx}].Denomination`;
+                denomInput.id = `Items_${idx}__Denomination`;
+            }
+            const qtyInput = row.querySelector('.qty-input');
+            if (qtyInput) {
+                qtyInput.name = `Items[${idx}].Quantity`;
+                qtyInput.id = `Items_${idx}__Quantity`;
+            }
+            const totalInput = row.querySelector('.total-input');
+            if (totalInput) {
+                totalInput.name = `Items[${idx}].Total`;
+                totalInput.id = `Items_${idx}__Total`;
+            }
+        });
+    }
+
+    function calculateRowTotal(row) {
+        const denom = parseFloat(row.querySelector('.denom-input').value) || 0;
+        const qty = parseInt(row.querySelector('.qty-input').value) || 0;
+        const total = denom * qty;
+        row.querySelector('.total-input').value = total.toFixed(2);
+        calculateOverallTotal();
+    }
+
+    function calculateOverallTotal() {
+        let sum = 0;
+        document.querySelectorAll('#line-items-body .total-input').forEach(input => {
+            sum += parseFloat(input.value) || 0;
+        });
+        const amountField = document.getElementById('confirmedCashToHandover');
+        if (amountField) {
+            amountField.value = sum.toFixed(2);
+        }
+        const displayVal = document.getElementById('claimed-amount-display');
+        if (displayVal) {
+            displayVal.innerText = sum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+    }
+
+    function removeRow(btn) {
+        const row = btn.closest('.line-item-row');
+        row.remove();
+        reindexRows();
+        calculateOverallTotal();
+    }
+
+    function addRow() {
+        const tbody = document.getElementById('line-items-body');
+        const index = tbody.querySelectorAll('.line-item-row').length;
+        
+        const tr = document.createElement('tr');
+        tr.className = "hover:bg-surface-container-low/30 transition-colors line-item-row block lg:table-row grid grid-cols-2 gap-x-space-4 gap-y-space-3 p-space-4 border border-surface-border lg:border-0 rounded-xl bg-surface-container-lowest lg:bg-transparent shadow-sm lg:shadow-none";
+        
+        tr.innerHTML = `
+            <td class="col-span-2 lg:col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2">
+                <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Denomination</label>
+                <input name="Items[${index}].Denomination" id="Items_${index}__Denomination" class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-data-mono text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none denom-input" type="number" step="0.01" value="0.00" required />
+            </td>
+            <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2">
+                <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Quantity</label>
+                <input name="Items[${index}].Quantity" id="Items_${index}__Quantity" class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none text-center qty-input" type="number" min="0" value="0" required />
+            </td>
+            <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2 text-right">
+                <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Total (₱)</label>
+                <input name="Items[${index}].Total" id="Items_${index}__Total" class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none text-right total-input" type="number" step="0.01" value="0.00" readonly />
+            </td>
+            <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2 text-center flex items-center justify-end lg:justify-center">
+                <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Action</label>
+                <button type="button" class="text-audit-error hover:scale-110 transition-transform remove-row-btn" onclick="removeRow(this)">
+                    <span class="material-symbols-outlined text-[18px]">delete</span>
+                </button>
+            </td>
+        `;
+        
+        tbody.appendChild(tr);
+        
+        // Bind event listeners
+        const denomInput = tr.querySelector('.denom-input');
+        const qtyInput = tr.querySelector('.qty-input');
+        
+        denomInput.addEventListener('input', () => calculateRowTotal(tr));
+        qtyInput.addEventListener('input', () => calculateRowTotal(tr));
+        
+        reindexRows();
+    }
+
+    // Set up initial event listeners
+    document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('#line-items-body .line-item-row').forEach(row => {
+            const denomInput = row.querySelector('.denom-input');
+            const qtyInput = row.querySelector('.qty-input');
+            
+            denomInput.addEventListener('input', () => calculateRowTotal(row));
+            qtyInput.addEventListener('input', () => calculateRowTotal(row));
+        });
+    });
+</script>

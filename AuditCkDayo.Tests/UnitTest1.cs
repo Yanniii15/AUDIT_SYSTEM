@@ -2597,6 +2597,82 @@ namespace AuditCkDayo.Tests
 
             await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync());
         }
+
+        private static IFormFile CreateMockFormFile(string filename, string content)
+        {
+            var bytes = System.Text.Encoding.UTF8.GetBytes(content);
+            var stream = new MemoryStream(bytes);
+            return new FormFile(stream, 0, bytes.Length, "reportImages", filename)
+            {
+                Headers = new HeaderDictionary(),
+                ContentType = "image/jpeg"
+            };
+        }
+
+        [Fact]
+        public async Task Upload_PostWithNoImages_ReturnsViewAndAddsModelError()
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedDraftSalesReportAsync(context);
+            var controller = CreateController(context);
+            
+            var result = await controller.Upload(1, DateTime.Today, DateTime.Today, "Cashier", new List<IFormFile>());
+            
+            Assert.IsType<ViewResult>(result);
+            Assert.False(controller.ModelState.IsValid);
+            Assert.Contains(controller.ModelState[string.Empty]!.Errors, e => e.ErrorMessage.Contains("at least one", StringComparison.OrdinalIgnoreCase));
+        }
+
+        [Fact]
+        public async Task Upload_PostWithTooManyImages_ReturnsViewAndAddsModelError()
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedDraftSalesReportAsync(context);
+            var controller = CreateController(context);
+            var images = new List<IFormFile>
+            {
+                CreateMockFormFile("1.jpg", "abc"),
+                CreateMockFormFile("2.jpg", "abc"),
+                CreateMockFormFile("3.jpg", "abc"),
+                CreateMockFormFile("4.jpg", "abc"),
+                CreateMockFormFile("5.jpg", "abc"),
+                CreateMockFormFile("6.jpg", "abc")
+            };
+            
+            var result = await controller.Upload(1, DateTime.Today, DateTime.Today, "Cashier", images);
+            
+            Assert.IsType<ViewResult>(result);
+            Assert.False(controller.ModelState.IsValid);
+            Assert.Contains(controller.ModelState[string.Empty]!.Errors, e => e.ErrorMessage.Contains("up to 5", StringComparison.OrdinalIgnoreCase));
+        }
+
+        [Fact]
+        public async Task Upload_PostWithValidMultipleImages_SavesDraftReportAndImages()
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedDraftSalesReportAsync(context);
+            var controller = CreateController(context);
+            var images = new List<IFormFile>
+            {
+                CreateMockFormFile("1.jpg", "abc"),
+                CreateMockFormFile("2.jpg", "def")
+            };
+            
+            var result = await controller.Upload(1, new DateTime(2026, 8, 10), new DateTime(2026, 8, 11), "Cashier Main", images);
+            
+            var redirect = Assert.IsType<RedirectToActionResult>(result);
+            Assert.Equal(nameof(SalesReportsController.Review), redirect.ActionName);
+            
+            // Retrieve from database to verify
+            var report = await context.SalesReports.Include(r => r.DocumentRecord).OrderByDescending(r => r.Id).FirstAsync();
+            Assert.Equal(1, report.EstablishmentId);
+            Assert.Equal(SalesReportStatus.Draft, report.Status);
+            Assert.Equal("Cashier Main", report.CashierName);
+            Assert.NotNull(report.ImageUrls);
+            Assert.Equal(2, report.ImageUrls.Count);
+            Assert.Contains("/SalesReports/Image/", report.ImageUrls[0]);
+            Assert.Contains("/SalesReports/Image/", report.ImageUrls[1]);
+        }
     }
 
     public class AuditSettlementTests
@@ -2806,14 +2882,14 @@ namespace AuditCkDayo.Tests
         [Theory]
         [InlineData(nameof(AuditsController.Upload))]
         [InlineData(nameof(AuditsController.ProcessUpload))]
-        public void ReceiptAuditEntryPoints_DoNotAllowBranchStaff(string actionName)
+        public void ReceiptAuditEntryPoints_AllowBranchStaffForPcfPurchases(string actionName)
         {
             var method = typeof(AuditsController).GetMethods()
                 .Single(method => method.Name == actionName);
 
             var authorize = Assert.Single(method.GetCustomAttributes(typeof(AuthorizeAttribute), inherit: false).Cast<AuthorizeAttribute>());
 
-            Assert.DoesNotContain("BranchStaff", authorize.Roles ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("BranchStaff", authorize.Roles ?? string.Empty, StringComparison.OrdinalIgnoreCase);
         }
 
         [Fact]

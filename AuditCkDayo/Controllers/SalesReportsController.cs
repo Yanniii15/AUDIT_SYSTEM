@@ -34,7 +34,7 @@ namespace AuditCkDayo.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Upload(int establishmentId, DateTime businessDate, DateTime handoverDate, string? cashierName, IFormFile? reportImage)
+        public async Task<IActionResult> Upload(int establishmentId, DateTime businessDate, DateTime handoverDate, string? cashierName, List<IFormFile>? reportImages)
         {
             var currentUserId = GetCurrentUserId();
             if (!currentUserId.HasValue)
@@ -64,33 +64,54 @@ namespace AuditCkDayo.Controllers
                 ModelState.AddModelError(nameof(handoverDate), "Handover date is required.");
             }
 
-            if (reportImage == null || reportImage.Length == 0)
+            if (reportImages == null || reportImages.Count == 0)
             {
-                ModelState.AddModelError(nameof(reportImage), "Please upload a non-empty sales report image.");
+                ModelState.AddModelError("", "Please upload at least one valid sales report image.");
+            }
+            else if (reportImages.Count > 5)
+            {
+                ModelState.AddModelError("", "You can upload up to 5 sales report images.");
+            }
+            else
+            {
+                foreach (var reportImage in reportImages)
+                {
+                    if (reportImage.Length == 0)
+                    {
+                        ModelState.AddModelError("", "Empty image files are not allowed.");
+                    }
+                    var ext = Path.GetExtension(reportImage.FileName).ToLowerInvariant();
+                    if (!AllowedImageExtensions.Contains(ext))
+                    {
+                        ModelState.AddModelError("", $"Please upload a PNG, JPG, JPEG, or WEBP image. Invalid file: {reportImage.FileName}");
+                    }
+                }
             }
 
-            var extension = reportImage == null ? string.Empty : Path.GetExtension(reportImage.FileName).ToLowerInvariant();
-            if (reportImage != null && !AllowedImageExtensions.Contains(extension))
-            {
-                ModelState.AddModelError(nameof(reportImage), "Please upload a PNG, JPG, JPEG, or WEBP image.");
-            }
-
-            if (!ModelState.IsValid || reportImage == null)
+            if (!ModelState.IsValid || reportImages == null || reportImages.Count == 0)
             {
                 return View();
             }
 
-
             var uploadsFolder = GetUploadsFolder();
             Directory.CreateDirectory(uploadsFolder);
 
-            var generatedFileName = $"{Guid.NewGuid():N}{extension}";
-            var filePath = Path.Combine(uploadsFolder, generatedFileName);
-
-            await using (var fileStream = new FileStream(filePath, FileMode.CreateNew))
+            var savedUrls = new List<string>();
+            foreach (var reportImage in reportImages)
             {
-                await reportImage.CopyToAsync(fileStream);
+                var ext = Path.GetExtension(reportImage.FileName).ToLowerInvariant();
+                var generatedFileName = $"{Guid.NewGuid():N}{ext}";
+                var filePath = Path.Combine(uploadsFolder, generatedFileName);
+
+                await using (var fileStream = new FileStream(filePath, FileMode.CreateNew))
+                {
+                    await reportImage.CopyToAsync(fileStream);
+                 }
+                savedUrls.Add($"/SalesReports/Image/{generatedFileName}");
             }
+
+            // Primary image for compatibility
+            var firstImagePath = Path.Combine(uploadsFolder, Path.GetFileName(savedUrls[0]));
 
             SalesReportOcrResult? ocrResult = null;
             var ocrStatus = OcrStatus.Failed;
@@ -98,7 +119,7 @@ namespace AuditCkDayo.Controllers
 
             try
             {
-                await using var ocrStream = System.IO.File.OpenRead(filePath);
+                await using var ocrStream = System.IO.File.OpenRead(firstImagePath);
                 ocrResult = await _ocrService.ParseSalesReportAsync(ocrStream);
                 ocrStatus = OcrStatus.Parsed;
                 ocrRawJson = string.IsNullOrWhiteSpace(ocrResult.RawJson)
@@ -115,7 +136,7 @@ namespace AuditCkDayo.Controllers
                 DocumentType = DocumentType.DailySalesReport,
                 UploadedByUserId = currentUserId.Value,
                 UploadedAt = DateTime.UtcNow,
-                ImageUrl = $"/SalesReports/Image/{generatedFileName}",
+                ImageUrl = savedUrls[0],
                 OcrRawJson = ocrRawJson,
                 OcrStatus = ocrStatus,
                 ReviewStatus = DocumentReviewStatus.Draft
@@ -142,6 +163,7 @@ namespace AuditCkDayo.Controllers
                 WitnessName = ocrResult?.WitnessName,
                 Status = SalesReportStatus.Draft
             };
+            report.ImageUrls = savedUrls;
 
             _context.SalesReports.Add(report);
             await _context.SaveChangesAsync();
@@ -156,6 +178,7 @@ namespace AuditCkDayo.Controllers
             var report = await _context.SalesReports
                 .AsNoTracking()
                 .Include(r => r.DocumentRecord)
+                .Include(r => r.CashBreakdownLines)
                 .FirstOrDefaultAsync(r => r.Id == id);
 
             if (report == null)
@@ -183,6 +206,7 @@ namespace AuditCkDayo.Controllers
 
             var report = await _context.SalesReports
                 .Include(r => r.DocumentRecord)
+                .Include(r => r.CashBreakdownLines)
                 .FirstOrDefaultAsync(r => r.Id == model.SalesReportId.Value && r.DocumentRecordId == model.DocumentRecordId);
 
             if (report == null)
@@ -217,6 +241,23 @@ namespace AuditCkDayo.Controllers
             }
 
             ApplyReviewModel(report, model);
+
+            _context.CashBreakdownLines.RemoveRange(report.CashBreakdownLines);
+            report.CashBreakdownLines.Clear();
+            if (model.Items != null)
+            {
+                foreach (var item in model.Items)
+                {
+                    report.CashBreakdownLines.Add(new CashBreakdownLine
+                    {
+                        OwnerType = CashBreakdownOwnerType.SalesReport,
+                        OwnerId = report.Id,
+                        Denomination = item.Denomination,
+                        Quantity = item.Quantity,
+                        Total = item.Denomination * item.Quantity
+                    });
+                }
+            }
 
             if (isConfirmAction)
             {
@@ -374,7 +415,8 @@ namespace AuditCkDayo.Controllers
                 ReceiptNumberEnd = report.ReceiptNumberEnd,
                 WitnessName = report.WitnessName,
                 Notes = report.Notes,
-                ImageUrl = report.DocumentRecord.ImageUrl
+                ImageUrl = report.DocumentRecord?.ImageUrl ?? string.Empty,
+                ImageUrls = report.ImageUrls
             };
         }
 
