@@ -16,6 +16,7 @@ using AuditCkDayo.Controllers;
 using AuditCkDayo.Data;
 using AuditCkDayo.Models;
 using AuditCkDayo.Services;
+using AuditCkDayo.ViewModels;
 using Xunit;
 
 namespace AuditCkDayo.Tests
@@ -1228,6 +1229,24 @@ namespace AuditCkDayo.Tests
 
             Assert.Equal(DeleteBehavior.Restrict, uploadedBy.DeleteBehavior);
             Assert.Equal(DeleteBehavior.Restrict, confirmedBy.DeleteBehavior);
+        }
+    }
+
+    public class TreasuryReportViewModelTests
+    {
+        [Fact]
+        public void TreasuryReportSummary_CanSeparateBranchAndCostCenterTotals()
+        {
+            var summary = new TreasuryReportSummary
+            {
+                Label = "CKR Main",
+                BranchTotal = 29528m,
+                CostCenterTotal = 0m
+            };
+
+            Assert.Equal("CKR Main", summary.Label);
+            Assert.Equal(29528m, summary.BranchTotal);
+            Assert.Equal(0m, summary.CostCenterTotal);
         }
     }
 

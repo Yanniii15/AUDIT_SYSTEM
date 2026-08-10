@@ -30,6 +30,7 @@ public class ReportsViewModel
 
     public List<ReportStatusSummary> StatusSummaries { get; set; } = new();
     public List<ReportEstablishmentSummary> EstablishmentSummaries { get; set; } = new();
+    public List<TreasuryReportSummary> TreasurySummaries { get; set; } = new();
     public List<AuditItem> RecentAudits { get; set; } = new();
     public List<SurrenderRequest> SurrenderRequests { get; set; } = new();
     public List<PettyCashLedger> LedgerEntries { get; set; } = new();
@@ -47,4 +48,14 @@ public class ReportEstablishmentSummary
     public string Establishment { get; set; } = string.Empty;
     public int Count { get; set; }
     public decimal Amount { get; set; }
+}
+
+public class TreasuryReportSummary
+{
+    public string Label { get; set; } = string.Empty;
+    public decimal BranchTotal { get; set; }
+    public decimal CostCenterTotal { get; set; }
+    public decimal CashInTotal { get; set; }
+    public decimal CashOutTotal { get; set; }
+    public decimal ShortOverTotal { get; set; }
 }
