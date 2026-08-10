@@ -1230,5 +1230,31 @@ namespace AuditCkDayo.Tests
             Assert.Equal(DeleteBehavior.Restrict, confirmedBy.DeleteBehavior);
         }
     }
+
+    public class TreasuryCashFlowTests
+    {
+        [Fact]
+        public void CashFlow_RecomputesTotalsFromEntries()
+        {
+            var flow = new TreasuryCashFlow
+            {
+                TreasuryUserId = 1,
+                CashFlowDate = new DateTime(2026, 8, 6),
+                StartingBalance = 48212m,
+                Entries = new List<CashFlowEntry>
+                {
+                    new CashFlowEntry { Direction = CashFlowDirection.In, Category = CashFlowCategory.Sales, Amount = 29528m },
+                    new CashFlowEntry { Direction = CashFlowDirection.Out, Category = CashFlowCategory.PcfRelease, Amount = 8000m }
+                }
+            };
+
+            flow.RecomputeTotals();
+
+            Assert.Equal(29528m, flow.TotalCashIn);
+            Assert.Equal(8000m, flow.TotalCashOut);
+            Assert.Equal(77740m, flow.NetCashFlow);
+            Assert.Equal(69740m, flow.ClosingBalance);
+        }
     }
+}
 }

@@ -19,6 +19,8 @@ namespace AuditCkDayo.Data
         public DbSet<DocumentRecord> DocumentRecords { get; set; }
         public DbSet<SalesReport> SalesReports { get; set; }
         public DbSet<CashBreakdownLine> CashBreakdownLines { get; set; }
+        public DbSet<TreasuryCashFlow> TreasuryCashFlows { get; set; }
+        public DbSet<CashFlowEntry> CashFlowEntries { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -250,6 +252,70 @@ namespace AuditCkDayo.Data
                 .Property(c => c.OwnerType)
                 .HasConversion<string>()
                 .HasMaxLength(50);
+
+            // TreasuryCashFlow configuration
+            modelBuilder.Entity<TreasuryCashFlow>()
+                .Property(t => t.Status)
+                .HasConversion<string>()
+                .HasMaxLength(50);
+
+            modelBuilder.Entity<TreasuryCashFlow>()
+                .HasOne(t => t.TreasuryUser)
+                .WithMany()
+                .HasForeignKey(t => t.TreasuryUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<TreasuryCashFlow>()
+                .HasMany(t => t.Entries)
+                .WithOne(e => e.TreasuryCashFlow)
+                .HasForeignKey(e => e.TreasuryCashFlowId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<CashFlowEntry>()
+                .Property(e => e.Direction)
+                .HasConversion<string>()
+                .HasMaxLength(20);
+
+            modelBuilder.Entity<CashFlowEntry>()
+                .Property(e => e.Category)
+                .HasConversion<string>()
+                .HasMaxLength(50);
+
+            modelBuilder.Entity<CashFlowEntry>()
+                .HasOne(e => e.Establishment)
+                .WithMany()
+                .HasForeignKey(e => e.EstablishmentId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<CashFlowEntry>()
+                .HasOne(e => e.CostCenter)
+                .WithMany()
+                .HasForeignKey(e => e.CostCenterId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<CashFlowEntry>()
+                .HasOne(e => e.RelatedUser)
+                .WithMany()
+                .HasForeignKey(e => e.RelatedUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<CashFlowEntry>()
+                .HasOne(e => e.SourceDocument)
+                .WithMany()
+                .HasForeignKey(e => e.SourceDocumentId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<CashFlowEntry>()
+                .HasOne(e => e.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(e => e.CreatedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<CashFlowEntry>()
+                .HasOne(e => e.ConfirmedByUser)
+                .WithMany()
+                .HasForeignKey(e => e.ConfirmedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
 
             // Notification configuration
             modelBuilder.Entity<Notification>()
