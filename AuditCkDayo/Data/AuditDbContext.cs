@@ -15,6 +15,7 @@ namespace AuditCkDayo.Data
         public DbSet<PettyCashLedger> PettyCashLedgers { get; set; }
         public DbSet<SurrenderRequest> SurrenderRequests { get; set; }
         public DbSet<Notification> Notifications { get; set; }
+        public DbSet<CostCenter> CostCenters { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -60,6 +61,48 @@ namespace AuditCkDayo.Data
             modelBuilder.Entity<Establishment>()
                 .HasIndex(e => e.Name)
                 .IsUnique();
+
+            modelBuilder.Entity<Establishment>()
+                .Property(e => e.IsOperatingBranch)
+                .HasDefaultValue(true);
+
+            modelBuilder.Entity<Establishment>()
+                .Property(e => e.IsMiscellaneous)
+                .HasDefaultValue(false);
+
+            modelBuilder.Entity<Establishment>()
+                .Property(e => e.IsActive)
+                .HasDefaultValue(true);
+
+            modelBuilder.Entity<CostCenter>()
+                .HasIndex(c => c.Name)
+                .IsUnique();
+
+            modelBuilder.Entity<CostCenter>()
+                .Property(c => c.Category)
+                .HasConversion<string>()
+                .HasMaxLength(50);
+
+            modelBuilder.Entity<CostCenter>()
+                .Property(c => c.IsActive)
+                .HasDefaultValue(true);
+
+            modelBuilder.Entity<AuditItemDetail>()
+                .Property(ad => ad.ReceiptStatus)
+                .HasConversion<string>()
+                .HasMaxLength(50);
+
+            modelBuilder.Entity<AuditItemDetail>()
+                .HasOne(ad => ad.AssignedEstablishment)
+                .WithMany()
+                .HasForeignKey(ad => ad.AssignedEstablishmentId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<AuditItemDetail>()
+                .HasOne(ad => ad.CostCenter)
+                .WithMany()
+                .HasForeignKey(ad => ad.CostCenterId)
+                .OnDelete(DeleteBehavior.Restrict);
 
             // AuditItem configuration
             modelBuilder.Entity<AuditItem>()

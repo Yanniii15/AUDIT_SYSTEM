@@ -46,6 +46,8 @@ namespace AuditCkDayo.Models
 
         public bool IsDeleted { get; set; }
 
+        public bool IsTreasury { get; set; }
+
 
         public int? EstablishmentId { get; set; }
 

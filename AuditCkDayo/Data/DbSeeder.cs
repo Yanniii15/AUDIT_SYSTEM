@@ -24,6 +24,24 @@ namespace AuditCkDayo.Data
                 db.SaveChanges();
             }
 
+            if (!db.CostCenters.Any())
+            {
+                var costCenters = new List<CostCenter>
+                {
+                    new CostCenter { Name = "Cater", Category = CostCenterCategory.Cater },
+                    new CostCenter { Name = "Comm", Category = CostCenterCategory.Comm },
+                    new CostCenter { Name = "Payroll", Category = CostCenterCategory.Payroll },
+                    new CostCenter { Name = "Utilities", Category = CostCenterCategory.Utilities },
+                    new CostCenter { Name = "Staff Meal", Category = CostCenterCategory.StaffMeal },
+                    new CostCenter { Name = "Vehicle", Category = CostCenterCategory.Vehicle },
+                    new CostCenter { Name = "Person Tag", Category = CostCenterCategory.PersonTag },
+                    new CostCenter { Name = "Miscellaneous", Category = CostCenterCategory.Miscellaneous },
+                    new CostCenter { Name = "Others", Category = CostCenterCategory.Others }
+                };
+                db.CostCenters.AddRange(costCenters);
+                db.SaveChanges();
+            }
+
             var defaultPasswordHash = BCrypt.Net.BCrypt.HashPassword("Password123!");
 
             User EnsureUser(string email, Func<User> createUser)

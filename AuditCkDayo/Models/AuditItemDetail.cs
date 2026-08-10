@@ -3,6 +3,13 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace AuditCkDayo.Models
 {
+    public enum ReceiptLineStatus
+    {
+        HasReceipt,
+        NoReceipt,
+        NotRequired
+    }
+
     public class AuditItemDetail
     {
         [Key]
@@ -28,5 +35,21 @@ namespace AuditCkDayo.Models
         [Required]
         [Column(TypeName = "decimal(12,2)")]
         public decimal Total { get; set; }
+
+        public int? AssignedEstablishmentId { get; set; }
+
+        [ForeignKey("AssignedEstablishmentId")]
+        public virtual Establishment? AssignedEstablishment { get; set; }
+
+        public int? CostCenterId { get; set; }
+
+        [ForeignKey("CostCenterId")]
+        public virtual CostCenter? CostCenter { get; set; }
+
+        [Required]
+        public ReceiptLineStatus ReceiptStatus { get; set; } = ReceiptLineStatus.HasReceipt;
+
+        [MaxLength(255)]
+        public string? AllocationNotes { get; set; }
     }
 }

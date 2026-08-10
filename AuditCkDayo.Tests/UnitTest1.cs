@@ -1047,5 +1047,51 @@ namespace AuditCkDayo.Tests
             }
         }
     }
+
+    public class ClassificationModelTests
+    {
+        [Fact]
+        public void Establishment_OperatingBranch_DefaultsToTrueForRealBranch()
+        {
+            var establishment = new Establishment { Name = "CKR Branch 5", IsOperatingBranch = true };
+
+            Assert.True(establishment.IsOperatingBranch);
+            Assert.False(establishment.IsMiscellaneous);
+        }
+
+        [Fact]
+        public void CostCenter_RepresentsNonBranchClassification()
+        {
+            var costCenter = new CostCenter
+            {
+                Name = "Utilities",
+                Category = CostCenterCategory.Utilities,
+                IsActive = true
+            };
+
+            Assert.Equal("Utilities", costCenter.Name);
+            Assert.Equal(CostCenterCategory.Utilities, costCenter.Category);
+            Assert.True(costCenter.IsActive);
+        }
+
+        [Fact]
+        public void AuditItemDetail_AllowsLineLevelBranchOrCostCenterAssignment()
+        {
+            var detail = new AuditItemDetail
+            {
+                ItemName = "Water",
+                Quantity = 1,
+                Price = 100m,
+                Total = 100m,
+                AssignedEstablishmentId = 2,
+                CostCenterId = null,
+                ReceiptStatus = ReceiptLineStatus.HasReceipt
+            };
+
+            Assert.Equal(2, detail.AssignedEstablishmentId);
+            Assert.Null(detail.CostCenterId);
+            Assert.Equal(ReceiptLineStatus.HasReceipt, detail.ReceiptStatus);
+        }
+    }
     }
 }
