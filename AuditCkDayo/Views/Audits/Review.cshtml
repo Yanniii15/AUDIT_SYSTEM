@@ -141,6 +141,8 @@
                                     <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-20">Qty</th>
                                     <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-28 text-right">Price (₱)</th>
                                     <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-28 text-right">Total (₱)</th>
+                                    <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-36">Split Branch</th>
+                                    <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-36">Cost Center</th>
                                     <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-12 text-center">Action</th>
                                 </tr>
                             </thead>
@@ -163,6 +165,18 @@
                                         <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2 text-right">
                                             <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Total (₱)</label>
                                             <input asp-for="Items[i].Total" class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none text-right total-input" type="number" step="0.01" min="0.00" readonly />
+                                        </td>
+                                        <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2">
+                                            <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Split Branch</label>
+                                            <select asp-for="Items[i].AssignedEstablishmentId" asp-items="ViewBag.Establishments" class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none branch-select">
+                                                <option value="">(Inherit Main)</option>
+                                            </select>
+                                        </td>
+                                        <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2">
+                                            <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Cost Center</label>
+                                            <select asp-for="Items[i].CostCenterId" asp-items="ViewBag.CostCenters" class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none costcenter-select">
+                                                <option value="">(None)</option>
+                                            </select>
                                         </td>
                                         <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2 text-center flex items-center justify-end lg:justify-center">
                                             <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Action</label>
@@ -238,6 +252,19 @@
                 totalInput.name = `Items[${idx}].Total`;
                 totalInput.id = `Items_${idx}__Total`;
             }
+
+            // Update branch select
+            const branchSelect = row.querySelector('.branch-select');
+            if (branchSelect) {
+                branchSelect.name = `Items[${idx}].AssignedEstablishmentId`;
+                branchSelect.id = `Items_${idx}__AssignedEstablishmentId`;
+            }
+            // Update cost center select
+            const ccSelect = row.querySelector('.costcenter-select');
+            if (ccSelect) {
+                ccSelect.name = `Items[${idx}].CostCenterId`;
+                ccSelect.id = `Items_${idx}__CostCenterId`;
+            }
         });
     }
 
@@ -268,6 +295,10 @@
         const body = document.getElementById('line-items-body');
         const newRow = document.createElement('tr');
         newRow.className = 'hover:bg-surface-container-low/30 transition-colors line-item-row block lg:table-row grid grid-cols-2 gap-x-space-4 gap-y-space-3 p-space-4 border border-surface-border lg:border-0 rounded-xl bg-surface-container-lowest lg:bg-transparent shadow-sm lg:shadow-none';
+        
+        const establishmentOptions = document.getElementById('establishment-select-template').innerHTML;
+        const costCenterOptions = document.getElementById('costcenter-select-template').innerHTML;
+        
         newRow.innerHTML = `
             <td class="col-span-2 lg:col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2">
                 <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Item Description</label>
@@ -284,6 +315,18 @@
             <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2 text-right">
                 <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Total (₱)</label>
                 <input class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none text-right total-input" type="number" step="0.01" min="0.00" value="0.00" readonly />
+            </td>
+            <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2">
+                <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Split Branch</label>
+                <select class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none branch-select">
+                    ${establishmentOptions}
+                </select>
+            </td>
+            <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2">
+                <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Cost Center</label>
+                <select class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none costcenter-select">
+                    ${costCenterOptions}
+                </select>
             </td>
             <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2 text-center flex items-center justify-end lg:justify-center">
                 <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Action</label>
@@ -368,4 +411,13 @@
         <img src="" id="lightbox-img" class="max-w-full max-h-[88vh] object-contain rounded-lg shadow-2xl bg-white border border-surface-border" />
         <span class="text-on-primary/60 text-[11px] font-label-caps uppercase mt-space-3 pointer-events-none">Click anywhere to close</span>
     </div>
+</div>
+
+<div class="hidden">
+    <select id="establishment-select-template" asp-items="ViewBag.Establishments">
+        <option value="">(Inherit Main)</option>
+    </select>
+    <select id="costcenter-select-template" asp-items="ViewBag.CostCenters">
+        <option value="">(None)</option>
+    </select>
 </div>

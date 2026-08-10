@@ -11,6 +11,8 @@ namespace AuditCkDayo.Services
         public int Quantity { get; set; } = 1;
         public decimal Price { get; set; }
         public decimal Total { get; set; }
+        public int? AssignedEstablishmentId { get; set; }
+        public int? CostCenterId { get; set; }
     }
 
     public class OcrResult

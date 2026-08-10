@@ -148,6 +148,8 @@ namespace AuditCkDayo.Controllers
 
             var establishments = await _context.Establishments.ToListAsync();
             ViewBag.Establishments = new SelectList(establishments, "Id", "Name");
+            var costCenters = await _context.CostCenters.Where(c => c.IsActive).ToListAsync();
+            ViewBag.CostCenters = new SelectList(costCenters, "Id", "Name");
 
             var itemsJson = HttpContext.Session.GetString("OcrItems") ?? "[]";
             var items = System.Text.Json.JsonSerializer.Deserialize<List<OcrItemResult>>(itemsJson) ?? new();
@@ -185,6 +187,8 @@ namespace AuditCkDayo.Controllers
             {
                 var establishments = await _context.Establishments.ToListAsync();
                 ViewBag.Establishments = new SelectList(establishments, "Id", "Name", model.EstablishmentId);
+                var costCenters = await _context.CostCenters.Where(c => c.IsActive).ToListAsync();
+                ViewBag.CostCenters = new SelectList(costCenters, "Id", "Name");
                 return View("Review", model);
             }
 
@@ -194,6 +198,8 @@ namespace AuditCkDayo.Controllers
                 ModelState.AddModelError("EstablishmentId", "The selected establishment does not exist.");
                 var establishments = await _context.Establishments.ToListAsync();
                 ViewBag.Establishments = new SelectList(establishments, "Id", "Name", model.EstablishmentId);
+                var costCenters = await _context.CostCenters.Where(c => c.IsActive).ToListAsync();
+                ViewBag.CostCenters = new SelectList(costCenters, "Id", "Name");
                 return View("Review", model);
             }
 
@@ -206,6 +212,8 @@ namespace AuditCkDayo.Controllers
                         ModelState.AddModelError("", "Line item quantities, prices, and totals must be non-negative.");
                         var establishments = await _context.Establishments.ToListAsync();
                         ViewBag.Establishments = new SelectList(establishments, "Id", "Name", model.EstablishmentId);
+                        var costCenters = await _context.CostCenters.Where(c => c.IsActive).ToListAsync();
+                        ViewBag.CostCenters = new SelectList(costCenters, "Id", "Name");
                         return View("Review", model);
                     }
                 }
@@ -216,6 +224,8 @@ namespace AuditCkDayo.Controllers
                 ModelState.AddModelError("", $"Insufficient Petty Cash Fund balance. Required: ₱{model.Amount:N2}, Available: ₱{buyer.PcfBalance:N2}");
                 var establishments = await _context.Establishments.ToListAsync();
                 ViewBag.Establishments = new SelectList(establishments, "Id", "Name", model.EstablishmentId);
+                var costCenters = await _context.CostCenters.Where(c => c.IsActive).ToListAsync();
+                ViewBag.CostCenters = new SelectList(costCenters, "Id", "Name");
                 return View("Review", model);
             }
 
@@ -263,7 +273,9 @@ namespace AuditCkDayo.Controllers
                             ItemName = itemName,
                             Quantity = item.Quantity,
                             Price = item.Price,
-                            Total = item.Total
+                            Total = item.Total,
+                            AssignedEstablishmentId = item.AssignedEstablishmentId,
+                            CostCenterId = item.CostCenterId
                         };
                         auditItem.Details.Add(detail);
                     }
