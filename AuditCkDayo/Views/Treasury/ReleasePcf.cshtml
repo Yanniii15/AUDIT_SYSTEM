@@ -5,3 +5,62 @@
 
 <h1 class="font-headline-lg text-headline-lg text-on-surface">Release PCF</h1>
 <p class="text-on-surface-variant">Record treasury cash released to a branch, buyer, staff member, or external receiver.</p>
+
+
+<form asp-action="ReleasePcf" method="post" class="mt-space-6 max-w-3xl bg-surface-container-lowest border border-surface-border rounded-xl p-space-6 shadow-sm flex flex-col gap-space-5">
+    @Html.AntiForgeryToken()
+    <div asp-validation-summary="ModelOnly" class="text-audit-error text-sm"></div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-space-4">
+        <label class="flex flex-col gap-space-2">
+            <span class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Release Date</span>
+            <input asp-for="ReleaseDate" type="date" class="bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-space-3 text-on-surface focus:outline-none focus:border-primary" required />
+            <span asp-validation-for="ReleaseDate" class="text-audit-error text-[11px]"></span>
+        </label>
+
+        <label class="flex flex-col gap-space-2">
+            <span class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Amount</span>
+            <input asp-for="Amount" type="number" step="0.01" min="0.01" class="bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-space-3 text-on-surface focus:outline-none focus:border-primary" placeholder="0.00" required />
+            <span asp-validation-for="Amount" class="text-audit-error text-[11px]"></span>
+        </label>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-space-4">
+        <label class="flex flex-col gap-space-2">
+            <span class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Receiver User</span>
+            <select asp-for="ReceiverUserId" asp-items="ViewBag.ReceiverUsers" class="bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-space-3 text-on-surface focus:outline-none focus:border-primary">
+                <option value="">External / manual receiver</option>
+            </select>
+            <span asp-validation-for="ReceiverUserId" class="text-audit-error text-[11px]"></span>
+        </label>
+
+        <label class="flex flex-col gap-space-2">
+            <span class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Receiver Name</span>
+            <input asp-for="ReceiverName" class="bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-space-3 text-on-surface focus:outline-none focus:border-primary" placeholder="Name for external or walk-up receiver" />
+            <span asp-validation-for="ReceiverName" class="text-audit-error text-[11px]"></span>
+        </label>
+    </div>
+
+    <label class="flex flex-col gap-space-2">
+        <span class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Operating Branch</span>
+        <select asp-for="EstablishmentId" asp-items="ViewBag.Establishments" class="bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-space-3 text-on-surface focus:outline-none focus:border-primary">
+            <option value="">No branch / treasury release</option>
+        </select>
+        <span asp-validation-for="EstablishmentId" class="text-audit-error text-[11px]"></span>
+    </label>
+
+    <label class="flex flex-col gap-space-2">
+        <span class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Purpose</span>
+        <textarea asp-for="Purpose" rows="4" maxlength="255" class="bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-space-3 text-on-surface focus:outline-none focus:border-primary" placeholder="What this PCF release is for"></textarea>
+        <span asp-validation-for="Purpose" class="text-audit-error text-[11px]"></span>
+    </label>
+
+    <div class="flex flex-col sm:flex-row gap-space-3 sm:items-center sm:justify-between pt-space-2">
+        <a asp-controller="Treasury" asp-action="Index" class="text-on-surface-variant hover:text-primary">Back to Treasury</a>
+        <button type="submit" class="bg-primary text-on-primary rounded-lg px-space-5 py-space-3 font-label-lg hover:opacity-90 transition-opacity">Save PCF Release</button>
+    </div>
+</form>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

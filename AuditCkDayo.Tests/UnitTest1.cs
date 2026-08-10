@@ -1458,6 +1458,251 @@ namespace AuditCkDayo.Tests
         }
     }
 
+    public class PcfReleaseUsabilityTests : IDisposable
+    {
+        private readonly SqliteConnection _connection;
+        private readonly DbContextOptions<AuditDbContext> _options;
+
+        public PcfReleaseUsabilityTests()
+        {
+            _connection = new SqliteConnection("Filename=:memory:");
+            _connection.Open();
+
+            _options = new DbContextOptionsBuilder<AuditDbContext>()
+                .UseSqlite(_connection)
+                .Options;
+
+            using var context = new AuditDbContext(_options);
+            context.Database.EnsureCreated();
+        }
+
+        public void Dispose()
+        {
+            _connection.Dispose();
+        }
+
+        private static TreasuryController CreateController(AuditDbContext context, int currentUserId = 1)
+        {
+            var claims = new List<Claim>
+            {
+                new Claim(ClaimTypes.NameIdentifier, currentUserId.ToString()),
+                new Claim(ClaimTypes.Role, "Owner")
+            };
+
+            var httpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"))
+            };
+
+            return new TreasuryController(context)
+            {
+                ControllerContext = new ControllerContext
+                {
+                    HttpContext = httpContext
+                },
+                TempData = new TempDataDictionary(httpContext, new FakeTempDataProvider())
+            };
+        }
+
+        private static async Task SeedReleaseLookupsAsync(AuditDbContext context)
+        {
+            context.Establishments.AddRange(
+                new Establishment
+                {
+                    Id = 1,
+                    Name = "Operating Branch",
+                    IsOperatingBranch = true,
+                    IsActive = true
+                },
+                new Establishment
+                {
+                    Id = 2,
+                    Name = "Inactive Branch",
+                    IsOperatingBranch = true,
+                    IsActive = false
+                });
+
+            context.Users.AddRange(
+                new User
+                {
+                    Id = 1,
+                    Name = "Treasury Owner",
+                    Email = "pcf-release-treasury@test.com",
+                    PasswordHash = "hash",
+                    Role = UserRole.Owner,
+                    IsTreasury = true
+                },
+                new User
+                {
+                    Id = 2,
+                    Name = "Branch Receiver",
+                    Email = "pcf-release-receiver@test.com",
+                    PasswordHash = "hash",
+                    Role = UserRole.BranchStaff,
+                    EstablishmentId = 1
+                });
+
+            await context.SaveChangesAsync();
+        }
+
+        [Fact]
+        public async Task ReleasePcf_GetLoadsUsableFormLookupsAndDefaultsDateToToday()
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedReleaseLookupsAsync(context);
+            var controller = CreateController(context);
+
+            var result = await controller.ReleasePcf();
+
+            var viewResult = Assert.IsType<ViewResult>(result);
+            var model = Assert.IsType<PcfReleaseViewModel>(viewResult.Model);
+            Assert.Equal(DateTime.Today, model.ReleaseDate.Date);
+
+            var receivers = Assert.IsAssignableFrom<SelectList>((object)controller.ViewBag.ReceiverUsers);
+            Assert.Contains(receivers, item => item.Value == "2" && item.Text == "Branch Receiver");
+
+            var establishments = Assert.IsAssignableFrom<SelectList>((object)controller.ViewBag.Establishments);
+            Assert.Contains(establishments, item => item.Value == "1" && item.Text == "Operating Branch");
+            Assert.DoesNotContain(establishments, item => item.Value == "2");
+        }
+
+        [Fact]
+        public async Task ReleasePcf_PostSavesReleaseCashOutEntryAndRecomputesDailyTotals()
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedReleaseLookupsAsync(context);
+            var releaseDate = new DateTime(2026, 8, 11);
+            var controller = CreateController(context, currentUserId: 1);
+            var model = new PcfReleaseViewModel
+            {
+                ReleaseDate = releaseDate,
+                Amount = 750m,
+                ReceiverUserId = 2,
+                ReceiverName = "External Receiver",
+                EstablishmentId = 1,
+                Purpose = "Branch replenishment"
+            };
+
+            var result = await controller.ReleasePcf(model);
+
+            var redirect = Assert.IsType<RedirectToActionResult>(result);
+            Assert.Equal(nameof(TreasuryController.Index), redirect.ActionName);
+            Assert.Equal("Treasury", redirect.ControllerName);
+            Assert.Equal(releaseDate.Date, redirect.RouteValues?["date"]);
+            Assert.Equal("PCF release saved.", controller.TempData["Message"]);
+
+            var release = await context.PcfReleases.AsNoTracking().SingleAsync();
+            Assert.Equal(1, release.ReleasedByTreasuryUserId);
+            Assert.Equal(2, release.ReceiverUserId);
+            Assert.Equal("External Receiver", release.ReceiverName);
+            Assert.Equal(1, release.EstablishmentId);
+            Assert.Equal(750m, release.Amount);
+            Assert.Equal(releaseDate.Date, release.ReleaseDate);
+            Assert.Equal("Branch replenishment", release.Purpose);
+            Assert.NotNull(release.CashFlowEntryId);
+
+            var flow = await context.TreasuryCashFlows
+                .Include(f => f.Entries)
+                .AsNoTracking()
+                .SingleAsync(f => f.CashFlowDate == releaseDate.Date);
+            Assert.Equal(1, flow.TreasuryUserId);
+            Assert.Equal(0m, flow.StartingBalance);
+            Assert.Equal(0m, flow.TotalCashIn);
+            Assert.Equal(750m, flow.TotalCashOut);
+            Assert.Equal(0m, flow.NetCashFlow);
+            Assert.Equal(-750m, flow.ClosingBalance);
+
+            var entry = Assert.Single(flow.Entries);
+            Assert.Equal(release.CashFlowEntryId, entry.Id);
+            Assert.Equal(CashFlowDirection.Out, entry.Direction);
+            Assert.Equal(CashFlowCategory.PcfRelease, entry.Category);
+            Assert.Equal(750m, entry.Amount);
+            Assert.Equal(1, entry.EstablishmentId);
+            Assert.Equal(2, entry.RelatedUserId);
+            Assert.Equal("Branch replenishment", entry.Notes);
+            Assert.Equal(1, entry.CreatedByUserId);
+        }
+
+        [Fact]
+        public async Task ReleasePcf_PostReusesExistingDailyFlowAndRecomputesTotals()
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedReleaseLookupsAsync(context);
+            var releaseDate = new DateTime(2026, 8, 12);
+            context.TreasuryCashFlows.Add(new TreasuryCashFlow
+            {
+                TreasuryUserId = 1,
+                CashFlowDate = releaseDate,
+                StartingBalance = 100m,
+                Entries = new List<CashFlowEntry>
+                {
+                    new CashFlowEntry
+                    {
+                        Direction = CashFlowDirection.In,
+                        Category = CashFlowCategory.OwnerFunding,
+                        Amount = 300m,
+                        CreatedByUserId = 1
+                    }
+                }
+            });
+            await context.SaveChangesAsync();
+            var existingFlow = await context.TreasuryCashFlows.Include(f => f.Entries).SingleAsync();
+            existingFlow.RecomputeTotals();
+            await context.SaveChangesAsync();
+            var flowId = existingFlow.Id;
+            context.ChangeTracker.Clear();
+
+            var controller = CreateController(context, currentUserId: 1);
+
+            await controller.ReleasePcf(new PcfReleaseViewModel
+            {
+                ReleaseDate = releaseDate,
+                Amount = 125m,
+                ReceiverUserId = 2,
+                EstablishmentId = 1
+            });
+
+            var flow = await context.TreasuryCashFlows
+                .Include(f => f.Entries)
+                .AsNoTracking()
+                .SingleAsync(f => f.CashFlowDate == releaseDate);
+            Assert.Equal(flowId, flow.Id);
+            Assert.Equal(100m, flow.StartingBalance);
+            Assert.Equal(300m, flow.TotalCashIn);
+            Assert.Equal(125m, flow.TotalCashOut);
+            Assert.Equal(400m, flow.NetCashFlow);
+            Assert.Equal(275m, flow.ClosingBalance);
+            Assert.Equal(2, flow.Entries.Count);
+        }
+
+        [Fact]
+        public async Task ReleasePcf_PostInvalidAmountDoesNotSaveAndRepopulatesLookups()
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedReleaseLookupsAsync(context);
+            var controller = CreateController(context);
+            var model = new PcfReleaseViewModel
+            {
+                ReleaseDate = new DateTime(2026, 8, 13),
+                Amount = 0m,
+                ReceiverUserId = 2,
+                EstablishmentId = 1
+            };
+
+            var result = await controller.ReleasePcf(model);
+
+            var viewResult = Assert.IsType<ViewResult>(result);
+            Assert.Same(model, viewResult.Model);
+            Assert.False(controller.ModelState.IsValid);
+            Assert.True(controller.ModelState.ContainsKey(nameof(PcfReleaseViewModel.Amount)));
+            Assert.Empty(context.PcfReleases);
+            Assert.Empty(context.TreasuryCashFlows);
+            Assert.Empty(context.CashFlowEntries);
+            Assert.IsAssignableFrom<SelectList>(controller.ViewBag.ReceiverUsers);
+            Assert.IsAssignableFrom<SelectList>(controller.ViewBag.Establishments);
+        }
+    }
+
     public class SalesReportUsabilityTests : IDisposable
     {
         private readonly SqliteConnection _connection;
