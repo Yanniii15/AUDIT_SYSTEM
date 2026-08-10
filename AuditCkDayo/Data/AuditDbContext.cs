@@ -23,6 +23,7 @@ namespace AuditCkDayo.Data
         public DbSet<CashFlowEntry> CashFlowEntries { get; set; }
         public DbSet<PcfRelease> PcfReleases { get; set; }
         public DbSet<AuditSettlement> AuditSettlements { get; set; }
+        public DbSet<ManagerCoverage> ManagerCoverages { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -378,6 +379,30 @@ namespace AuditCkDayo.Data
                 .HasOne(a => a.ProcessedByUser)
                 .WithMany()
                 .HasForeignKey(a => a.ProcessedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // ManagerCoverage configuration
+            modelBuilder.Entity<ManagerCoverage>()
+                .Property(c => c.Scope)
+                .HasConversion<string>()
+                .HasMaxLength(255);
+
+            modelBuilder.Entity<ManagerCoverage>()
+                .HasOne(c => c.CoveredManager)
+                .WithMany()
+                .HasForeignKey(c => c.CoveredManagerId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<ManagerCoverage>()
+                .HasOne(c => c.CoveringManager)
+                .WithMany()
+                .HasForeignKey(c => c.CoveringManagerId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<ManagerCoverage>()
+                .HasOne(c => c.CreatedByUser)
+                .WithMany()
+                .HasForeignKey(c => c.CreatedByUserId)
                 .OnDelete(DeleteBehavior.Restrict);
             // Notification configuration
             modelBuilder.Entity<Notification>()

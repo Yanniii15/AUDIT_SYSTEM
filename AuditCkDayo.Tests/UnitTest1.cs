@@ -1278,5 +1278,23 @@ namespace AuditCkDayo.Tests
             Assert.Equal(expectedShortOver, settlement.ShortOverAmount);
         }
     }
+    public class ManagerCoverageTests
+    {
+        [Fact]
+        public void Coverage_IsActiveForDate_WhenDateIsWithinRange()
+        {
+            var coverage = new ManagerCoverage
+            {
+                CoveredManagerId = 1,
+                CoveringManagerId = 2,
+                StartDate = new DateTime(2026, 8, 10),
+                EndDate = new DateTime(2026, 8, 12),
+                IsActive = true
+            };
+
+            Assert.True(coverage.CoversDate(new DateTime(2026, 8, 11)));
+            Assert.False(coverage.CoversDate(new DateTime(2026, 8, 13)));
+        }
+    }
 }
 }
