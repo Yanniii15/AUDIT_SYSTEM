@@ -7,8 +7,8 @@ namespace AuditCkDayo.ViewModels
 {
     public class AuditSubmissionViewModel
     {
-        [Required(ErrorMessage = "Please select an establishment.")]
-        public int EstablishmentId { get; set; }
+        public int? EstablishmentId { get; set; }
+        public string? CombinedDestinationId { get; set; }
 
         [Required(ErrorMessage = "Amount is required.")]
         [Range(0.01, double.MaxValue, ErrorMessage = "Amount must be greater than 0.")]

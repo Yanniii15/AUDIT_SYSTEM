@@ -146,10 +146,7 @@ namespace AuditCkDayo.Controllers
                 return RedirectToAction(nameof(Upload));
             }
 
-            var establishments = await _context.Establishments.ToListAsync();
-            ViewBag.Establishments = new SelectList(establishments, "Id", "Name");
-            var costCenters = await _context.CostCenters.Where(c => c.IsActive).ToListAsync();
-            ViewBag.CostCenters = new SelectList(costCenters, "Id", "Name");
+            await PopulateReviewLookupsAsync();
 
             var itemsJson = HttpContext.Session.GetString("OcrItems") ?? "[]";
             var items = System.Text.Json.JsonSerializer.Deserialize<List<OcrItemResult>>(itemsJson) ?? new();
@@ -183,23 +180,37 @@ namespace AuditCkDayo.Controllers
                 return Challenge();
             }
 
+            // Parse CombinedDestinationId
+            if (!string.IsNullOrEmpty(model.CombinedDestinationId))
+            {
+                if (model.CombinedDestinationId.StartsWith("branch-"))
+                {
+                    model.EstablishmentId = int.Parse(model.CombinedDestinationId.Replace("branch-", ""));
+                }
+                else if (model.CombinedDestinationId.StartsWith("cc-"))
+                {
+                    // Fallback to first branch
+                    var firstBranch = await _context.Establishments.FirstOrDefaultAsync(e => e.IsActive && e.IsOperatingBranch);
+                    model.EstablishmentId = firstBranch?.Id ?? 1;
+                }
+            }
+
+            if (!model.EstablishmentId.HasValue)
+            {
+                ModelState.AddModelError("CombinedDestinationId", "Please select a destination.");
+            }
+
             if (!ModelState.IsValid)
             {
-                var establishments = await _context.Establishments.ToListAsync();
-                ViewBag.Establishments = new SelectList(establishments, "Id", "Name", model.EstablishmentId);
-                var costCenters = await _context.CostCenters.Where(c => c.IsActive).ToListAsync();
-                ViewBag.CostCenters = new SelectList(costCenters, "Id", "Name");
+                await PopulateReviewLookupsAsync();
                 return View("Review", model);
             }
 
-            var establishmentExists = await _context.Establishments.AnyAsync(e => e.Id == model.EstablishmentId);
+            var establishmentExists = await _context.Establishments.AnyAsync(e => e.Id == model.EstablishmentId.Value);
             if (!establishmentExists)
             {
-                ModelState.AddModelError("EstablishmentId", "The selected establishment does not exist.");
-                var establishments = await _context.Establishments.ToListAsync();
-                ViewBag.Establishments = new SelectList(establishments, "Id", "Name", model.EstablishmentId);
-                var costCenters = await _context.CostCenters.Where(c => c.IsActive).ToListAsync();
-                ViewBag.CostCenters = new SelectList(costCenters, "Id", "Name");
+                ModelState.AddModelError("CombinedDestinationId", "The selected destination does not exist.");
+                await PopulateReviewLookupsAsync();
                 return View("Review", model);
             }
 
@@ -210,10 +221,7 @@ namespace AuditCkDayo.Controllers
                     if (item.Quantity < 0 || item.Price < 0 || item.Total < 0)
                     {
                         ModelState.AddModelError("", "Line item quantities, prices, and totals must be non-negative.");
-                        var establishments = await _context.Establishments.ToListAsync();
-                        ViewBag.Establishments = new SelectList(establishments, "Id", "Name", model.EstablishmentId);
-                        var costCenters = await _context.CostCenters.Where(c => c.IsActive).ToListAsync();
-                        ViewBag.CostCenters = new SelectList(costCenters, "Id", "Name");
+                        await PopulateReviewLookupsAsync();
                         return View("Review", model);
                     }
                 }
@@ -222,10 +230,7 @@ namespace AuditCkDayo.Controllers
             if (buyer.PcfBalance < model.Amount)
             {
                 ModelState.AddModelError("", $"Insufficient Petty Cash Fund balance. Required: ₱{model.Amount:N2}, Available: ₱{buyer.PcfBalance:N2}");
-                var establishments = await _context.Establishments.ToListAsync();
-                ViewBag.Establishments = new SelectList(establishments, "Id", "Name", model.EstablishmentId);
-                var costCenters = await _context.CostCenters.Where(c => c.IsActive).ToListAsync();
-                ViewBag.CostCenters = new SelectList(costCenters, "Id", "Name");
+                await PopulateReviewLookupsAsync();
                 return View("Review", model);
             }
 
@@ -238,7 +243,7 @@ namespace AuditCkDayo.Controllers
                 var auditItem = new AuditItem
                 {
                     BuyerId = buyerId,
-                    EstablishmentId = model.EstablishmentId,
+                    EstablishmentId = model.EstablishmentId.Value,
                     Amount = model.Amount,
                     Description = model.Description,
                     EntryDate = model.EntryDate,
@@ -268,19 +273,33 @@ namespace AuditCkDayo.Controllers
                     {
                         // Ensure the name is not empty if the user modified it
                         var itemName = string.IsNullOrWhiteSpace(item.Name) ? "Unknown Item" : item.Name;
+                        int? assignedBranchId = null;
+                        int? costCenterId = null;
+
+                        if (!string.IsNullOrEmpty(item.CombinedDestinationId))
+                        {
+                            if (item.CombinedDestinationId.StartsWith("branch-"))
+                            {
+                                assignedBranchId = int.Parse(item.CombinedDestinationId.Replace("branch-", ""));
+                            }
+                            else if (item.CombinedDestinationId.StartsWith("cc-"))
+                            {
+                                costCenterId = int.Parse(item.CombinedDestinationId.Replace("cc-", ""));
+                            }
+                        }
+
                         var detail = new AuditItemDetail
                         {
                             ItemName = itemName,
                             Quantity = item.Quantity,
                             Price = item.Price,
                             Total = item.Total,
-                            AssignedEstablishmentId = item.AssignedEstablishmentId,
-                            CostCenterId = item.CostCenterId
+                            AssignedEstablishmentId = assignedBranchId,
+                            CostCenterId = costCenterId
                         };
                         auditItem.Details.Add(detail);
                     }
                 }
-
                 _context.AuditItems.Add(auditItem);
                 await _context.SaveChangesAsync();
 
@@ -299,7 +318,7 @@ namespace AuditCkDayo.Controllers
 
                 var branchStaffIds = await _context.Users
                     .AsNoTracking()
-                    .Where(u => u.Role == UserRole.BranchStaff && u.EstablishmentId == model.EstablishmentId && !u.IsDeleted)
+                    .Where(u => u.Role == UserRole.BranchStaff && u.EstablishmentId == model.EstablishmentId.Value && !u.IsDeleted)
                     .Select(u => u.Id)
                     .ToListAsync();
 
@@ -976,6 +995,38 @@ namespace AuditCkDayo.Controllers
             await _context.SaveChangesAsync();
             return RedirectToAction(nameof(Surrender));
         }
+        private async Task PopulateReviewLookupsAsync()
+        {
+            var establishments = await _context.Establishments.ToListAsync();
+            var costCenters = await _context.CostCenters.Where(c => c.IsActive).ToListAsync();
 
+            var combinedList = new List<SelectListItem>();
+            combinedList.Add(new SelectListItem { Value = "", Text = "-- Select Destination --" });
+
+            var branchGroup = new SelectListGroup { Name = "Branches" };
+            var ccGroup = new SelectListGroup { Name = "Departments / Categories" };
+
+            foreach (var est in establishments)
+            {
+                combinedList.Add(new SelectListItem
+                {
+                    Value = $"branch-{est.Id}",
+                    Text = est.Name,
+                    Group = branchGroup
+                });
+            }
+
+            foreach (var cc in costCenters)
+            {
+                combinedList.Add(new SelectListItem
+                {
+                    Value = $"cc-{cc.Id}",
+                    Text = cc.Name,
+                    Group = ccGroup
+                });
+            }
+
+            ViewBag.CombinedDestinations = combinedList;
+        }
     }
 }
