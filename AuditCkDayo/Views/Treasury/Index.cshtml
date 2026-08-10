@@ -3,5 +3,114 @@
     ViewData["Title"] = "Treasury Cash Flow";
 }
 
-<h1 class="font-headline-lg text-headline-lg text-on-surface">Treasury Cash Flow</h1>
-<p class="text-on-surface-variant">Daily cash-in, cash-out, net cash flow, and closing balance.</p>
+<div class="space-y-6">
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+            <h1 class="font-headline-lg text-headline-lg text-on-surface">Treasury Cash Flow</h1>
+            <p class="text-on-surface-variant">Daily cash-in, cash-out, net cash flow, and closing balance.</p>
+        </div>
+
+        <div class="flex flex-wrap gap-3">
+            <a asp-controller="Treasury" asp-action="ReleasePcf" class="inline-flex items-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary shadow-sm hover:bg-primary/90">
+                Release PCF
+            </a>
+            <a asp-controller="Treasury" asp-action="Settlement" class="inline-flex items-center rounded-lg border border-outline px-4 py-2 text-sm font-semibold text-primary hover:bg-primary/10">
+                Settlement
+            </a>
+        </div>
+    </div>
+
+    <form asp-controller="Treasury" asp-action="Index" method="get" class="rounded-xl border border-outline-variant bg-surface-container p-4 shadow-sm">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div>
+                <label for="date" class="block text-sm font-medium text-on-surface">Cash flow date</label>
+                <input id="date" name="date" type="date" value="@Model.SelectedDate.ToString("yyyy-MM-dd")" class="mt-1 rounded-lg border border-outline bg-surface px-3 py-2 text-on-surface" />
+            </div>
+            <button type="submit" class="rounded-lg bg-secondary px-4 py-2 text-sm font-semibold text-on-secondary hover:bg-secondary/90">
+                View day
+            </button>
+        </div>
+    </form>
+
+    <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div class="rounded-xl border border-outline-variant bg-surface-container p-4 shadow-sm">
+            <p class="text-sm text-on-surface-variant">Starting Balance</p>
+            <p class="mt-2 text-2xl font-semibold text-on-surface">@Model.StartingBalance.ToString("C")</p>
+        </div>
+        <div class="rounded-xl border border-outline-variant bg-surface-container p-4 shadow-sm">
+            <p class="text-sm text-on-surface-variant">Total Cash In</p>
+            <p class="mt-2 text-2xl font-semibold text-green-700">@Model.TotalCashIn.ToString("C")</p>
+        </div>
+        <div class="rounded-xl border border-outline-variant bg-surface-container p-4 shadow-sm">
+            <p class="text-sm text-on-surface-variant">Total Cash Out</p>
+            <p class="mt-2 text-2xl font-semibold text-red-700">@Model.TotalCashOut.ToString("C")</p>
+        </div>
+        <div class="rounded-xl border border-outline-variant bg-surface-container p-4 shadow-sm">
+            <p class="text-sm text-on-surface-variant">Net Cash Flow</p>
+            <p class="mt-2 text-2xl font-semibold text-on-surface">@Model.NetCashFlow.ToString("C")</p>
+        </div>
+        <div class="rounded-xl border border-outline-variant bg-surface-container p-4 shadow-sm">
+            <p class="text-sm text-on-surface-variant">Closing Balance</p>
+            <p class="mt-2 text-2xl font-semibold text-primary">@Model.ClosingBalance.ToString("C")</p>
+        </div>
+    </section>
+
+    <section class="overflow-hidden rounded-xl border border-outline-variant bg-surface-container shadow-sm">
+        <div class="flex flex-col gap-1 border-b border-outline-variant p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+                <h2 class="text-lg font-semibold text-on-surface">Entries for @Model.SelectedDate.ToString("MMMM d, yyyy")</h2>
+                <p class="text-sm text-on-surface-variant">
+                    @if (Model.FlowId.HasValue)
+                    {
+                        <span>Flow #@Model.FlowId &middot; @Model.Status</span>
+                    }
+                    else
+                    {
+                        <span>No treasury flow has been posted for this day.</span>
+                    }
+                </p>
+            </div>
+        </div>
+
+        @if (!Model.Entries.Any())
+        {
+            <div class="p-6 text-center text-on-surface-variant">
+                No cash-flow entries found for this date. Use Release PCF or Settlement when there is treasury activity to record.
+            </div>
+        }
+        else
+        {
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-outline-variant text-sm">
+                    <thead class="bg-surface">
+                        <tr class="text-left text-on-surface-variant">
+                            <th class="px-4 py-3 font-medium">Direction</th>
+                            <th class="px-4 py-3 font-medium">Category</th>
+                            <th class="px-4 py-3 text-right font-medium">Amount</th>
+                            <th class="px-4 py-3 font-medium">Establishment / Cost Center / User</th>
+                            <th class="px-4 py-3 font-medium">Source Document</th>
+                            <th class="px-4 py-3 font-medium">Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-outline-variant">
+                        @foreach (var entry in Model.Entries)
+                        {
+                            <tr class="text-on-surface">
+                                <td class="px-4 py-3">@entry.Direction</td>
+                                <td class="px-4 py-3">@entry.Category</td>
+                                <td class="px-4 py-3 text-right font-semibold">@entry.Amount.ToString("C")</td>
+                                <td class="px-4 py-3">
+                                    <div>@(entry.Establishment?.Name ?? "No establishment")</div>
+                                    <div class="text-xs text-on-surface-variant">@(entry.CostCenter?.Name ?? "No cost center")</div>
+                                    <div class="text-xs text-on-surface-variant">@(entry.RelatedUser?.Name ?? "No related user")</div>
+                                </td>
+                                <td class="px-4 py-3">@(entry.SourceDocumentId?.ToString() ?? "None")</td>
+                                <td class="px-4 py-3">@(string.IsNullOrWhiteSpace(entry.Notes) ? "—" : entry.Notes)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</div>

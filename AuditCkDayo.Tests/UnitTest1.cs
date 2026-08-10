@@ -1276,6 +1276,187 @@ namespace AuditCkDayo.Tests
         }
     }
 
+    public class TreasuryDashboardTests : IDisposable
+    {
+        private readonly SqliteConnection _connection;
+        private readonly DbContextOptions<AuditDbContext> _options;
+
+        public TreasuryDashboardTests()
+        {
+            _connection = new SqliteConnection("Filename=:memory:");
+            _connection.Open();
+
+            _options = new DbContextOptionsBuilder<AuditDbContext>()
+                .UseSqlite(_connection)
+                .Options;
+
+            using var context = new AuditDbContext(_options);
+            context.Database.EnsureCreated();
+        }
+
+        public void Dispose()
+        {
+            _connection.Dispose();
+        }
+
+        private static TreasuryController CreateController(AuditDbContext context)
+        {
+            var claims = new List<Claim>
+            {
+                new Claim(ClaimTypes.NameIdentifier, "1"),
+                new Claim(ClaimTypes.Role, "Owner")
+            };
+
+            var httpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"))
+            };
+
+            return new TreasuryController(context)
+            {
+                ControllerContext = new ControllerContext
+                {
+                    HttpContext = httpContext
+                }
+            };
+        }
+
+        [Fact]
+        public void Index_LoadsSelectedDayEntriesAndReturnsRecomputedTotals()
+        {
+            var selectedDate = new DateTime(2026, 8, 10, 14, 30, 0);
+
+            using (var context = new AuditDbContext(_options))
+            {
+                var treasuryUser = new User { Name = "Treasury Owner", Email = "treasury-owner@test.com", PasswordHash = "hash", Role = UserRole.Owner, IsTreasury = true };
+                var relatedUser = new User { Name = "Branch Staff", Email = "branch-staff-dashboard@test.com", PasswordHash = "hash", Role = UserRole.BranchStaff };
+                var establishment = new Establishment { Name = "CKR Main" };
+                var costCenter = new CostCenter { Name = "Operations" };
+                var sourceDocument = new DocumentRecord
+                {
+                    DocumentType = DocumentType.DailySalesReport,
+                    UploadedByUser = relatedUser,
+                    ImageUrl = "/sales-report.jpg",
+                    OcrStatus = OcrStatus.Parsed,
+                    ReviewStatus = DocumentReviewStatus.Confirmed
+                };
+
+                context.Users.AddRange(treasuryUser, relatedUser);
+                context.Establishments.Add(establishment);
+                context.CostCenters.Add(costCenter);
+                context.DocumentRecords.Add(sourceDocument);
+                context.SaveChanges();
+
+                context.TreasuryCashFlows.AddRange(
+                    new TreasuryCashFlow
+                    {
+                        TreasuryUserId = treasuryUser.Id,
+                        CashFlowDate = selectedDate.Date,
+                        StartingBalance = 1000m,
+                        TotalCashIn = 1m,
+                        TotalCashOut = 1m,
+                        NetCashFlow = 1m,
+                        ClosingBalance = 1m,
+                        Entries = new List<CashFlowEntry>
+                        {
+                            new CashFlowEntry
+                            {
+                                Direction = CashFlowDirection.In,
+                                Category = CashFlowCategory.Sales,
+                                Amount = 2500m,
+                                EstablishmentId = establishment.Id,
+                                RelatedUserId = relatedUser.Id,
+                                SourceDocumentId = sourceDocument.Id,
+                                Notes = "Daily handover",
+                                CreatedByUserId = treasuryUser.Id
+                            },
+                            new CashFlowEntry
+                            {
+                                Direction = CashFlowDirection.Out,
+                                Category = CashFlowCategory.PcfRelease,
+                                Amount = 400m,
+                                CostCenterId = costCenter.Id,
+                                RelatedUserId = relatedUser.Id,
+                                Notes = "PCF release",
+                                CreatedByUserId = treasuryUser.Id
+                            }
+                        }
+                    },
+                    new TreasuryCashFlow
+                    {
+                        TreasuryUserId = treasuryUser.Id,
+                        CashFlowDate = selectedDate.Date.AddDays(1),
+                        StartingBalance = 9999m
+                    });
+                context.SaveChanges();
+            }
+
+            using (var context = new AuditDbContext(_options))
+            {
+                var controller = CreateController(context);
+                var cashFlowCountBefore = context.TreasuryCashFlows.Count();
+
+                var result = controller.Index(selectedDate);
+
+                var viewResult = Assert.IsType<ViewResult>(result);
+                var model = Assert.IsType<TreasuryCashFlowViewModel>(viewResult.Model);
+
+                Assert.Equal(selectedDate.Date, model.CashFlowDate);
+                Assert.NotNull(model.FlowId);
+                Assert.Equal(TreasuryCashFlowStatus.Open, model.Status);
+                Assert.Equal(1000m, model.StartingBalance);
+                Assert.Equal(2500m, model.TotalCashIn);
+                Assert.Equal(400m, model.TotalCashOut);
+                Assert.Equal(3500m, model.NetCashFlow);
+                Assert.Equal(3100m, model.ClosingBalance);
+
+                Assert.Equal(2, model.Entries.Count);
+                Assert.Contains(model.Entries, entry => entry.Establishment?.Name == "CKR Main" && entry.SourceDocument?.Id > 0);
+                Assert.Contains(model.Entries, entry => entry.CostCenter?.Name == "Operations" && entry.RelatedUser?.Name == "Branch Staff");
+                Assert.Equal(cashFlowCountBefore, context.TreasuryCashFlows.Count());
+            }
+        }
+
+        [Fact]
+        public void Index_ForNoFlowDateReturnsZeroTotalsAndNoEntriesWithoutCreatingFlow()
+        {
+            using (var context = new AuditDbContext(_options))
+            {
+                context.Users.Add(new User { Name = "Treasury Owner", Email = "empty-treasury-owner@test.com", PasswordHash = "hash", Role = UserRole.Owner, IsTreasury = true });
+                context.SaveChanges();
+                context.TreasuryCashFlows.Add(new TreasuryCashFlow
+                {
+                    TreasuryUserId = context.Users.Single().Id,
+                    CashFlowDate = new DateTime(2026, 8, 9),
+                    StartingBalance = 500m
+                });
+                context.SaveChanges();
+            }
+
+            using (var context = new AuditDbContext(_options))
+            {
+                var controller = CreateController(context);
+                var cashFlowCountBefore = context.TreasuryCashFlows.Count();
+
+                var result = controller.Index(new DateTime(2026, 8, 10));
+
+                var viewResult = Assert.IsType<ViewResult>(result);
+                var model = Assert.IsType<TreasuryCashFlowViewModel>(viewResult.Model);
+
+                Assert.Equal(new DateTime(2026, 8, 10), model.CashFlowDate);
+                Assert.Null(model.FlowId);
+                Assert.Null(model.Status);
+                Assert.Empty(model.Entries);
+                Assert.Equal(0m, model.StartingBalance);
+                Assert.Equal(0m, model.TotalCashIn);
+                Assert.Equal(0m, model.TotalCashOut);
+                Assert.Equal(0m, model.NetCashFlow);
+                Assert.Equal(0m, model.ClosingBalance);
+                Assert.Equal(cashFlowCountBefore, context.TreasuryCashFlows.Count());
+            }
+        }
+    }
+
     public class AuditSettlementTests
     {
         [Theory]
