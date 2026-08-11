@@ -382,7 +382,8 @@
         const destSelect = row.querySelector('.destination-select');
         const remarksInput = row.querySelector('.remarks-input');
         if (destSelect && remarksInput) {
-            const selectedText = destSelect.options[destSelect.selectedIndex]?.text || '';
+            const idx = destSelect.selectedIndex;
+            const selectedText = (idx >= 0 && destSelect.options[idx]) ? destSelect.options[idx].text : '';
             if (selectedText.toLowerCase() === 'others') {
                 remarksInput.classList.remove('hidden');
                 remarksInput.removeAttribute('disabled');
@@ -397,7 +398,8 @@
         const destSelect = document.getElementById('CombinedDestinationId');
         const remarksInput = document.getElementById('main-remarks-input');
         if (destSelect && remarksInput) {
-            const selectedText = destSelect.options[destSelect.selectedIndex]?.text || '';
+            const idx = destSelect.selectedIndex;
+            const selectedText = (idx >= 0 && destSelect.options[idx]) ? destSelect.options[idx].text : '';
             if (selectedText.toLowerCase() === 'others') {
                 remarksInput.classList.remove('hidden');
                 remarksInput.removeAttribute('disabled');
