@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Globalization;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -11,8 +12,8 @@ namespace AuditCkDayo.Services
     public class TesseractOcrService : IOcrService
     {
         private static readonly Regex DateRegex = new Regex(@"\b(\d{4}[-/.]\d{1,2}[-/.]\d{1,2}|\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})\b");
-        private static readonly Regex DecimalRegex = new Regex(@"\b\d{1,6}\.\d{2}\b");
-        private static readonly Regex ItemLineRegex = new Regex(@"^\s*(.*?)\s+(\d+)\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})\s*$");
+        private static readonly Regex DecimalRegex = new Regex(@"(?:₱|\b)?\s*\d{1,3}(?:,\d{3})*(?:\.\d{2})?|\b\d{1,6}\.\d{2}\b");
+        private static readonly Regex ItemLineRegex = new Regex(@"^\s*(.*?)\s+(\d+)\s+(?:₱?\s*)?([\d,]+\.?\d*)\s+(?:₱?\s*)?([\d,]+\.?\d*)\s*$");
 
         public Task<OcrResult> ParseReceiptAsync(List<Stream> imageStreams)
         {
@@ -43,78 +44,7 @@ namespace AuditCkDayo.Services
 
                     if (string.IsNullOrWhiteSpace(text)) continue;
 
-                    var lines = text.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-                    foreach (var line in lines)
-                    {
-                        var trimmed = line.Trim();
-                        
-                        // Try to find Date
-                        if (result.TransactionDate == null)
-                        {
-                            var dateMatch = DateRegex.Match(trimmed);
-                            if (dateMatch.Success && DateTime.TryParse(dateMatch.Value, out var parsedDate))
-                            {
-                                result.TransactionDate = parsedDate;
-                            }
-                        }
-
-                        // Try to parse items
-                        var itemMatch = ItemLineRegex.Match(trimmed);
-                        if (itemMatch.Success)
-                        {
-                            var name = itemMatch.Groups[1].Value.Trim();
-                            var qty = int.TryParse(itemMatch.Groups[2].Value, out var q) ? q : 1;
-                            var price = decimal.TryParse(itemMatch.Groups[3].Value.Replace(",", ""), out var p) ? p : 0m;
-                            var total = decimal.TryParse(itemMatch.Groups[4].Value.Replace(",", ""), out var t) ? t : price * qty;
-
-                            result.Items.Add(new OcrItemResult
-                            {
-                                Name = name,
-                                Quantity = qty,
-                                Price = price,
-                                Total = total
-                            });
-                        }
-                        else
-                        {
-                            // Fallback simple line parsing: Name followed by number
-                            var words = trimmed.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
-                            if (words.Length >= 2)
-                            {
-                                var lastWord = words[^1];
-                                if (DecimalRegex.IsMatch(lastWord) && decimal.TryParse(lastWord.Replace(",", ""), out var priceVal))
-                                {
-                                    var name = string.Join(" ", words.Take(words.Length - 1));
-                                    
-                                    // Avoid duplicating totals or dates as items
-                                    if (!name.ToLower().Contains("total") && !name.ToLower().Contains("date") && !name.ToLower().Contains("cash"))
-                                    {
-                                        result.Items.Add(new OcrItemResult
-                                        {
-                                            Name = name,
-                                            Quantity = 1,
-                                            Price = priceVal,
-                                            Total = priceVal
-                                        });
-                                    }
-                                }
-                            }
-                        }
-
-                        // Try to find Overall Total (look for lines containing "total", "amount", "due", "sum" followed by decimal)
-                        var totalLower = trimmed.ToLower();
-                        if (totalLower.Contains("total") || totalLower.Contains("amount") || totalLower.Contains("due") || totalLower.Contains("sum"))
-                        {
-                            var decMatch = DecimalRegex.Match(trimmed);
-                            if (decMatch.Success && decimal.TryParse(decMatch.Value, out var totVal))
-                            {
-                                if (totVal > result.TotalAmount)
-                                {
-                                    result.TotalAmount = totVal;
-                                }
-                            }
-                        }
-                    }
+                    ApplyReceiptText(result, text);
                 }
 
                 // If items have totals but overall total is 0, sum the items
@@ -136,6 +66,87 @@ namespace AuditCkDayo.Services
             return Task.FromResult(result);
         }
 
+
+        private static void ApplyReceiptText(OcrResult result, string text)
+        {
+            var lines = text.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+            foreach (var line in lines)
+            {
+                var trimmed = line.Trim();
+
+                if (result.TransactionDate == null)
+                {
+                    var dateMatch = DateRegex.Match(trimmed);
+                    if (dateMatch.Success && DateTime.TryParse(dateMatch.Value, out var parsedDate))
+                    {
+                        result.TransactionDate = parsedDate;
+                    }
+                }
+
+                var itemMatch = ItemLineRegex.Match(trimmed);
+                if (itemMatch.Success)
+                {
+                    var name = itemMatch.Groups[1].Value.Trim();
+                    var qty = int.TryParse(itemMatch.Groups[2].Value, out var q) ? q : 1;
+                    var price = ParseMoney(itemMatch.Groups[3].Value);
+                    var total = ParseMoney(itemMatch.Groups[4].Value);
+
+                    result.Items.Add(new OcrItemResult
+                    {
+                        Name = name,
+                        Quantity = qty,
+                        Price = price,
+                        Total = total == 0m ? price * qty : total
+                    });
+                }
+                else
+                {
+                    var words = trimmed.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (words.Length >= 2)
+                    {
+                        var lastWord = words[^1];
+                        if (DecimalRegex.IsMatch(lastWord))
+                        {
+                            var priceVal = ParseMoney(lastWord);
+                            var name = string.Join(" ", words.Take(words.Length - 1));
+
+                            if (priceVal > 0m && !name.ToLower().Contains("total") && !name.ToLower().Contains("date") && !name.ToLower().Contains("cash"))
+                            {
+                                result.Items.Add(new OcrItemResult
+                                {
+                                    Name = name,
+                                    Quantity = 1,
+                                    Price = priceVal,
+                                    Total = priceVal
+                                });
+                            }
+                        }
+                    }
+                }
+
+                var totalLower = trimmed.ToLower();
+                if (totalLower.Contains("total") || totalLower.Contains("amount") || totalLower.Contains("due") || totalLower.Contains("sum"))
+                {
+                    var matches = DecimalRegex.Matches(trimmed);
+                    foreach (Match match in matches)
+                    {
+                        var total = ParseMoney(match.Value);
+                        if (total > result.TotalAmount)
+                        {
+                            result.TotalAmount = total;
+                        }
+                    }
+                }
+            }
+        }
+
+        private static decimal ParseMoney(string value)
+        {
+            var cleaned = value.Replace("₱", "").Trim();
+            return decimal.TryParse(cleaned, NumberStyles.AllowDecimalPoint | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var parsed)
+                ? parsed
+                : 0m;
+        }
         public async Task<SalesReportOcrResult> ParseSalesReportAsync(Stream imageStream)
         {
             var result = new SalesReportOcrResult();

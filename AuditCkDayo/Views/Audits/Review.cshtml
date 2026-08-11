@@ -31,7 +31,7 @@
                 <img id="main-preview" src="@Model.ReceiptImageUrl" class="max-w-full max-h-[500px] object-contain rounded-lg border border-surface-border/50 shadow-sm cursor-pointer hover:scale-[1.01] transition-transform duration-300" alt="Receipt Upload" />
             </div>
             <div class="p-space-3 bg-surface-container-low border-t border-surface-border text-center">
-                <span class="text-on-surface-variant text-[11px] font-label-caps uppercase"><span class="material-symbols-outlined text-[14px] align-middle">zoom_in</span> Tap to Inspect</span>
+                <span class="inspect-trigger cursor-pointer text-on-surface-variant text-[11px] font-label-caps uppercase"><span class="material-symbols-outlined text-[14px] align-middle">zoom_in</span> Tap to Inspect</span>
             </div>
 
             <!-- Thumbnail Selector -->
@@ -288,6 +288,7 @@
                 remarksInput.id = `Items_${idx}__AllocationNotes`;
             }
         });
+    }
 
     function calculateRowTotal(row) {
         const qty = parseFloat(row.querySelector('.qty-input').value) || 0;
@@ -410,6 +411,7 @@
         }
     }
 
+    document.addEventListener('DOMContentLoaded', () => {
         const mainDestSelect = document.getElementById('CombinedDestinationId');
         if (mainDestSelect) {
             mainDestSelect.addEventListener('change', () => {
@@ -463,6 +465,7 @@
         }
 
         mainPreview?.addEventListener('click', openLightbox);
+        document.querySelector('.inspect-trigger')?.addEventListener('click', openLightbox);
         window.closeLightbox = closeLightbox;
         document.addEventListener('keydown', (e) => {
             if (e.key === 'Escape') closeLightbox();

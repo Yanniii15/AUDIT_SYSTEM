@@ -425,6 +425,24 @@ namespace AuditCkDayo.Tests
             Assert.NotNull(result);
             Assert.NotNull(result.TransactionDate);
         }
+
+        [Fact]
+        public void ReceiptTextParser_HandlesCurrencySymbolsAndCommaSeparatedAmounts()
+        {
+            var method = typeof(TesseractOcrService).GetMethod("ApplyReceiptText", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            Assert.NotNull(method);
+
+            var result = new OcrResult();
+            method!.Invoke(null, new object[]
+            {
+                result,
+                "DATE: 08/11/2026\nRice 2 125.50 251.00\nTOTAL ₱1,234.50"
+            });
+
+            Assert.Equal(new DateTime(2026, 8, 11), result.TransactionDate);
+            Assert.Equal(1234.50m, result.TotalAmount);
+            Assert.Contains(result.Items, item => item.Name == "Rice" && item.Quantity == 2 && item.Total == 251.00m);
+        }
     }
     public class FakeOcrService : IOcrService
     {
