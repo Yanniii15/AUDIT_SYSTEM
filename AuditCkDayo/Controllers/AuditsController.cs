@@ -370,6 +370,9 @@ namespace AuditCkDayo.Controllers
                 .Include(a => a.Buyer)
                 .Include(a => a.Establishment)
                 .Include(a => a.Details)
+                    .ThenInclude(d => d.AssignedEstablishment)
+                .Include(a => a.Details)
+                    .ThenInclude(d => d.CostCenter)
                 .Where(a => a.Status == AuditStatus.AwaitingManagerApproval);
 
             if (role == "Manager")
@@ -490,6 +493,9 @@ namespace AuditCkDayo.Controllers
                 .Include(a => a.Buyer)
                 .Include(a => a.Establishment)
                 .Include(a => a.Details)
+                    .ThenInclude(d => d.AssignedEstablishment)
+                .Include(a => a.Details)
+                    .ThenInclude(d => d.CostCenter)
                 .AsNoTracking()
                 .Where(a => a.Status == AuditStatus.AwaitingBranchVerification && a.EstablishmentId == currentUser.EstablishmentId.Value)
                 .ToListAsync();
