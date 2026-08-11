@@ -94,6 +94,7 @@
                         <label asp-for="CombinedDestinationId" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Destination / Allocation</label>
                         <select asp-for="CombinedDestinationId" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface appearance-none cursor-pointer" asp-items="ViewBag.CombinedDestinations" required>
                         </select>
+                        <input id="main-remarks-input" name="Notes" value="@Model.Notes" class="mt-2 w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all duration-300 text-on-surface" placeholder="Specify custom destination..." />
                         <span asp-validation-for="CombinedDestinationId" class="text-audit-error text-[11px]"></span>
                     </div>
 
@@ -390,7 +391,28 @@
         }
     }
 
+    function updateMainRemarksVisibility() {
+        const destSelect = document.getElementById('CombinedDestinationId');
+        const remarksInput = document.getElementById('main-remarks-input');
+        if (destSelect && remarksInput) {
+            const selectedText = destSelect.options[destSelect.selectedIndex]?.text || '';
+            if (selectedText.toLowerCase() === 'others') {
+                remarksInput.classList.remove('opacity-0', 'pointer-events-none', 'h-0', 'py-0', 'mt-0');
+                remarksInput.removeAttribute('disabled');
+            } else {
+                remarksInput.classList.add('opacity-0', 'pointer-events-none', 'h-0', 'py-0', 'mt-0');
+                remarksInput.setAttribute('disabled', 'disabled');
+            }
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
+        const mainDestSelect = document.getElementById('CombinedDestinationId');
+        if (mainDestSelect) {
+            mainDestSelect.addEventListener('change', updateMainRemarksVisibility);
+            updateMainRemarksVisibility();
+        }
+
         // Bind event listeners to existing rows
         document.querySelectorAll('#line-items-body .line-item-row').forEach(row => {
             const qtyInput = row.querySelector('.qty-input');
