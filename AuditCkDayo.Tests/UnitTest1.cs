@@ -402,6 +402,30 @@ namespace AuditCkDayo.Tests
             }
         }
 
+
+    public class FallbackOcrServiceTests
+    {
+        [Fact]
+        public async Task ParseReceiptAsync_WhenGeminiFails_CallsTesseractFallback()
+        {
+            var configMap = new Dictionary<string, string>
+            {
+                { "GoogleGemini:ApiKey", "" }
+            };
+            var config = new ConfigurationBuilder().AddInMemoryCollection(configMap!).Build();
+            
+            var gemini = new GoogleGeminiOcrService(config);
+            var tesseract = new TesseractOcrService();
+            var fallback = new FallbackOcrService(gemini, tesseract);
+            
+            var dummyStream = new MemoryStream(Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="));
+            
+            var result = await fallback.ParseReceiptAsync(new List<Stream> { dummyStream });
+            
+            Assert.NotNull(result);
+            Assert.NotNull(result.TransactionDate);
+        }
+    }
     public class FakeOcrService : IOcrService
     {
         public Task<OcrResult> ParseReceiptAsync(List<Stream> receiptStreams)

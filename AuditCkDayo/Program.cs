@@ -25,7 +25,9 @@ builder.Services.AddSession(options =>
     options.Cookie.IsEssential = true;
 });
 
-builder.Services.AddScoped<AuditCkDayo.Services.IOcrService, AuditCkDayo.Services.GoogleGeminiOcrService>();
+builder.Services.AddScoped<AuditCkDayo.Services.GoogleGeminiOcrService>();
+builder.Services.AddScoped<AuditCkDayo.Services.TesseractOcrService>();
+builder.Services.AddScoped<AuditCkDayo.Services.IOcrService, AuditCkDayo.Services.FallbackOcrService>();
 
 var app = builder.Build();
 app.UseForwardedHeaders(new ForwardedHeadersOptions
