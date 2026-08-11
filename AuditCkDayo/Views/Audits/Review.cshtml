@@ -194,7 +194,7 @@
                                         </td>
                                         <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2">
                                             <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Remarks</label>
-                                            <input asp-for="Items[i].AllocationNotes" class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none remarks-input" placeholder="Optional notes/remarks..." />
+                                            <input asp-for="Items[i].AllocationNotes" class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none remarks-input transition-all duration-300" placeholder="Specify other branch/cost center details..." />
                                         </td>
                                         <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2 text-center flex items-center justify-end lg:justify-center">
                                             <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Action</label>
@@ -341,7 +341,7 @@
             </td>
             <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2">
                 <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Remarks</label>
-                <input class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none remarks-input" placeholder="Optional notes/remarks..." />
+                <input class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none remarks-input transition-all duration-300" placeholder="Specify other branch/cost center details..." />
             </td>
             <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2 text-center flex items-center justify-end lg:justify-center">
                 <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Action</label>
@@ -358,8 +358,14 @@
         qtyInput.addEventListener('input', () => calculateRowTotal(newRow));
         priceInput.addEventListener('input', () => calculateRowTotal(newRow));
 
+        const destSelect = newRow.querySelector('.destination-select');
+        if (destSelect) {
+            destSelect.addEventListener('change', () => updateRemarksVisibility(newRow));
+        }
+
         reindexRows();
         calculateRowTotal(newRow);
+        updateRemarksVisibility(newRow);
     }
 
     function removeRow(btn) {
@@ -369,6 +375,21 @@
         calculateOverallTotal();
     }
 
+    function updateRemarksVisibility(row) {
+        const destSelect = row.querySelector('.destination-select');
+        const remarksInput = row.querySelector('.remarks-input');
+        if (destSelect && remarksInput) {
+            const selectedText = destSelect.options[destSelect.selectedIndex]?.text || '';
+            if (selectedText.toLowerCase() === 'others') {
+                remarksInput.classList.remove('opacity-0', 'pointer-events-none');
+                remarksInput.removeAttribute('disabled');
+            } else {
+                remarksInput.classList.add('opacity-0', 'pointer-events-none');
+                remarksInput.setAttribute('disabled', 'disabled');
+            }
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
         // Bind event listeners to existing rows
         document.querySelectorAll('#line-items-body .line-item-row').forEach(row => {
@@ -376,6 +397,12 @@
             const priceInput = row.querySelector('.price-input');
             qtyInput.addEventListener('input', () => calculateRowTotal(row));
             priceInput.addEventListener('input', () => calculateRowTotal(row));
+
+            const destSelect = row.querySelector('.destination-select');
+            if (destSelect) {
+                destSelect.addEventListener('change', () => updateRemarksVisibility(row));
+            }
+            updateRemarksVisibility(row);
         });
 
         // Lightbox Modal Handlers
