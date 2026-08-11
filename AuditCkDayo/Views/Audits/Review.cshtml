@@ -141,8 +141,7 @@
                                     <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-20">Qty</th>
                                     <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-28 text-right">Price (₱)</th>
                                     <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-28 text-right">Total (₱)</th>
-                                    <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-48">Split Destination</th>
-                                    <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-40">Remarks / Custom Cost Center</th>
+                                    <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-64">Split Destination</th>
                                     <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-12 text-center">Action</th>
                                 </tr>
                             </thead>
@@ -178,24 +177,27 @@
                                                 {
                                                     val = $"cc-{Model.Items[i].CostCenterId.Value}";
                                                 }
-                                            }
-                                            <select name="Items[@i].CombinedDestinationId" id="Items_@(i)__CombinedDestinationId" class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none destination-select">
-                                                @foreach (var opt in (List<SelectListItem>)ViewBag.CombinedDestinations)
+                                                else if (!string.IsNullOrEmpty(Model.Items[i].CombinedDestinationId))
                                                 {
-                                                    if (opt.Value == val)
-                                                    {
-                                                        <option value="@opt.Value" selected>@opt.Text</option>
-                                                    }
-                                                    else
-                                                    {
-                                                        <option value="@opt.Value">@opt.Text</option>
-                                                    }
+                                                    val = Model.Items[i].CombinedDestinationId;
                                                 }
-                                            </select>
-                                        </td>
-                                        <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2">
-                                            <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Remarks</label>
-                                            <input asp-for="Items[i].AllocationNotes" class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none remarks-input transition-all duration-300" placeholder="Specify other branch/cost center details..." />
+                                            }
+                                            <div class="flex flex-col gap-1">
+                                                <select name="Items[@i].CombinedDestinationId" id="Items_@(i)__CombinedDestinationId" class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none destination-select">
+                                                    @foreach (var opt in (List<SelectListItem>)ViewBag.CombinedDestinations)
+                                                    {
+                                                        if (opt.Value == val)
+                                                        {
+                                                            <option value="@opt.Value" selected>@opt.Text</option>
+                                                        }
+                                                        else
+                                                        {
+                                                            <option value="@opt.Value">@opt.Text</option>
+                                                        }
+                                                    }
+                                                </select>
+                                                <input asp-for="Items[i].AllocationNotes" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-2 py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none remarks-input transition-all duration-300" placeholder="Specify other destination details..." />
+                                            </div>
                                         </td>
                                         <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2 text-center flex items-center justify-end lg:justify-center">
                                             <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Action</label>
@@ -336,13 +338,12 @@
             </td>
             <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2">
                 <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Split Destination</label>
-                <select class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none destination-select">
-                    ${destinationOptions}
-                </select>
-            </td>
-            <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2">
-                <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Remarks</label>
-                <input class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none remarks-input transition-all duration-300" placeholder="Specify other branch/cost center details..." />
+                <div class="flex flex-col gap-1">
+                    <select class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none destination-select">
+                        ${destinationOptions}
+                    </select>
+                    <input class="w-full bg-surface-container-low border border-surface-border rounded-lg px-2 py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none remarks-input transition-all duration-300" placeholder="Specify other destination details..." />
+                </div>
             </td>
             <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2 text-center flex items-center justify-end lg:justify-center">
                 <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Action</label>
@@ -358,9 +359,10 @@
         const priceInput = newRow.querySelector('.price-input');
         qtyInput.addEventListener('input', () => calculateRowTotal(newRow));
         priceInput.addEventListener('input', () => calculateRowTotal(newRow));
-
+        const mainVal = document.getElementById('CombinedDestinationId').value;
         const destSelect = newRow.querySelector('.destination-select');
         if (destSelect) {
+            destSelect.value = mainVal;
             destSelect.addEventListener('change', () => updateRemarksVisibility(newRow));
         }
 
@@ -406,11 +408,21 @@
         }
     }
 
-    document.addEventListener('DOMContentLoaded', () => {
         const mainDestSelect = document.getElementById('CombinedDestinationId');
         if (mainDestSelect) {
-            mainDestSelect.addEventListener('change', updateMainRemarksVisibility);
+            mainDestSelect.addEventListener('change', () => {
+                updateMainRemarksVisibility();
+                syncDestinations();
+            });
             updateMainRemarksVisibility();
+        }
+
+        function syncDestinations() {
+            const mainVal = document.getElementById('CombinedDestinationId').value;
+            document.querySelectorAll('#line-items-body .destination-select').forEach(select => {
+                select.value = mainVal;
+                select.dispatchEvent(new Event('change'));
+            });
         }
 
         // Bind event listeners to existing rows

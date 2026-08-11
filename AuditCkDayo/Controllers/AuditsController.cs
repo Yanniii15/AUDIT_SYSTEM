@@ -187,7 +187,7 @@ namespace AuditCkDayo.Controllers
                 {
                     model.EstablishmentId = int.Parse(model.CombinedDestinationId.Replace("branch-", ""));
                 }
-                else if (model.CombinedDestinationId.StartsWith("cc-"))
+                else if (model.CombinedDestinationId == "others")
                 {
                     // Fallback to first branch
                     var firstBranch = await _context.Establishments.FirstOrDefaultAsync(e => e.IsActive && e.IsOperatingBranch);
@@ -281,10 +281,6 @@ namespace AuditCkDayo.Controllers
                             if (item.CombinedDestinationId.StartsWith("branch-"))
                             {
                                 assignedBranchId = int.Parse(item.CombinedDestinationId.Replace("branch-", ""));
-                            }
-                            else if (item.CombinedDestinationId.StartsWith("cc-"))
-                            {
-                                costCenterId = int.Parse(item.CombinedDestinationId.Replace("cc-", ""));
                             }
                         }
 
@@ -1005,33 +1001,24 @@ namespace AuditCkDayo.Controllers
         private async Task PopulateReviewLookupsAsync()
         {
             var establishments = await _context.Establishments.ToListAsync();
-            var costCenters = await _context.CostCenters.Where(c => c.IsActive).ToListAsync();
 
             var combinedList = new List<SelectListItem>();
             combinedList.Add(new SelectListItem { Value = "", Text = "-- Select Destination --" });
-
-            var branchGroup = new SelectListGroup { Name = "Branches" };
-            var ccGroup = new SelectListGroup { Name = "Departments / Categories" };
 
             foreach (var est in establishments)
             {
                 combinedList.Add(new SelectListItem
                 {
                     Value = $"branch-{est.Id}",
-                    Text = est.Name,
-                    Group = branchGroup
+                    Text = est.Name
                 });
             }
 
-            foreach (var cc in costCenters)
+            combinedList.Add(new SelectListItem
             {
-                combinedList.Add(new SelectListItem
-                {
-                    Value = $"cc-{cc.Id}",
-                    Text = cc.Name,
-                    Group = ccGroup
-                });
-            }
+                Value = "others",
+                Text = "Others"
+            });
 
             ViewBag.CombinedDestinations = combinedList;
         }
