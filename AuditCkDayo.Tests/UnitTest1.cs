@@ -3065,6 +3065,232 @@ namespace AuditCkDayo.Tests
         }
     }
 
+    public class ReportsAuditPacketTests : IDisposable
+    {
+        private readonly SqliteConnection _connection;
+        private readonly DbContextOptions<AuditDbContext> _options;
+
+        public ReportsAuditPacketTests()
+        {
+            _connection = new SqliteConnection("Filename=:memory:");
+            _connection.Open();
+            _options = new DbContextOptionsBuilder<AuditDbContext>()
+                .UseSqlite(_connection)
+                .Options;
+
+            using var context = new AuditDbContext(_options);
+            context.Database.EnsureCreated();
+        }
+
+        public void Dispose()
+        {
+            _connection.Dispose();
+        }
+
+        private static ReportsController CreateReportsController(AuditDbContext context, int currentUserId = 1, string currentUserRole = "Owner")
+        {
+            var claims = new List<Claim>
+            {
+                new Claim(ClaimTypes.NameIdentifier, currentUserId.ToString()),
+                new Claim(ClaimTypes.Role, currentUserRole)
+            };
+            var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"));
+
+            return new ReportsController(context)
+            {
+                ControllerContext = new ControllerContext
+                {
+                    HttpContext = new DefaultHttpContext { User = principal }
+                },
+                TempData = new TempDataDictionary(new DefaultHttpContext { User = principal }, new FakeTempDataProvider())
+            };
+        }
+
+        private static async Task SeedReportBaseAsync(AuditDbContext context)
+        {
+            context.Users.AddRange(
+                new User { Id = 1, Name = "Alice Owner", Email = "alice@test.com", PasswordHash = "hash", Role = UserRole.Owner, PcfBalance = 1000m, DailyStartingFloat = 1000m },
+                new User { Id = 2, Name = "Maya Treasury", Email = "maya@test.com", PasswordHash = "hash", Role = UserRole.Manager, IsTreasury = true, PcfBalance = 500m, DailyStartingFloat = 500m },
+                new User { Id = 3, Name = "Beth Buyer", Email = "beth@test.com", PasswordHash = "hash", Role = UserRole.Buyer, ManagerId = 2, PcfBalance = 200m, DailyStartingFloat = 200m },
+                new User { Id = 4, Name = "Dayo Buyer", Email = "dayo@test.com", PasswordHash = "hash", Role = UserRole.Buyer, ManagerId = 2, PcfBalance = 150m, DailyStartingFloat = 150m });
+            context.Establishments.AddRange(
+                new Establishment { Id = 1, Name = "CKR Main" },
+                new Establishment { Id = 2, Name = "Dayo" });
+        }
+
+        [Fact]
+        public async Task Index_DateRangePopulatesAllBuyerLiquidationReportsWithoutBuyerFilter()
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedReportBaseAsync(context);
+            context.PcfReleases.AddRange(
+                new PcfRelease { Id = 11, ReceiverUserId = 3, ReleasedByTreasuryUserId = 2, ReleaseDate = new DateTime(2026, 8, 6), Amount = 5000m, Status = PcfReleaseStatus.Released },
+                new PcfRelease { Id = 12, ReceiverUserId = 4, ReleasedByTreasuryUserId = 2, ReleaseDate = new DateTime(2026, 8, 6), Amount = 3000m, Status = PcfReleaseStatus.Released });
+            context.AuditItems.AddRange(
+                new AuditItem
+                {
+                    Id = 21,
+                    BuyerId = 3,
+                    EstablishmentId = 1,
+                    EntryDate = new DateTime(2026, 8, 6),
+                    Amount = 1200m,
+                    Description = "Beth receipt",
+                    Status = AuditStatus.Approved,
+                    Details = new List<AuditItemDetail> { new AuditItemDetail { ItemName = "Supplies", Quantity = 1, Price = 1200m, Total = 1200m, AssignedEstablishmentId = 1 } }
+                },
+                new AuditItem
+                {
+                    Id = 22,
+                    BuyerId = 4,
+                    EstablishmentId = 2,
+                    EntryDate = new DateTime(2026, 8, 6),
+                    Amount = 750m,
+                    Description = "Dayo receipt",
+                    Status = AuditStatus.Approved,
+                    Details = new List<AuditItemDetail> { new AuditItemDetail { ItemName = "Groceries", Quantity = 1, Price = 750m, Total = 750m, AssignedEstablishmentId = 2 } }
+                });
+            context.AuditSettlements.Add(new AuditSettlement { PcfReleaseId = 11, ReceiverUserId = 3, ResponsibleManagerId = 2, ProcessedByUserId = 2, TotalPCReleased = 5000m, TotalAcceptedExpenses = 1200m, ActualChangeReturned = 3800m, Status = AuditSettlementStatus.Confirmed });
+            await context.SaveChangesAsync();
+
+            var controller = CreateReportsController(context);
+            var result = await controller.Index(new ReportsFilterViewModel { StartDate = new DateTime(2026, 8, 6), EndDate = new DateTime(2026, 8, 6) });
+
+            var viewResult = Assert.IsType<ViewResult>(result);
+            var model = Assert.IsType<ReportsViewModel>(viewResult.Model);
+            Assert.Equal(2, model.BuyerAudits.Count);
+            var beth = Assert.Single(model.BuyerAudits, report => report.BuyerName == "Beth Buyer");
+            Assert.Equal(5000m, beth.TotalPc);
+            Assert.Equal(1200m, beth.TotalExpenses);
+            Assert.Equal(3800m, beth.ActualChangeReturned);
+            var dayo = Assert.Single(model.BuyerAudits, report => report.BuyerName == "Dayo Buyer");
+            Assert.Equal(3000m, dayo.TotalPc);
+            Assert.Equal(750m, dayo.TotalExpenses);
+        }
+
+        [Fact]
+        public async Task Index_BuyerFilterNarrowsBuyerLiquidationReports()
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedReportBaseAsync(context);
+            context.PcfReleases.AddRange(
+                new PcfRelease { ReceiverUserId = 3, ReleasedByTreasuryUserId = 2, ReleaseDate = new DateTime(2026, 8, 6), Amount = 5000m, Status = PcfReleaseStatus.Released },
+                new PcfRelease { ReceiverUserId = 4, ReleasedByTreasuryUserId = 2, ReleaseDate = new DateTime(2026, 8, 6), Amount = 3000m, Status = PcfReleaseStatus.Released });
+            await context.SaveChangesAsync();
+
+            var controller = CreateReportsController(context);
+            var result = await controller.Index(new ReportsFilterViewModel { StartDate = new DateTime(2026, 8, 6), EndDate = new DateTime(2026, 8, 6), BuyerId = 3 });
+
+            var viewResult = Assert.IsType<ViewResult>(result);
+            var model = Assert.IsType<ReportsViewModel>(viewResult.Model);
+            var report = Assert.Single(model.BuyerAudits);
+            Assert.Equal("Beth Buyer", report.BuyerName);
+            Assert.Equal(5000m, report.TotalPc);
+        }
+
+        [Fact]
+        public async Task Index_BuyerRoleOnlyShowsOwnLiquidationReport()
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedReportBaseAsync(context);
+            context.PcfReleases.AddRange(
+                new PcfRelease { ReceiverUserId = 3, ReleasedByTreasuryUserId = 2, ReleaseDate = new DateTime(2026, 8, 6), Amount = 5000m, Status = PcfReleaseStatus.Released },
+                new PcfRelease { ReceiverUserId = 4, ReleasedByTreasuryUserId = 2, ReleaseDate = new DateTime(2026, 8, 6), Amount = 3000m, Status = PcfReleaseStatus.Released });
+            await context.SaveChangesAsync();
+
+            var controller = CreateReportsController(context, currentUserId: 3, currentUserRole: "Buyer");
+            var result = await controller.Index(new ReportsFilterViewModel { StartDate = new DateTime(2026, 8, 6), EndDate = new DateTime(2026, 8, 6) });
+
+            var viewResult = Assert.IsType<ViewResult>(result);
+            var model = Assert.IsType<ReportsViewModel>(viewResult.Model);
+            var report = Assert.Single(model.BuyerAudits);
+            Assert.Equal("Beth Buyer", report.BuyerName);
+            Assert.Equal(5000m, report.TotalPc);
+        }
+
+        [Fact]
+        public async Task Index_BranchAuditUsesAssignedBranchThenFallsBackToAuditBranch()
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedReportBaseAsync(context);
+            context.AuditItems.AddRange(
+                new AuditItem
+                {
+                    BuyerId = 3,
+                    EstablishmentId = 1,
+                    EntryDate = new DateTime(2026, 8, 6),
+                    Amount = 100m,
+                    Description = "Old CKR receipt",
+                    Status = AuditStatus.Approved,
+                    Details = new List<AuditItemDetail> { new AuditItemDetail { ItemName = "Old line", Quantity = 1, Price = 100m, Total = 100m } }
+                },
+                new AuditItem
+                {
+                    BuyerId = 3,
+                    EstablishmentId = 1,
+                    EntryDate = new DateTime(2026, 8, 6),
+                    Amount = 200m,
+                    Description = "Split receipt",
+                    Status = AuditStatus.Approved,
+                    Details = new List<AuditItemDetail> { new AuditItemDetail { ItemName = "Dayo line", Quantity = 1, Price = 200m, Total = 200m, AssignedEstablishmentId = 2 } }
+                });
+            await context.SaveChangesAsync();
+
+            var ckrResult = await CreateReportsController(context).Index(new ReportsFilterViewModel { StartDate = new DateTime(2026, 8, 6), EndDate = new DateTime(2026, 8, 6), EstablishmentId = 1 });
+            var ckrModel = Assert.IsType<ReportsViewModel>(Assert.IsType<ViewResult>(ckrResult).Model);
+            Assert.Contains(ckrModel.BranchAudit.Expenses, expense => expense.Description == "Old line" && expense.Allocation == "CKR Main");
+            Assert.DoesNotContain(ckrModel.BranchAudit.Expenses, expense => expense.Description == "Dayo line");
+
+            var dayoResult = await CreateReportsController(context).Index(new ReportsFilterViewModel { StartDate = new DateTime(2026, 8, 6), EndDate = new DateTime(2026, 8, 6), EstablishmentId = 2 });
+            var dayoModel = Assert.IsType<ReportsViewModel>(Assert.IsType<ViewResult>(dayoResult).Model);
+            Assert.Contains(dayoModel.BranchAudit.Expenses, expense => expense.Description == "Dayo line" && expense.Allocation == "Dayo");
+            Assert.DoesNotContain(dayoModel.BranchAudit.Expenses, expense => expense.Description == "Old line");
+        }
+
+        [Fact]
+        public async Task Index_TreasuryAuditIncludesVisibleCashOutDetails()
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedReportBaseAsync(context);
+            context.TreasuryCashFlows.Add(new TreasuryCashFlow
+            {
+                Id = 31,
+                TreasuryUserId = 2,
+                CashFlowDate = new DateTime(2026, 8, 6),
+                StartingBalance = 1000m,
+                Entries = new List<CashFlowEntry>
+                {
+                    new CashFlowEntry { Direction = CashFlowDirection.In, Category = CashFlowCategory.Sales, EstablishmentId = 1, Amount = 1500m, CreatedByUserId = 2 },
+                    new CashFlowEntry { Direction = CashFlowDirection.Out, Category = CashFlowCategory.PcfRelease, RelatedUserId = 3, Amount = 500m, Notes = "PCF Beth", CreatedByUserId = 2 }
+                }
+            });
+            await context.SaveChangesAsync();
+
+            var result = await CreateReportsController(context).Index(new ReportsFilterViewModel { StartDate = new DateTime(2026, 8, 6), EndDate = new DateTime(2026, 8, 6), TreasuryHandlerId = 2 });
+
+            var model = Assert.IsType<ReportsViewModel>(Assert.IsType<ViewResult>(result).Model);
+            var cashOut = Assert.Single(model.TreasuryAudit.CashOutRows);
+            Assert.Equal("Beth Buyer", cashOut.Description);
+            Assert.Equal("PcfRelease", cashOut.Category);
+            Assert.Equal("Maya Treasury", cashOut.TreasuryHandlerName);
+            Assert.Equal(500m, cashOut.Amount);
+        }
+
+        [Fact]
+        public void ReportsView_RendersAllAuditPacketSectionsWithScrollableTables()
+        {
+            var viewPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AuditCkDayo", "Views", "Reports", "Index.cshtml"));
+            var view = File.ReadAllText(viewPath);
+
+            Assert.Contains("Manager Audit / Receipt Audit Log", view);
+            Assert.Contains("Buyer Liquidation", view);
+            Assert.Contains("Branch Audit / Expense Allocations", view);
+            Assert.Contains("Cash Out Details", view);
+            Assert.Contains("overflow-y: auto; overflow-x: auto;", view);
+            Assert.DoesNotContain("Latest 25", view);
+        }
+
+    }
+
     public class BranchStaffNavigationPolicyTests
     {
         [Theory]

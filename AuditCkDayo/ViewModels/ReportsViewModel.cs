@@ -39,6 +39,7 @@ public class ReportsViewModel
     public List<PettyCashLedger> LedgerEntries { get; set; } = new();
     public TreasuryAuditReportViewModel TreasuryAudit { get; set; } = new();
     public BuyerAuditReportViewModel BuyerAudit { get; set; } = new();
+    public List<BuyerAuditReportViewModel> BuyerAudits { get; set; } = new();
     public BranchAuditReportViewModel BranchAudit { get; set; } = new();
 }
 
@@ -140,9 +141,12 @@ public class TreasuryAuditReportViewModel
                 {
                     Date = flow.CashFlowDate.Date,
                     Description = GetCashOutDescription(entry),
+                    Category = entry.Category.ToString(),
+                    TreasuryHandlerName = flow.TreasuryUser?.Name ?? "Unassigned Treasury",
                     Amount = entry.Amount
                 }))
             .OrderBy(row => row.Date)
+            .ThenBy(row => row.Description)
             .ToList();
 
         return report;
@@ -191,22 +195,22 @@ public class TreasuryAuditReportViewModel
     {
         if (!string.IsNullOrWhiteSpace(entry.Establishment?.Name))
         {
-            return entry.Establishment.Name.Trim().ToUpperInvariant();
+            return entry.Establishment.Name.Trim();
         }
 
         if (!string.IsNullOrWhiteSpace(entry.RelatedUser?.Name))
         {
-            return entry.RelatedUser.Name.Trim().ToUpperInvariant();
+            return entry.RelatedUser.Name.Trim();
         }
 
         if (!string.IsNullOrWhiteSpace(entry.CostCenter?.Name))
         {
-            return entry.CostCenter.Name.Trim().ToUpperInvariant();
+            return entry.CostCenter.Name.Trim();
         }
 
         if (!string.IsNullOrWhiteSpace(entry.Notes))
         {
-            return entry.Notes.Trim().ToUpperInvariant();
+            return entry.Notes.Trim();
         }
 
         return entry.Category.ToString().ToUpperInvariant();
@@ -229,6 +233,8 @@ public class TreasuryAuditCashOutRowViewModel
 {
     public DateTime Date { get; set; }
     public string Description { get; set; } = string.Empty;
+    public string Category { get; set; } = string.Empty;
+    public string TreasuryHandlerName { get; set; } = string.Empty;
     public decimal Amount { get; set; }
 }
 public class BuyerAuditReportViewModel
