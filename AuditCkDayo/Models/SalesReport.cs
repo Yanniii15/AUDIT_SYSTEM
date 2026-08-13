@@ -8,6 +8,7 @@ namespace AuditCkDayo.Models
         Uploaded,
         Parsed,
         Draft,
+        PendingManagerVerification,
         Confirmed,
         Rejected,
         Adjusted

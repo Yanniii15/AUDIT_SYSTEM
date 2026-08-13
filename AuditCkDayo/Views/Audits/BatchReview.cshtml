@@ -1,0 +1,72 @@
+@model List<AuditCkDayo.ViewModels.AuditSubmissionViewModel>
+@{
+    ViewData["Title"] = "Processed Audit Invoices";
+    var total = Model.Sum(a => a.Amount);
+}
+
+<div class="space-y-space-6">
+    <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-space-4">
+        <div>
+            <div class="flex items-center gap-space-2 text-primary">
+                <span class="material-symbols-outlined text-[20px]">receipt_long</span>
+                <span class="font-label-caps uppercase tracking-widest text-on-surface-variant">Batch Audit Review</span>
+            </div>
+            <h1 class="font-headline-lg text-headline-lg text-on-surface">Processed OCR Audits</h1>
+            <p class="font-body-md text-on-surface-variant">Review every processed receipt group, add more audits, then submit the batch together.</p>
+        </div>
+    </div>
+    <div asp-validation-summary="ModelOnly" class="rounded-lg border border-red-200 bg-red-50 px-space-4 py-space-3 text-red-700 text-sm"></div>
+
+    <section class="overflow-hidden rounded-xl border border-surface-border bg-surface-container-lowest shadow-sm">
+        <div class="p-space-5 border-b border-surface-border flex items-center justify-between">
+            <h2 class="font-headline-sm text-on-surface">Processed OCR table</h2>
+            <span class="font-data-mono text-primary">@Model.Count audit(s) · ₱@total.ToString("N2")</span>
+        </div>
+
+        @if (!Model.Any())
+        {
+            <div class="p-space-8 text-center text-on-surface-variant">
+                No processed audits have been added yet.
+            </div>
+        }
+        else
+        {
+            <div class="max-h-[520px] overflow-y-auto overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead class="sticky top-0 z-10">
+                        <tr class="bg-surface-container-low border-b border-surface-border">
+                            <th class="px-space-5 py-space-3 font-label-caps uppercase text-[10px] text-on-surface-variant">#</th>
+                            <th class="px-space-5 py-space-3 font-label-caps uppercase text-[10px] text-on-surface-variant">Description</th>
+                            <th class="px-space-5 py-space-3 font-label-caps uppercase text-[10px] text-on-surface-variant">Receipt files</th>
+                            <th class="px-space-5 py-space-3 font-label-caps uppercase text-[10px] text-on-surface-variant text-right">Amount</th>
+                            <th class="px-space-5 py-space-3 font-label-caps uppercase text-[10px] text-on-surface-variant">Date</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-surface-border">
+                        @for (var i = 0; i < Model.Count; i++)
+                        {
+                            <tr>
+                                <td class="px-space-5 py-space-3 font-data-mono text-on-surface-variant">@(i + 1)</td>
+                                <td class="px-space-5 py-space-3 text-on-surface">@Model[i].Description</td>
+                                <td class="px-space-5 py-space-3 text-on-surface-variant">@(Model[i].ReceiptImageUrls?.Count ?? 0)</td>
+                                <td class="px-space-5 py-space-3 text-right font-data-mono text-primary">₱@Model[i].Amount.ToString("N2")</td>
+                                <td class="px-space-5 py-space-3 text-on-surface-variant">@Model[i].EntryDate.ToString("yyyy-MM-dd")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+
+    <div class="flex flex-wrap gap-space-3">
+        <a asp-action="Upload" class="rounded-lg border border-surface-border px-space-6 py-space-3 font-label-caps uppercase tracking-widest text-on-surface-variant hover:bg-surface-container-low">Add More Audits</a>
+        @if (Model.Any())
+        {
+            <form asp-action="SubmitAuditBatch" method="post">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="rounded-lg bg-primary px-space-6 py-space-3 font-label-caps uppercase tracking-widest text-on-primary hover:brightness-110">Submit All Audit Invoices</button>
+            </form>
+        }
+    </div>
+</div>

@@ -1,0 +1,80 @@
+@model IEnumerable<AuditCkDayo.Models.SalesReport>
+@{
+    ViewData["Title"] = "Pending Sales Verification";
+}
+
+<div class="space-y-6">
+    <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-space-4">
+        <div class="flex flex-col gap-space-2 max-w-3xl">
+            <div class="flex items-center gap-space-2 text-primary">
+                <span class="material-symbols-outlined text-[20px]">fact_check</span>
+                <span class="font-label-caps uppercase tracking-widest text-on-surface-variant">Manager Verification</span>
+            </div>
+            <h1 class="font-headline-lg text-headline-lg text-on-surface">Pending Sales Verification</h1>
+            <p class="font-body-md text-on-surface-variant leading-relaxed">
+                Review branch-submitted daily sales reports, count the handed-over cash, then Confirm to Treasury.
+            </p>
+        </div>
+        <a asp-action="Upload" class="inline-flex items-center justify-center gap-space-2 rounded-lg bg-surface-container border border-surface-border px-space-5 py-space-3 text-primary font-label-caps uppercase tracking-widest text-[12px] hover:bg-surface-container-high transition-all">
+            <span class="material-symbols-outlined text-[18px]">upload_file</span>
+            Upload Daily Sales Report
+        </a>
+    </div>
+
+    <section class="bg-surface-container-lowest rounded-xl shadow-sm border border-surface-border/50 overflow-hidden">
+        <div class="bg-primary px-space-6 py-space-4 flex justify-between items-center">
+            <span class="text-on-primary font-label-caps uppercase tracking-tighter text-[11px]">Awaiting Manager Verification</span>
+            <span class="text-on-primary/70 text-[11px] font-data-mono">@Model.Count() pending</span>
+        </div>
+
+        @if (!Model.Any())
+        {
+            <div class="p-space-8 text-center text-on-surface-variant">
+                <span class="material-symbols-outlined text-[48px] text-primary/50">task_alt</span>
+                <p class="font-headline-sm text-on-surface mt-space-3">No pending daily sales reports</p>
+                <p class="text-[13px] mt-space-1">Branch-submitted reports will appear here after they click Submit for Manager Verification.</p>
+            </div>
+        }
+        else
+        {
+            <div class="max-h-[520px] overflow-y-auto overflow-x-auto">
+                <table class="w-full text-left text-sm">
+                    <thead class="sticky top-0 z-10 bg-surface-container-low text-on-surface-variant font-label-caps uppercase text-[11px] tracking-wider">
+                        <tr>
+                            <th class="px-space-5 py-space-3">Branch</th>
+                            <th class="px-space-5 py-space-3">Business Date</th>
+                            <th class="px-space-5 py-space-3">Handover Date</th>
+                            <th class="px-space-5 py-space-3">Cashier</th>
+                            <th class="px-space-5 py-space-3 text-right">Cash to Handover</th>
+                            <th class="px-space-5 py-space-3">Status</th>
+                            <th class="px-space-5 py-space-3 text-right">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-surface-border">
+                        @foreach (var report in Model)
+                        {
+                            <tr class="hover:bg-surface-container-low/60 transition-colors">
+                                <td class="px-space-5 py-space-4 font-semibold text-on-surface">@report.Establishment.Name</td>
+                                <td class="px-space-5 py-space-4 text-on-surface-variant">@report.BusinessDate.ToString("MMM d, yyyy")</td>
+                                <td class="px-space-5 py-space-4 text-on-surface-variant">@report.HandoverDate.ToString("MMM d, yyyy")</td>
+                                <td class="px-space-5 py-space-4 text-on-surface-variant">@(string.IsNullOrWhiteSpace(report.CashierName) ? "—" : report.CashierName)</td>
+                                <td class="px-space-5 py-space-4 text-right font-data-mono text-on-surface">₱@report.ConfirmedCashToHandover.ToString("N2")</td>
+                                <td class="px-space-5 py-space-4">
+                                    <span class="rounded-full border border-audit-pending/30 bg-audit-pending/10 px-space-3 py-space-1 text-[11px] font-label-caps uppercase tracking-wider text-audit-pending">
+                                        Pending Manager Verification
+                                    </span>
+                                </td>
+                                <td class="px-space-5 py-space-4 text-right">
+                                    <a asp-action="Review" asp-route-id="@report.Id" class="inline-flex items-center justify-center gap-space-2 rounded-lg bg-primary px-space-4 py-space-2 text-on-primary font-label-caps uppercase tracking-widest text-[11px] hover:bg-primary/95 transition-all">
+                                        <span class="material-symbols-outlined text-[16px]">check_circle</span>
+                                        Confirm to Treasury
+                                    </a>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+</div>

@@ -10,6 +10,13 @@ namespace AuditCkDayo.Models
         NotRequired
     }
 
+    public enum BranchVerificationStatus
+    {
+        Pending,
+        Verified,
+        Rejected
+    }
+
     public class AuditItemDetail
     {
         [Key]
@@ -48,6 +55,9 @@ namespace AuditCkDayo.Models
 
         [Required]
         public ReceiptLineStatus ReceiptStatus { get; set; } = ReceiptLineStatus.HasReceipt;
+
+        [Required]
+        public BranchVerificationStatus BranchVerificationStatus { get; set; } = BranchVerificationStatus.Pending;
 
         [MaxLength(255)]
         public string? AllocationNotes { get; set; }

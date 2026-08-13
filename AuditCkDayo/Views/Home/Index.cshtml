@@ -18,47 +18,31 @@
         </p>
     </div>
     
-    <div class="col-span-12 lg:col-span-8 grid grid-cols-1 md:grid-cols-3 gap-space-4">
-        <!-- Total Audited Amount -->
-        <div class="relative overflow-hidden bg-surface-container-lowest p-space-6 rounded-xl shadow-sm group hover:shadow-md transition-all duration-300 border border-surface-border">
-            <div class="absolute top-0 right-0 p-space-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                <span class="material-symbols-outlined text-[64px]">account_balance_wallet</span>
-            </div>
-            <div class="relative z-10">
-                <span class="font-label-caps text-on-surface-variant uppercase text-[10px]">Filtered Total Audited</span>
-                <div class="flex items-baseline gap-space-2 mt-space-2">
-                    <span class="font-headline-lg text-headline-lg text-primary">₱@Model.TotalAmount.ToString("N2")</span>
-                </div>
-                <div class="mt-space-4 h-1 w-full bg-surface-container rounded-full overflow-hidden">
-                    <div class="h-full bg-primary w-[75%] transition-all duration-1000 ease-out"></div>
-                </div>
-            </div>
-        </div>
+    <div class="col-span-12 lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-space-4">
         
-        <!-- Pending Audits -->
+        <!-- Starting PCF -->
         <div class="relative overflow-hidden bg-surface-container-lowest p-space-6 rounded-xl shadow-sm group hover:shadow-md transition-all duration-300 border border-surface-border">
             <div class="absolute top-0 right-0 p-space-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                <span class="material-symbols-outlined text-[64px]">pending_actions</span>
+                <span class="material-symbols-outlined text-[64px]">savings</span>
             </div>
             <div class="relative z-10">
-                <span class="font-label-caps text-on-surface-variant uppercase text-[10px]">Pending Verification</span>
+                <span class="font-label-caps text-on-surface-variant uppercase text-[10px]">Starting PCF</span>
                 <div class="flex items-baseline gap-space-2 mt-space-2">
-                    <span class="font-headline-lg text-headline-lg text-audit-pending">@pendingCount</span>
-                    <span class="font-body-md text-on-surface-variant">items</span>
+                    <span class="font-headline-lg text-headline-lg text-on-surface">₱@currentUser.DailyStartingFloat.ToString("N2")</span>
                 </div>
                 <div class="mt-space-4 flex gap-space-1">
-                    <div class="h-1 flex-1 bg-audit-pending rounded-full"></div>
-                    <div class="h-1 flex-1 bg-audit-pending/30 rounded-full"></div>
-                    <div class="h-1 flex-1 bg-audit-pending/30 rounded-full"></div>
+                    <div class="h-1 flex-1 bg-primary rounded-full"></div>
+                    <div class="h-1 flex-1 bg-primary/30 rounded-full"></div>
+                    <div class="h-1 flex-1 bg-primary/30 rounded-full"></div>
                 </div>
             </div>
         </div>
         
-        <!-- Current PCF Balance -->
+        <!-- Current PCF -->
         <div class="relative overflow-hidden bg-primary p-space-6 rounded-xl shadow-sm group hover:shadow-md transition-all duration-300">
             <div class="absolute -bottom-4 -right-4 w-32 h-32 bg-on-primary/5 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700"></div>
             <div class="relative z-10">
-                <span class="font-label-caps text-primary-fixed-dim uppercase text-[10px]">Your PCF Balance</span>
+                <span class="font-label-caps text-primary-fixed-dim uppercase text-[10px]">Current PCF</span>
                 <div class="flex items-baseline gap-space-2 mt-space-2">
                     <span class="font-headline-lg text-headline-lg text-on-primary">₱@currentUser.PcfBalance.ToString("N2")</span>
                 </div>
@@ -104,9 +88,9 @@
                 <span class="font-data-mono text-primary text-[13px]">@Model.TodayAudits.Count records</span>
             </div>
 
-            <div class="hidden lg:block overflow-x-auto rounded-xl border border-surface-border">
+            <div class="hidden lg:block max-h-[520px] overflow-y-auto overflow-x-auto rounded-xl border border-surface-border">
                 <table class="w-full text-left border-collapse">
-                    <thead>
+                    <thead class="sticky top-0 z-10">
                         <tr class="bg-surface-container-low border-b border-surface-border">
                             <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">ID</th>
                             <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">Buyer</th>
@@ -114,13 +98,14 @@
                             <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">Description</th>
                             <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px] text-right">Amount</th>
                             <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px] text-center">Status</th>
+                            <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px] text-right">Actions</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-surface-border">
                         @if (!Model.TodayAudits.Any())
                         {
                             <tr>
-                                <td colspan="6" class="px-space-6 py-space-8 text-center text-on-surface-variant font-body-md">
+                                <td colspan="7" class="px-space-6 py-space-8 text-center text-on-surface-variant font-body-md">
                                     No audits submitted today.
                                 </td>
                             </tr>
@@ -132,6 +117,9 @@
                                 var statusBg = item.Status == AuditCkDayo.Models.AuditStatus.Approved ? "bg-audit-success/10 text-audit-success border-audit-success/20" :
                                                (item.Status == AuditCkDayo.Models.AuditStatus.Rejected ? "bg-audit-error/10 text-audit-error border-audit-error/20" :
                                                "bg-audit-pending/10 text-audit-pending border-audit-pending/20");
+                                var isPending = item.Status == AuditCkDayo.Models.AuditStatus.AwaitingBranchVerification || item.Status == AuditCkDayo.Models.AuditStatus.AwaitingManagerApproval || item.Status == AuditCkDayo.Models.AuditStatus.Pending;
+                                var canCorrect = isPending && item.BuyerId == currentUser.Id;
+
 
                                 <tr class="hover:bg-surface-container-low/30 transition-colors">
                                     <td class="px-space-6 py-space-4"><span class="font-data-mono text-on-surface-variant text-[13px]">#AUD-@item.Id</span></td>
@@ -140,6 +128,22 @@
                                     <td class="px-space-6 py-space-4"><p class="font-body-md text-on-surface-variant truncate max-w-[280px]">@item.Description</p></td>
                                     <td class="px-space-6 py-space-4 text-right"><span class="font-data-mono text-primary font-bold">₱@item.Amount.ToString("N2")</span></td>
                                     <td class="px-space-6 py-space-4 text-center"><span class="px-space-3 py-1 @statusBg rounded-full text-[10px] font-label-caps uppercase border">@item.Status</span></td>
+                                    <td class="px-space-6 py-space-4">
+                                        @if (canCorrect)
+                                        {
+                                            <div class="flex justify-end gap-space-2">
+                                                <a asp-controller="Audits" asp-action="Edit" asp-route-id="@item.Id" class="px-space-3 py-1.5 rounded-lg border border-primary/20 text-primary font-label-caps text-[10px] uppercase hover:bg-primary hover:text-on-primary transition-colors">
+                                                    Edit
+                                                </a>
+                                                <form asp-controller="Audits" asp-action="Void" method="post" onsubmit="return confirm('Void this pending audit and refund your PCF balance?');">
+                                                    <input type="hidden" name="id" value="@item.Id" />
+                                                    <button type="submit" class="px-space-3 py-1.5 rounded-lg border border-error/20 text-error font-label-caps text-[10px] uppercase hover:bg-error hover:text-on-primary transition-colors">
+                                                        Void
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        }
+                                    </td>
                                 </tr>
                             }
                         }
@@ -148,7 +152,7 @@
             </div>
 
             <!-- Mobile Card Layout (Stitch Responsive Reference) -->
-            <div class="block lg:hidden space-y-space-4 mt-space-4">
+            <div class="block lg:hidden space-y-space-4 mt-space-4 max-h-[520px] overflow-y-auto">
                 @if (!Model.TodayAudits.Any())
                 {
                     <div class="text-center text-on-surface-variant font-body-md py-space-6">
@@ -162,6 +166,9 @@
                         var statusBg = item.Status == AuditCkDayo.Models.AuditStatus.Approved ? "bg-audit-success/10 text-audit-success border-audit-success/20" :
                                        (item.Status == AuditCkDayo.Models.AuditStatus.Rejected ? "bg-audit-error/10 text-audit-error border-audit-error/20" :
                                        "bg-audit-pending/10 text-audit-pending border-audit-pending/20");
+                        var isPending = item.Status == AuditCkDayo.Models.AuditStatus.AwaitingBranchVerification || item.Status == AuditCkDayo.Models.AuditStatus.AwaitingManagerApproval || item.Status == AuditCkDayo.Models.AuditStatus.Pending;
+                        var canCorrect = isPending && item.BuyerId == currentUser.Id;
+
 
                         <article class="bg-surface-container-lowest border border-surface-border rounded-xl p-space-4 flex flex-col gap-space-4 shadow-sm">
                             <div class="flex justify-between items-start">
@@ -198,6 +205,20 @@
                                 </div>
                                 <span class="font-data-mono text-on-surface-variant text-[12px]">#AUD-@item.Id</span>
                             </div>
+                            @if (canCorrect)
+                            {
+                                <div class="flex flex-wrap justify-end gap-space-2">
+                                    <a asp-controller="Audits" asp-action="Edit" asp-route-id="@item.Id" class="border border-primary/20 text-primary px-space-4 py-2 rounded-lg font-label-caps text-[11px] uppercase tracking-wider hover:bg-primary hover:text-on-primary transition-all">
+                                        Edit
+                                    </a>
+                                    <form asp-controller="Audits" asp-action="Void" method="post" onsubmit="return confirm('Void this pending audit and refund your PCF balance?');">
+                                        <input type="hidden" name="id" value="@item.Id" />
+                                        <button type="submit" class="border border-error/20 text-error px-space-4 py-2 rounded-lg font-label-caps text-[11px] uppercase tracking-wider hover:bg-error hover:text-on-primary transition-all">
+                                            Void
+                                        </button>
+                                    </form>
+                                </div>
+                            }
                         </article>
                     }
                 }
@@ -264,9 +285,9 @@
                 </form>
             </div>
 
-            <div class="hidden lg:block overflow-x-auto">
+            <div class="hidden lg:block max-h-[520px] overflow-y-auto overflow-x-auto">
                 <table class="w-full text-left border-collapse">
-                    <thead>
+                    <thead class="sticky top-0 z-10">
                         <tr class="bg-surface-container-low border-b border-surface-border">
                             <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">ID</th>
                             <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">Buyer</th>
@@ -275,13 +296,14 @@
                             <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">Date</th>
                             <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px] text-right">Amount</th>
                             <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px] text-center">Status</th>
+                            <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px] text-right">Actions</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-surface-border">
                         @if (!Model.Audits.Any())
                         {
                             <tr>
-                                <td colspan="7" class="px-space-6 py-space-8 text-center text-on-surface-variant font-body-md">
+                                <td colspan="8" class="px-space-6 py-space-8 text-center text-on-surface-variant font-body-md">
                                     No audited items found matching criteria.
                                 </td>
                             </tr>
@@ -290,7 +312,19 @@
                         {
                             @foreach (var item in Model.Audits)
                             {
-                                <tr class="historical-row hover:bg-surface-container-low/30 transition-colors group">
+                                var isPending = item.Status == AuditCkDayo.Models.AuditStatus.AwaitingBranchVerification || item.Status == AuditCkDayo.Models.AuditStatus.AwaitingManagerApproval || item.Status == AuditCkDayo.Models.AuditStatus.Pending;
+                                var canCorrect = isPending && item.BuyerId == currentUser.Id;
+
+                                <tr class="historical-row hover:bg-surface-container-low/30 transition-colors group cursor-pointer"
+                                    onclick="openDashboardAuditViewer(this)"
+                                    data-buyer="@item.Buyer.Name"
+                                    data-establishment="@item.Establishment.Name"
+                                    data-date="@item.EntryDate.ToString("MMM dd, yyyy")"
+                                    data-amount="₱@item.Amount.ToString("N2")"
+                                    data-description="@item.Description"
+                                    data-notes="@item.Notes"
+                                    data-details="@System.Text.Json.JsonSerializer.Serialize(item.Details.Select(d => new { name = d.ItemName, qty = d.Quantity, price = d.Price, total = d.Total }))"
+                                    data-receipt-url="@(string.IsNullOrEmpty(item.ReceiptImageUrl) ? "#" : item.ReceiptImageUrl)">
                                     <td class="px-space-6 py-space-4">
                                         <span class="font-data-mono text-on-surface-variant text-[13px]">#AUD-@item.Id</span>
                                     </td>
@@ -330,6 +364,22 @@
                                             @item.Status
                                         </span>
                                     </td>
+                                    <td class="px-space-6 py-space-4">
+                                        @if (canCorrect)
+                                        {
+                                            <div class="flex justify-end gap-space-2">
+                                                <a asp-controller="Audits" asp-action="Edit" asp-route-id="@item.Id" class="px-space-3 py-1.5 rounded-lg border border-primary/20 text-primary font-label-caps text-[10px] uppercase hover:bg-primary hover:text-on-primary transition-colors">
+                                                    Edit
+                                                </a>
+                                                <form asp-controller="Audits" asp-action="Void" method="post" onsubmit="return confirm('Void this pending audit and refund your PCF balance?');">
+                                                    <input type="hidden" name="id" value="@item.Id" />
+                                                    <button type="submit" class="px-space-3 py-1.5 rounded-lg border border-error/20 text-error font-label-caps text-[10px] uppercase hover:bg-error hover:text-on-primary transition-colors">
+                                                        Void
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        }
+                                    </td>
                                 </tr>
                             }
                         }
@@ -338,7 +388,7 @@
             </div>
 
             <!-- Mobile Card Layout (Stitch Responsive Reference) -->
-            <div class="block lg:hidden space-y-space-4 mt-space-4">
+            <div class="block lg:hidden space-y-space-4 mt-space-4 max-h-[520px] overflow-y-auto">
                 @if (!Model.Audits.Any())
                 {
                     <div class="text-center text-on-surface-variant font-body-md py-space-6">
@@ -352,8 +402,20 @@
                         var statusBg = item.Status == AuditCkDayo.Models.AuditStatus.Approved ? "bg-audit-success/10 text-audit-success border-audit-success/20" :
                                        (item.Status == AuditCkDayo.Models.AuditStatus.Rejected ? "bg-audit-error/10 text-audit-error border-audit-error/20" :
                                        "bg-audit-pending/10 text-audit-pending border-audit-pending/20");
+                        var isPending = item.Status == AuditCkDayo.Models.AuditStatus.AwaitingBranchVerification || item.Status == AuditCkDayo.Models.AuditStatus.AwaitingManagerApproval || item.Status == AuditCkDayo.Models.AuditStatus.Pending;
+                        var canCorrect = isPending && item.BuyerId == currentUser.Id;
 
-                        <article class="bg-surface-container-lowest border border-surface-border rounded-xl p-space-4 flex flex-col gap-space-4 shadow-sm">
+
+                        <article class="historical-row bg-surface-container-lowest border border-surface-border rounded-xl p-space-4 flex flex-col gap-space-4 shadow-sm cursor-pointer hover:bg-surface-container-low/30 transition-colors"
+                                 onclick="openDashboardAuditViewer(this)"
+                                 data-buyer="@item.Buyer.Name"
+                                 data-establishment="@item.Establishment.Name"
+                                 data-date="@item.EntryDate.ToString("MMM dd, yyyy")"
+                                 data-amount="₱@item.Amount.ToString("N2")"
+                                 data-description="@item.Description"
+                                 data-notes="@item.Notes"
+                                 data-details="@System.Text.Json.JsonSerializer.Serialize(item.Details.Select(d => new { name = d.ItemName, qty = d.Quantity, price = d.Price, total = d.Total }))"
+                                 data-receipt-url="@(string.IsNullOrEmpty(item.ReceiptImageUrl) ? "#" : item.ReceiptImageUrl)">
                             <div class="flex justify-between items-start">
                                 <div class="flex gap-space-3 items-center">
                                     <div class="w-10 h-10 rounded-full bg-secondary-container text-secondary flex items-center justify-center font-bold text-[12px]">
@@ -392,6 +454,20 @@
                                     <span class="text-[10px] text-on-surface-variant font-label-caps uppercase">@item.Description</span>
                                 </div>
                             </div>
+                            @if (canCorrect)
+                            {
+                                <div class="flex flex-wrap justify-end gap-space-2">
+                                    <a asp-controller="Audits" asp-action="Edit" asp-route-id="@item.Id" class="border border-primary/20 text-primary px-space-4 py-2 rounded-lg font-label-caps text-[11px] uppercase tracking-wider hover:bg-primary hover:text-on-primary transition-all">
+                                        Edit
+                                    </a>
+                                    <form asp-controller="Audits" asp-action="Void" method="post" onsubmit="return confirm('Void this pending audit and refund your PCF balance?');">
+                                        <input type="hidden" name="id" value="@item.Id" />
+                                        <button type="submit" class="border border-error/20 text-error px-space-4 py-2 rounded-lg font-label-caps text-[11px] uppercase tracking-wider hover:bg-error hover:text-on-primary transition-all">
+                                            Void
+                                        </button>
+                                    </form>
+                                </div>
+                            }
                         </article>
                     }
                 }
@@ -399,6 +475,81 @@
         </div>
     </div>
 </section>
+
+@if (Model.CashOnHandUsers.Any())
+{
+    <section class="pb-space-8">
+        <div class="bg-surface-container-lowest rounded-xl shadow-sm border border-surface-border/50 overflow-hidden">
+            <div class="px-space-6 py-space-4 border-b border-surface-border flex items-center justify-between">
+                <div>
+                    <span class="font-label-caps uppercase tracking-widest text-on-surface-variant text-[10px]">Cash on Hand</span>
+                    <h2 class="font-headline-sm text-on-surface">Current PCF Balances</h2>
+                </div>
+                <span class="font-data-mono text-primary text-[13px]">₱@Model.CashOnHandUsers.Sum(u => u.PcfBalance).ToString("N2")</span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-space-4 p-space-6 max-h-[520px] overflow-y-auto">
+                @foreach (var cashUser in Model.CashOnHandUsers)
+                {
+                    <article class="border border-surface-border rounded-xl p-space-4 bg-surface-container-low">
+                        <div class="flex items-start justify-between gap-space-3">
+                            <div>
+                                <p class="font-body-md font-semibold text-on-surface">@cashUser.Name</p>
+                                <p class="text-[11px] text-on-surface-variant">@cashUser.Role@if (cashUser.Establishment != null) { <text> • @cashUser.Establishment.Name</text> }</p>
+                            </div>
+                            <span class="font-data-mono text-primary font-bold">₱@cashUser.PcfBalance.ToString("N2")</span>
+                        </div>
+                    </article>
+                }
+            </div>
+        </div>
+    </section>
+}
+
+<div id="dashboardAuditViewerModal" class="fixed inset-0 z-[100] hidden" role="dialog" aria-modal="true" aria-labelledby="dashboardAuditViewerTitle">
+    <div id="dashboardAuditViewerBackdrop" class="absolute inset-0 bg-primary/80 backdrop-blur-sm"></div>
+    <div class="relative z-10 h-full w-full p-space-6 flex items-center justify-center">
+        <section class="bg-surface-container-lowest border border-surface-border rounded-xl shadow-2xl w-full max-w-7xl max-h-[92vh] overflow-hidden grid grid-cols-1 lg:grid-cols-[minmax(0,1.4fr)_minmax(360px,0.6fr)]">
+            <div class="bg-surface-container-highest min-h-[420px] max-h-[92vh] flex flex-col items-center justify-center gap-space-4 p-space-6 overflow-auto">
+                <img id="dashboard-viewer-receipt" src="" alt="Full receipt image" class="max-w-full max-h-[78vh] object-contain rounded-lg shadow-lg bg-white" />
+                <div id="dashboard-viewer-receipt-error" class="hidden max-w-md text-center text-on-primary bg-primary/90 border border-on-primary/10 rounded-xl p-space-4">
+                    <p class="font-body-md text-[13px]">Receipt preview could not load here. Open the receipt image directly.</p>
+                </div>
+                <a id="dashboard-viewer-receipt-link" href="#" target="_blank" rel="noopener" class="inline-flex items-center gap-space-2 bg-primary text-on-primary px-space-4 py-space-2 rounded-lg font-label-caps uppercase text-[11px] hover:bg-on-primary-fixed-variant transition-colors">
+                    <span class="material-symbols-outlined text-[16px]">open_in_new</span>
+                    Open Receipt Image
+                </a>
+            </div>
+            <aside class="p-space-6 overflow-y-auto max-h-[92vh] space-y-space-6">
+                <div class="flex items-start justify-between gap-space-4">
+                    <div>
+                        <span class="font-label-caps text-on-surface-variant uppercase text-[10px]">Historical Audit</span>
+                        <h2 id="dashboardAuditViewerTitle" class="font-headline-md text-headline-md text-on-surface mt-1">Audit Details</h2>
+                    </div>
+                    <button type="button" id="closeDashboardAuditViewerBtn" class="bg-surface-container text-on-surface-variant hover:text-error border border-surface-border rounded-lg p-2 transition-colors cursor-pointer" aria-label="Close audit viewer">
+                        <span class="material-symbols-outlined">close</span>
+                    </button>
+                </div>
+                <dl class="grid grid-cols-1 gap-space-4 text-[13px]">
+                    <div><dt class="font-label-caps text-on-surface-variant uppercase text-[10px]">Buyer</dt><dd id="dashboard-viewer-buyer" class="font-body-md text-on-surface"></dd></div>
+                    <div><dt class="font-label-caps text-on-surface-variant uppercase text-[10px]">Establishment</dt><dd id="dashboard-viewer-establishment" class="font-body-md text-on-surface"></dd></div>
+                    <div><dt class="font-label-caps text-on-surface-variant uppercase text-[10px]">Transaction Date</dt><dd id="dashboard-viewer-date" class="font-body-md text-on-surface"></dd></div>
+                    <div><dt class="font-label-caps text-on-surface-variant uppercase text-[10px]">Amount</dt><dd id="dashboard-viewer-amount" class="font-data-mono text-primary text-[22px] font-bold"></dd></div>
+                    <div><dt class="font-label-caps text-on-surface-variant uppercase text-[10px]">Description</dt><dd id="dashboard-viewer-description" class="font-body-md text-data-text"></dd></div>
+                    <div><dt class="font-label-caps text-on-surface-variant uppercase text-[10px]">Notes</dt><dd id="dashboard-viewer-notes" class="font-body-md text-on-surface-variant"></dd></div>
+                </dl>
+                <div class="border-t border-surface-border pt-space-4">
+                    <h3 class="font-label-caps text-on-surface-variant uppercase text-[10px] mb-space-2">Line Items</h3>
+                    <div class="overflow-x-auto border border-surface-border rounded-lg">
+                        <table class="w-full text-left text-[11px]">
+                            <thead><tr class="border-b border-surface-border text-on-surface-variant bg-surface-container-low"><th class="px-3 py-2">Item</th><th class="px-3 py-2 text-center">Qty</th><th class="px-3 py-2 text-right">Price</th><th class="px-3 py-2 text-right">Total</th></tr></thead>
+                            <tbody id="dashboard-viewer-items-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </aside>
+        </section>
+    </div>
+</div>
 
 <!-- Decorative Analytics Layer (Floaters) -->
 <div class="fixed bottom-space-8 right-space-8 pointer-events-none opacity-10">
@@ -410,6 +561,66 @@
 </div>
 
 <script>
+    function renderDashboardLineItems(tbody, details) {
+        if (!tbody) return;
+        tbody.innerHTML = '';
+        if (!details || details.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center py-2 text-on-surface-variant">No items listed.</td></tr>';
+            return;
+        }
+
+        details.forEach(item => {
+            const tr = document.createElement('tr');
+            tr.className = 'border-b border-surface-border last:border-0 text-on-surface';
+            tr.innerHTML = `
+                <td class="px-3 py-2">${item.name}</td>
+                <td class="px-3 py-2 text-center">${item.qty}</td>
+                <td class="px-3 py-2 text-right">₱${Number(item.price).toFixed(2)}</td>
+                <td class="px-3 py-2 text-right">₱${Number(item.total).toFixed(2)}</td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function openDashboardAuditViewer(row) {
+        if (!row) return;
+        const details = JSON.parse(row.dataset.details || "[]");
+        const receiptUrl = row.dataset.receiptUrl;
+        const receipt = document.getElementById('dashboard-viewer-receipt');
+        const receiptLink = document.getElementById('dashboard-viewer-receipt-link');
+        const receiptError = document.getElementById('dashboard-viewer-receipt-error');
+
+        receiptError?.classList.add('hidden');
+        receipt?.classList.toggle('hidden', !receiptUrl || receiptUrl === '#');
+        if (receiptUrl && receiptUrl !== '#') {
+            receipt.src = receiptUrl;
+        }
+        receipt.onerror = function () {
+            receipt.classList.add('hidden');
+            receiptError?.classList.remove('hidden');
+        };
+        receiptLink.href = receiptUrl || '#';
+
+        document.getElementById('dashboard-viewer-buyer').innerText = row.dataset.buyer;
+        document.getElementById('dashboard-viewer-establishment').innerText = row.dataset.establishment;
+        document.getElementById('dashboard-viewer-date').innerText = row.dataset.date;
+        document.getElementById('dashboard-viewer-amount').innerText = row.dataset.amount;
+        document.getElementById('dashboard-viewer-description').innerText = row.dataset.description;
+        document.getElementById('dashboard-viewer-notes').innerText = row.dataset.notes || "None";
+        renderDashboardLineItems(document.getElementById('dashboard-viewer-items-body'), details);
+
+        document.getElementById('dashboardAuditViewerModal').classList.remove('hidden');
+        document.body.classList.add('overflow-hidden');
+    }
+
+    function closeDashboardAuditViewer() {
+        document.getElementById('dashboardAuditViewerModal').classList.add('hidden');
+        document.body.classList.remove('overflow-hidden');
+    }
+
+    document.getElementById('closeDashboardAuditViewerBtn')?.addEventListener('click', closeDashboardAuditViewer);
+    document.getElementById('dashboardAuditViewerBackdrop')?.addEventListener('click', closeDashboardAuditViewer);
+
     document.querySelectorAll('.dashboard-tab-btn').forEach(button => {
         button.addEventListener('click', () => {
             const selectedTab = button.dataset.dashboardTab;

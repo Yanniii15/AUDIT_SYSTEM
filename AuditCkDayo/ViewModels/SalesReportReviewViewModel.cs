@@ -1,3 +1,4 @@
+using AuditCkDayo.Models;
 using System.ComponentModel.DataAnnotations;
 
 namespace AuditCkDayo.ViewModels
@@ -49,6 +50,22 @@ namespace AuditCkDayo.ViewModels
         public string? Notes { get; set; }
         public string ImageUrl { get; set; } = string.Empty;
         public List<string>? ImageUrls { get; set; }
+        public SalesReportStatus Status { get; set; } = SalesReportStatus.Draft;
+        public DocumentReviewStatus ReviewStatus { get; set; } = DocumentReviewStatus.Draft;
+        public bool CanConfirmToTreasury { get; set; }
+        public string StatusText => Status switch
+        {
+            SalesReportStatus.PendingManagerVerification => "Pending Manager Verification",
+            SalesReportStatus.Confirmed => "Confirmed",
+            SalesReportStatus.Rejected => "Rejected",
+            SalesReportStatus.Adjusted => "Adjusted",
+            SalesReportStatus.Uploaded => "Uploaded",
+            SalesReportStatus.Parsed => "Parsed",
+            _ => SalesReportId.HasValue ? "Reviewing Draft" : "New Intake"
+        };
+        public string PrimaryActionType => CanConfirmToTreasury ? "Confirm" : "SubmitForVerification";
+        public string PrimaryActionText => CanConfirmToTreasury ? "Confirm to Treasury" : "Submit for Manager Verification";
+        public string PrimaryActionIcon => CanConfirmToTreasury ? "check_circle" : "send";
         public List<CashBreakdownLineViewModel> Items { get; set; } = new();
     }
 

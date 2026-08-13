@@ -46,12 +46,13 @@ public class HomeController : Controller
         IQueryable<AuditItem> query = _context.AuditItems
             .AsNoTracking()
             .Include(a => a.Buyer)
-            .Include(a => a.Establishment);
+            .Include(a => a.Establishment)
+            .Include(a => a.Details);
 
         // Apply role-based filtering
         if (role == "Manager")
         {
-            query = query.Where(a => a.Buyer.ManagerId == userId);
+            query = query.Where(a => a.BuyerId == userId || a.AssignedReviewerId == userId || a.Buyer.ManagerId == userId);
         }
         else if (role == "Buyer")
         {
@@ -107,6 +108,27 @@ public class HomeController : Controller
             .OrderByDescending(a => a.EntryDate)
             .ThenByDescending(a => a.Id)
             .ToListAsync();
+
+        if (role == "Owner" || role == "Admin")
+        {
+            model.CashOnHandUsers = await _context.Users
+                .AsNoTracking()
+                .Where(u => !u.IsDeleted && (u.Role == UserRole.Buyer || u.Role == UserRole.BranchStaff || u.Role == UserRole.Manager))
+                .Include(u => u.Establishment)
+                .OrderBy(u => u.Role)
+                .ThenBy(u => u.Name)
+                .ToListAsync();
+        }
+        else if (role == "Manager")
+        {
+            model.CashOnHandUsers = await _context.Users
+                .AsNoTracking()
+                .Where(u => !u.IsDeleted && (u.Id == userId || u.ManagerId == userId))
+                .Include(u => u.Establishment)
+                .OrderBy(u => u.Role)
+                .ThenBy(u => u.Name)
+                .ToListAsync();
+        }
 
         // Populate dropdowns based on role
         var establishments = await _context.Establishments.AsNoTracking().OrderBy(e => e.Name).ToListAsync();
@@ -186,7 +208,7 @@ public class HomeController : Controller
 
         if (role == "Manager")
         {
-            query = query.Where(a => a.Buyer.ManagerId == userId);
+            query = query.Where(a => a.BuyerId == userId || a.AssignedReviewerId == userId || a.Buyer.ManagerId == userId);
         }
         else if (role == "Buyer")
         {

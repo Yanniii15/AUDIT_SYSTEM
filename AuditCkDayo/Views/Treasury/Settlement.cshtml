@@ -14,83 +14,161 @@
         <div class="rounded-lg bg-green-50 px-4 py-3 text-green-800" role="status">@message</div>
     }
 
-    <form asp-action="Settlement" method="post" class="space-y-5 rounded-xl border border-outline-variant bg-surface-container-low p-6">
-        @Html.AntiForgeryToken()
-        <div asp-validation-summary="ModelOnly" class="text-error"></div>
-
-        <div>
-            <label asp-for="PcfReleaseId" class="block font-medium text-on-surface">PCF release (optional)</label>
-            <select asp-for="PcfReleaseId" asp-items="ViewBag.PcfReleases" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2">
-                <option value="">No linked PCF release</option>
-            </select>
-            <span asp-validation-for="PcfReleaseId" class="text-sm text-error"></span>
+    <section class="rounded-xl border border-outline-variant bg-surface-container-low p-6 mb-6">
+        <div class="mb-4">
+            <h2 class="font-headline-sm text-on-surface">Record New Audit Settlement</h2>
+            <p class="text-sm text-on-surface-variant">Perform petty cash reconciliation comparing released funds, expenses, and returned change.</p>
         </div>
+        <form asp-action="Settlement" method="post" class="flex flex-col gap-4">
+            @Html.AntiForgeryToken()
+            <div asp-validation-summary="ModelOnly" class="text-audit-error text-sm"></div>
 
-        <div>
-            <label asp-for="ReceiverName" class="block font-medium text-on-surface">Receiver name</label>
-            <input asp-for="ReceiverName" maxlength="100" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2" />
-            <span asp-validation-for="ReceiverName" class="text-sm text-error"></span>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <label class="flex flex-col gap-2">
+                    <span class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Select PCF Release</span>
+                    <select asp-for="PcfReleaseId" asp-items="ViewBag.PcfReleases" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-4 py-2.5 text-on-surface focus:outline-none focus:border-primary" id="pcfReleaseSelect">
+                        <option value="">-- Select PCF Release (Optional) --</option>
+                    </select>
+                    <span asp-validation-for="PcfReleaseId" class="text-audit-error text-[11px]"></span>
+                </label>
+
+                <label class="flex flex-col gap-2">
+                    <span class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Receiver Name</span>
+                    <input asp-for="ReceiverName" maxlength="100" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-4 py-2.5 text-on-surface focus:outline-none focus:border-primary" placeholder="e.g. Ate Beth" id="receiverNameInput" />
+                    <span asp-validation-for="ReceiverName" class="text-audit-error text-[11px]"></span>
+                </label>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <label class="flex flex-col gap-2">
+                    <span class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Total PC Released (₱)</span>
+                    <input asp-for="TotalPCReleased" type="number" step="0.01" min="0" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-4 py-2.5 text-on-surface focus:outline-none focus:border-primary" placeholder="0.00" id="totalPcReleasedInput" required />
+                    <span asp-validation-for="TotalPCReleased" class="text-audit-error text-[11px]"></span>
+                </label>
+
+                <label class="flex flex-col gap-2">
+                    <span class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Total Accepted Expenses (₱)</span>
+                    <input asp-for="TotalAcceptedExpenses" type="number" step="0.01" min="0" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-4 py-2.5 text-on-surface focus:outline-none focus:border-primary" placeholder="0.00" id="totalAcceptedExpensesInput" required />
+                    <span asp-validation-for="TotalAcceptedExpenses" class="text-audit-error text-[11px]"></span>
+                </label>
+
+                <label class="flex flex-col gap-2">
+                    <span class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Actual Change Returned (₱)</span>
+                    <input asp-for="ActualChangeReturned" type="number" step="0.01" min="0" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-4 py-2.5 text-on-surface focus:outline-none focus:border-primary" placeholder="0.00" id="actualChangeReturnedInput" required />
+                    <span asp-validation-for="ActualChangeReturned" class="text-audit-error text-[11px]"></span>
+                </label>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-surface-container-lowest p-4 rounded-xl border border-surface-border">
+                <div class="flex justify-between items-center">
+                    <span class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Expected Change:</span>
+                    <span class="font-data-mono font-bold text-on-surface text-lg" id="expectedChangeDisplay">₱0.00</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Short / Over:</span>
+                    <span class="font-data-mono font-bold text-on-surface text-lg" id="shortOverDisplay">₱0.00</span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <label class="flex flex-col gap-2">
+                    <span class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Responsible Manager</span>
+                    <select asp-for="ResponsibleManagerId" asp-items="ViewBag.ResponsibleManagers" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-4 py-2.5 text-on-surface focus:outline-none focus:border-primary">
+                        <option value="">-- Select Responsible Manager --</option>
+                    </select>
+                    <span asp-validation-for="ResponsibleManagerId" class="text-audit-error text-[11px]"></span>
+                </label>
+            </div>
+
+            <div class="flex justify-end pt-2">
+                <button type="submit" class="bg-primary text-on-primary rounded-lg px-6 py-2.5 font-medium hover:opacity-90 transition-opacity">Save Settlement</button>
+            </div>
+        </form>
+    </section>
+    <section class="rounded-xl border border-outline-variant bg-surface-container-low p-6">
+        <div class="mb-4">
+            <h2 class="font-headline-sm text-on-surface">Download settlement workbook</h2>
+            <p class="text-sm text-on-surface-variant">Exports the PCF settlement, daily cash flow, and source details in an Excel workbook based on the branch templates.</p>
         </div>
-
-        <div>
-            <label asp-for="ResponsibleManagerId" class="block font-medium text-on-surface">Responsible manager</label>
-            <select asp-for="ResponsibleManagerId" asp-items="ViewBag.ResponsibleManagers" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2">
-                <option value="">Use me as responsible manager</option>
-            </select>
-            <span asp-validation-for="ResponsibleManagerId" class="text-sm text-error"></span>
-        </div>
-
-        <div class="grid gap-4 md:grid-cols-3">
+        <form asp-action="ExportSettlementExcel" method="get" class="grid gap-4 md:grid-cols-4">
             <div>
-                <label asp-for="TotalPCReleased" class="block font-medium text-on-surface">Total PC released</label>
-                <input asp-for="TotalPCReleased" type="number" min="0" step="0.01" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2 settlement-amount" data-settlement-field="released" />
-                <span asp-validation-for="TotalPCReleased" class="text-sm text-error"></span>
+                <label asp-for="StartDate" class="block text-sm font-medium text-on-surface">Start date</label>
+                <input asp-for="StartDate" type="date" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2" />
             </div>
             <div>
-                <label asp-for="TotalAcceptedExpenses" class="block font-medium text-on-surface">Accepted expenses</label>
-                <input asp-for="TotalAcceptedExpenses" type="number" min="0" step="0.01" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2 settlement-amount" data-settlement-field="expenses" />
-                <span asp-validation-for="TotalAcceptedExpenses" class="text-sm text-error"></span>
+                <label asp-for="EndDate" class="block text-sm font-medium text-on-surface">End date</label>
+                <input asp-for="EndDate" type="date" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2" />
             </div>
             <div>
-                <label asp-for="ActualChangeReturned" class="block font-medium text-on-surface">Actual change returned</label>
-                <input asp-for="ActualChangeReturned" type="number" min="0" step="0.01" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2 settlement-amount" data-settlement-field="actual" />
-                <span asp-validation-for="ActualChangeReturned" class="text-sm text-error"></span>
+                <label asp-for="ReceiverUserId" class="block text-sm font-medium text-on-surface">Buyer / receiver</label>
+                <select asp-for="ReceiverUserId" asp-items="ViewBag.SettlementReceivers" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2">
+                    <option value="">All buyers</option>
+                </select>
             </div>
-        </div>
+            <div class="flex items-end">
+                <button type="submit" class="w-full rounded-lg bg-primary px-4 py-2 font-medium text-on-primary">Download Excel</button>
+            </div>
+        </form>
+    </section>
 
-        <div class="rounded-lg bg-surface-container p-4 text-on-surface-variant">
-            <p><strong>Expected change:</strong> <span id="expected-change">@Model.ExpectedChange.ToString("N2")</span> = total released - accepted expenses.</p>
-            <p><strong>Short/over:</strong> <span id="short-over">@Model.ShortOverAmount.ToString("N2")</span> = actual change returned - expected change.</p>
-        </div>
-
-        <div class="flex flex-wrap gap-3">
-            <button type="submit" class="rounded-lg bg-primary px-4 py-2 font-medium text-on-primary">Save settlement</button>
-            <a asp-controller="Treasury" asp-action="Index" class="rounded-lg border border-outline px-4 py-2 font-medium text-on-surface">Back to Treasury</a>
-        </div>
-    </form>
 </div>
-
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
     <script>
-        (() => {
-            const released = document.querySelector('[data-settlement-field="released"]');
-            const expenses = document.querySelector('[data-settlement-field="expenses"]');
-            const actual = document.querySelector('[data-settlement-field="actual"]');
-            const expected = document.getElementById('expected-change');
-            const shortOver = document.getElementById('short-over');
+        document.addEventListener("DOMContentLoaded", function () {
+            const releaseSelect = document.getElementById("pcfReleaseSelect");
+            const receiverInput = document.getElementById("receiverNameInput");
+            const totalPcInput = document.getElementById("totalPcReleasedInput");
+            const expensesInput = document.getElementById("totalAcceptedExpensesInput");
+            const actualChangeInput = document.getElementById("actualChangeReturnedInput");
+            
+            const expectedDisplay = document.getElementById("expectedChangeDisplay");
+            const shortOverDisplay = document.getElementById("shortOverDisplay");
 
-            const numberValue = element => Number.parseFloat(element?.value || '0') || 0;
-            const format = value => value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            const update = () => {
-                const expectedChange = numberValue(released) - numberValue(expenses);
-                const shortOverAmount = numberValue(actual) - expectedChange;
-                expected.textContent = format(expectedChange);
-                shortOver.textContent = format(shortOverAmount);
-            };
+            // Fetch release details if selected
+            if (releaseSelect) {
+                releaseSelect.addEventListener("change", function () {
+                    const text = releaseSelect.options[releaseSelect.selectedIndex].text;
+                    if (releaseSelect.value) {
+                        // Display text format: "#ID - Receiver - Amount"
+                        const parts = text.split(" - ");
+                        if (parts.length >= 3) {
+                            receiverInput.value = parts[1];
+                            const amount = parseFloat(parts[2].replace(/,/g, ''));
+                            if (!isNaN(amount)) {
+                                totalPcInput.value = amount.toFixed(2);
+                            }
+                        }
+                    }
+                    calculateReconciliation();
+                });
+            }
 
-            document.querySelectorAll('.settlement-amount').forEach(input => input.addEventListener('input', update));
-            update();
-        })();
+            function calculateReconciliation() {
+                const totalPc = parseFloat(totalPcInput.value) || 0;
+                const expenses = parseFloat(expensesInput.value) || 0;
+                const actualChange = parseFloat(actualChangeInput.value) || 0;
+
+                const expectedChange = totalPc - expenses;
+                const shortOver = actualChange - expectedChange;
+
+                expectedDisplay.textContent = "₱" + expectedChange.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                
+                if (shortOver < 0) {
+                    shortOverDisplay.textContent = "-₱" + Math.abs(shortOver).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    shortOverDisplay.className = "font-data-mono font-bold text-audit-error text-lg";
+                } else if (shortOver > 0) {
+                    shortOverDisplay.textContent = "+₱" + shortOver.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    shortOverDisplay.className = "font-data-mono font-bold text-audit-success text-lg";
+                } else {
+                    shortOverDisplay.textContent = "₱0.00";
+                    shortOverDisplay.className = "font-data-mono font-bold text-on-surface text-lg";
+                }
+            }
+
+            totalPcInput.addEventListener("input", calculateReconciliation);
+            expensesInput.addEventListener("input", calculateReconciliation);
+            actualChangeInput.addEventListener("input", calculateReconciliation);
+        });
     </script>
 }

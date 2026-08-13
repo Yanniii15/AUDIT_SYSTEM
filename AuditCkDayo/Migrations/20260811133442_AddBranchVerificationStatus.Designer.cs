@@ -4,6 +4,7 @@ using AuditCkDayo.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace AuditCkDayo.Migrations
 {
     [DbContext(typeof(AuditDbContext))]
-    partial class AuditDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260811133442_AddBranchVerificationStatus")]
+    partial class AddBranchVerificationStatus
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -32,9 +35,6 @@ namespace AuditCkDayo.Migrations
 
                     b.Property<decimal>("Amount")
                         .HasColumnType("decimal(12,2)");
-
-                    b.Property<int?>("AssignedReviewerId")
-                        .HasColumnType("int");
 
                     b.Property<int>("BuyerId")
                         .HasColumnType("int");
@@ -73,8 +73,6 @@ namespace AuditCkDayo.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("AssignedReviewerId");
 
                     b.HasIndex("BuyerId");
 
@@ -747,9 +745,6 @@ namespace AuditCkDayo.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("varchar(255)");
 
-                    b.Property<int?>("AssignedReceiverId")
-                        .HasColumnType("int");
-
                     b.Property<int>("BuyerId")
                         .HasColumnType("int");
 
@@ -774,8 +769,6 @@ namespace AuditCkDayo.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ActionByUserId");
-
-                    b.HasIndex("AssignedReceiverId");
 
                     b.HasIndex("BuyerId");
 
@@ -889,11 +882,6 @@ namespace AuditCkDayo.Migrations
 
             modelBuilder.Entity("AuditCkDayo.Models.AuditItem", b =>
                 {
-                    b.HasOne("AuditCkDayo.Models.User", "AssignedReviewer")
-                        .WithMany()
-                        .HasForeignKey("AssignedReviewerId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("AuditCkDayo.Models.User", "Buyer")
                         .WithMany("AuditItems")
                         .HasForeignKey("BuyerId")
@@ -910,8 +898,6 @@ namespace AuditCkDayo.Migrations
                         .WithMany()
                         .HasForeignKey("VerifiedById")
                         .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("AssignedReviewer");
 
                     b.Navigation("Buyer");
 
@@ -1197,11 +1183,6 @@ namespace AuditCkDayo.Migrations
                         .HasForeignKey("ActionByUserId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("AuditCkDayo.Models.User", "AssignedReceiver")
-                        .WithMany()
-                        .HasForeignKey("AssignedReceiverId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("AuditCkDayo.Models.User", "Buyer")
                         .WithMany()
                         .HasForeignKey("BuyerId")
@@ -1209,8 +1190,6 @@ namespace AuditCkDayo.Migrations
                         .IsRequired();
 
                     b.Navigation("ActionByUser");
-
-                    b.Navigation("AssignedReceiver");
 
                     b.Navigation("Buyer");
                 });

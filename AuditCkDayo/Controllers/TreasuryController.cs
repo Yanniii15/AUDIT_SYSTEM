@@ -37,6 +37,7 @@ namespace AuditCkDayo.Controllers
 
             if (flow == null)
             {
+                PopulateManualCashFlowLookups();
                 return View(new TreasuryCashFlowViewModel { SelectedDate = selectedDate });
             }
 
@@ -55,6 +56,7 @@ namespace AuditCkDayo.Controllers
                 Entries = flow.Entries.OrderBy(e => e.Id).ToList()
             };
 
+            PopulateManualCashFlowLookups();
             return View(model);
         }
 
@@ -342,6 +344,212 @@ namespace AuditCkDayo.Controllers
             TempData["Message"] = "Audit settlement saved.";
             return RedirectToAction(nameof(Settlement));
         }
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RecordCashIn([Bind(Prefix = "ManualCashIn")] ManualCashInViewModel model)
+        {
+            if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var currentUserId))
+            {
+                return Unauthorized();
+            }
+
+            model.CashInDate = model.CashInDate.Date;
+            model.Purpose = string.IsNullOrWhiteSpace(model.Purpose) ? null : model.Purpose.Trim();
+
+            if (model.Amount <= 0m)
+            {
+                ModelState.AddModelError(nameof(ManualCashInViewModel.Amount), "Amount must be greater than zero.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                TempData["Error"] = "Cash-in entry was not saved. Check the input.";
+                return RedirectToAction(nameof(Index), new { date = model.CashInDate });
+            }
+
+            var flow = await FindOrCreateCashFlowAsync(model.CashInDate, currentUserId);
+
+            flow.Entries.Add(new CashFlowEntry
+            {
+                TreasuryCashFlow = flow,
+                Direction = CashFlowDirection.In,
+                Category = model.Category,
+                Amount = model.Amount,
+                Notes = model.Purpose,
+                CreatedByUserId = currentUserId,
+                ConfirmedByUserId = currentUserId
+            });
+
+            flow.RecomputeTotals();
+            await _context.SaveChangesAsync();
+
+            TempData["Message"] = "Cash-in entry saved.";
+            return RedirectToAction(nameof(Index), new { date = model.CashInDate });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> RecordCashOut([Bind(Prefix = "ManualCashOut")] ManualCashOutViewModel model)
+        {
+            if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var currentUserId))
+            {
+                return Unauthorized();
+            }
+
+            model.CashOutDate = model.CashOutDate.Date;
+            model.Purpose = string.IsNullOrWhiteSpace(model.Purpose) ? null : model.Purpose.Trim();
+
+            if (model.Category == CashFlowCategory.Others && string.IsNullOrWhiteSpace(model.Purpose))
+            {
+                ModelState.AddModelError(nameof(ManualCashOutViewModel.Purpose), "Purpose is required for Others.");
+            }
+
+            if (model.Purpose?.Length > 255)
+            {
+                ModelState.AddModelError(nameof(ManualCashOutViewModel.Purpose), "Purpose must be 255 characters or fewer.");
+            }
+
+            if (model.SplitAcrossEstablishments)
+            {
+                model.SplitRows = model.SplitRows
+                    .Where(row => row.Amount > 0m)
+                    .ToList();
+
+                if (!model.SplitRows.Any())
+                {
+                    ModelState.AddModelError(nameof(ManualCashOutViewModel.SplitRows), "Add at least one split row with an amount.");
+                }
+
+                foreach (var row in model.SplitRows)
+                {
+                    if (row.Amount <= 0m)
+                    {
+                        ModelState.AddModelError(nameof(ManualCashOutSplitViewModel.Amount), "Each split amount must be greater than zero.");
+                    }
+
+                    if (row.EstablishmentId.HasValue)
+                    {
+                        var establishmentExists = await _context.Establishments
+                            .AsNoTracking()
+                            .AnyAsync(e => e.Id == row.EstablishmentId.Value && e.IsActive);
+
+                        if (!establishmentExists)
+                        {
+                            ModelState.AddModelError(nameof(ManualCashOutSplitViewModel.EstablishmentId), "Select a valid active establishment.");
+                        }
+                    }
+                }
+            }
+            else
+            {
+                if (model.Amount <= 0m)
+                {
+                    ModelState.AddModelError(nameof(ManualCashOutViewModel.Amount), "Amount must be greater than zero.");
+                }
+
+                if (model.EstablishmentId.HasValue)
+                {
+                    var establishmentExists = await _context.Establishments
+                        .AsNoTracking()
+                        .AnyAsync(e => e.Id == model.EstablishmentId.Value && e.IsActive);
+
+                    if (!establishmentExists)
+                    {
+                        ModelState.AddModelError(nameof(ManualCashOutViewModel.EstablishmentId), "Select a valid active establishment.");
+                    }
+                }
+            }
+
+            if (!ModelState.IsValid)
+            {
+                TempData["Error"] = "Cash-out entry was not saved. Check the input.";
+                return RedirectToAction(nameof(Index), new { date = model.CashOutDate });
+            }
+
+            var flow = await FindOrCreateCashFlowAsync(model.CashOutDate, currentUserId);
+
+            if (model.SplitAcrossEstablishments)
+            {
+                foreach (var row in model.SplitRows)
+                {
+                    flow.Entries.Add(new CashFlowEntry
+                    {
+                        TreasuryCashFlow = flow,
+                        Direction = CashFlowDirection.Out,
+                        Category = model.Category,
+                        EstablishmentId = row.EstablishmentId,
+                        Amount = row.Amount,
+                        Notes = model.Purpose,
+                        CreatedByUserId = currentUserId,
+                        ConfirmedByUserId = currentUserId
+                    });
+                }
+            }
+            else
+            {
+                flow.Entries.Add(new CashFlowEntry
+                {
+                    TreasuryCashFlow = flow,
+                    Direction = CashFlowDirection.Out,
+                    Category = model.Category,
+                    EstablishmentId = model.EstablishmentId,
+                    Amount = model.Amount,
+                    Notes = model.Purpose,
+                    CreatedByUserId = currentUserId,
+                    ConfirmedByUserId = currentUserId
+                });
+            }
+
+            flow.RecomputeTotals();
+            await _context.SaveChangesAsync();
+
+            TempData["Message"] = "Cash-out entry saved.";
+            return RedirectToAction(nameof(Index), new { date = model.CashOutDate });
+        }
+
+        private async Task<TreasuryCashFlow> FindOrCreateCashFlowAsync(DateTime cashFlowDate, int treasuryUserId)
+        {
+            var flow = await _context.TreasuryCashFlows
+                .Include(f => f.Entries)
+                .FirstOrDefaultAsync(f => f.CashFlowDate == cashFlowDate);
+
+            if (flow != null)
+            {
+                return flow;
+            }
+
+            var yesterday = cashFlowDate.AddDays(-1);
+            var yesterdayFlow = await _context.TreasuryCashFlows
+                .AsNoTracking()
+                .FirstOrDefaultAsync(f => f.CashFlowDate == yesterday);
+
+            var startingBalance = yesterdayFlow?.ClosingBalance ?? 0m;
+
+            flow = new TreasuryCashFlow
+            {
+                CashFlowDate = cashFlowDate,
+                StartingBalance = startingBalance,
+                Status = TreasuryCashFlowStatus.Draft,
+                TreasuryUserId = treasuryUserId
+            };
+
+            _context.TreasuryCashFlows.Add(flow);
+            await _context.SaveChangesAsync();
+
+            return flow;
+        }
+
+        private void PopulateManualCashFlowLookups()
+        {
+            var establishments = _context.Establishments
+                .AsNoTracking()
+                .Where(e => e.IsActive)
+                .OrderBy(e => e.Name)
+                .ToList();
+
+            ViewBag.CashFlowEstablishments = new SelectList(establishments, "Id", "Name");
+        }
+
 
         private async Task PopulateSettlementLookupsAsync(AuditSettlementViewModel model)
         {

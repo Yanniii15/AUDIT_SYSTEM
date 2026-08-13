@@ -47,6 +47,23 @@ public class ReportsController : Controller
         var cashUserQuery = BuildScopedCashUserQuery(role, userId);
         cashUserQuery = ApplyCashUserFilters(cashUserQuery, filter);
 
+        var salesReportQuery = BuildScopedSalesReportQuery(role, userId, currentUser);
+        salesReportQuery = ApplySalesReportFilters(salesReportQuery, filter);
+
+        var treasuryCashFlowQuery = BuildScopedTreasuryCashFlowQuery(role, userId);
+        treasuryCashFlowQuery = ApplyTreasuryCashFlowFilters(treasuryCashFlowQuery, filter);
+        var treasuryCashFlows = await treasuryCashFlowQuery
+            .Include(flow => flow.TreasuryUser)
+            .Include(flow => flow.Entries)
+                .ThenInclude(entry => entry.Establishment)
+            .Include(flow => flow.Entries)
+                .ThenInclude(entry => entry.RelatedUser)
+            .Include(flow => flow.Entries)
+                .ThenInclude(entry => entry.CostCenter)
+            .OrderBy(flow => flow.CashFlowDate)
+            .ThenBy(flow => flow.Id)
+            .ToListAsync();
+
         var audits = await auditQuery
             .Include(a => a.Details)
             .OrderByDescending(a => a.EntryDate)
@@ -66,6 +83,16 @@ public class ReportsController : Controller
             Role = role,
             ScopeLabel = BuildScopeLabel(role, currentUser),
             RecentAudits = audits,
+            RecentSalesReports = await salesReportQuery
+                .OrderByDescending(s => s.HandoverDate)
+                .ThenByDescending(s => s.Id)
+                .Take(20)
+                .ToListAsync(),
+            CashOnHandUsers = await cashUserQuery
+                .Include(u => u.Establishment)
+                .OrderBy(u => u.Role)
+                .ThenBy(u => u.Name)
+                .ToListAsync(),
             SurrenderRequests = surrenders,
             LedgerEntries = await ledgerQuery
                 .OrderByDescending(l => l.Timestamp)
@@ -79,7 +106,12 @@ public class ReportsController : Controller
             PendingAuditCount = allAuditsForSummary.Count(a => a.Status == AuditStatus.AwaitingBranchVerification || a.Status == AuditStatus.AwaitingManagerApproval),
             RejectedAuditCount = allAuditsForSummary.Count(a => a.Status == AuditStatus.Rejected),
             PendingSurrenderAmount = await surrenderQuery.Where(s => s.Status == SurrenderStatus.Pending).SumAsync(s => s.DeclaredAmount),
-            ConfirmedSurrenderAmount = await surrenderQuery.Where(s => s.Status == SurrenderStatus.Confirmed).SumAsync(s => s.ConfirmedAmount ?? s.DeclaredAmount)
+            ConfirmedSurrenderAmount = await surrenderQuery.Where(s => s.Status == SurrenderStatus.Confirmed).SumAsync(s => s.ConfirmedAmount ?? s.DeclaredAmount),
+            TreasuryAudit = TreasuryAuditReportViewModel.Build(
+                treasuryCashFlows,
+                filter.TreasuryHandlerId,
+                filter.StartDate ?? treasuryCashFlows.Select(flow => flow.CashFlowDate.Date).DefaultIfEmpty(DateTime.Today).Min(),
+                filter.EndDate ?? treasuryCashFlows.Select(flow => flow.CashFlowDate.Date).DefaultIfEmpty(DateTime.Today).Max())
         };
 
         model.StatusSummaries = allAuditsForSummary
@@ -118,7 +150,7 @@ public class ReportsController : Controller
 
         if (role == "Manager")
         {
-            query = query.Where(a => a.Buyer.ManagerId == userId);
+            query = query.Where(a => a.BuyerId == userId || a.AssignedReviewerId == userId || a.Buyer.ManagerId == userId);
         }
         else if (role == "Buyer")
         {
@@ -134,6 +166,37 @@ public class ReportsController : Controller
         return query;
     }
 
+    private IQueryable<SalesReport> BuildScopedSalesReportQuery(string role, int userId, User currentUser)
+    {
+        var query = _context.SalesReports
+            .AsNoTracking()
+            .Include(s => s.DocumentRecord)
+            .Include(s => s.Establishment)
+            .Include(s => s.CashierUser)
+            .Include(s => s.ConfirmedByUser)
+            .AsQueryable();
+
+        if (role == "Manager")
+        {
+            query = query.Where(s => s.DocumentRecord.UploadedByUserId == userId
+                || s.CashierUserId == userId
+                || s.ConfirmedByUserId == userId
+                || s.DocumentRecord.ConfirmedByUserId == userId);
+        }
+        else if (role == "Buyer")
+        {
+            query = query.Where(s => s.DocumentRecord.UploadedByUserId == userId || s.CashierUserId == userId);
+        }
+        else if (role == "BranchStaff")
+        {
+            query = currentUser.EstablishmentId.HasValue
+                ? query.Where(s => s.EstablishmentId == currentUser.EstablishmentId.Value)
+                : query.Where(s => false);
+        }
+
+        return query;
+    }
+
     private IQueryable<SurrenderRequest> BuildScopedSurrenderQuery(string role, int userId)
     {
         var query = _context.SurrenderRequests
@@ -143,7 +206,7 @@ public class ReportsController : Controller
 
         if (role == "Manager")
         {
-            query = query.Where(s => s.Buyer.ManagerId == userId);
+            query = query.Where(s => s.AssignedReceiverId == userId || s.Buyer.ManagerId == userId);
         }
         else if (role == "Buyer")
         {
@@ -192,6 +255,24 @@ public class ReportsController : Controller
         else if (role == "Buyer" || role == "BranchStaff")
         {
             query = query.Where(u => u.Id == userId);
+        }
+
+        return query;
+    }
+
+    private IQueryable<TreasuryCashFlow> BuildScopedTreasuryCashFlowQuery(string role, int userId)
+    {
+        var query = _context.TreasuryCashFlows
+            .AsNoTracking()
+            .AsQueryable();
+
+        if (role == "Manager")
+        {
+            query = query.Where(flow => flow.TreasuryUserId == userId);
+        }
+        else if (role == "Buyer" || role == "BranchStaff")
+        {
+            query = query.Where(flow => false);
         }
 
         return query;
@@ -263,6 +344,42 @@ public class ReportsController : Controller
         return query;
     }
 
+    private static IQueryable<SalesReport> ApplySalesReportFilters(IQueryable<SalesReport> query, ReportsFilterViewModel filter)
+    {
+        if (filter.StartDate.HasValue)
+        {
+            query = query.Where(s => s.BusinessDate >= filter.StartDate.Value);
+        }
+        if (filter.EndDate.HasValue)
+        {
+            query = query.Where(s => s.BusinessDate < filter.EndDate.Value.AddDays(1));
+        }
+        if (filter.EstablishmentId.HasValue)
+        {
+            query = query.Where(s => s.EstablishmentId == filter.EstablishmentId.Value);
+        }
+
+        return query;
+    }
+
+    private static IQueryable<TreasuryCashFlow> ApplyTreasuryCashFlowFilters(IQueryable<TreasuryCashFlow> query, ReportsFilterViewModel filter)
+    {
+        if (filter.StartDate.HasValue)
+        {
+            query = query.Where(flow => flow.CashFlowDate >= filter.StartDate.Value);
+        }
+        if (filter.EndDate.HasValue)
+        {
+            query = query.Where(flow => flow.CashFlowDate < filter.EndDate.Value.AddDays(1));
+        }
+        if (filter.TreasuryHandlerId.HasValue)
+        {
+            query = query.Where(flow => flow.TreasuryUserId == filter.TreasuryHandlerId.Value);
+        }
+
+        return query;
+    }
+
     private static IQueryable<User> ApplyCashUserFilters(IQueryable<User> query, ReportsFilterViewModel filter)
     {
         if (filter.BuyerId.HasValue)
@@ -313,6 +430,17 @@ public class ReportsController : Controller
             })
             .ToList();
         ViewBag.Statuses = new SelectList(statuses, "Value", "Text", filter.Status?.ToString());
+
+        var treasuryHandlersQuery = _context.Users.AsNoTracking().Where(u => u.IsTreasury && !u.IsDeleted);
+        if (role == "Manager")
+        {
+            treasuryHandlersQuery = treasuryHandlersQuery.Where(u => u.Id == userId);
+        }
+        else if (role == "Buyer" || role == "BranchStaff")
+        {
+            treasuryHandlersQuery = treasuryHandlersQuery.Where(u => false);
+        }
+        ViewBag.TreasuryHandlers = new SelectList(await treasuryHandlersQuery.OrderBy(u => u.Name).ToListAsync(), "Id", "Name", filter.TreasuryHandlerId);
     }
 
     private static string BuildScopeLabel(string role, User currentUser)

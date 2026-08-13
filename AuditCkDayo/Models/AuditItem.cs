@@ -12,6 +12,7 @@ namespace AuditCkDayo.Models
         Approved,
         Rejected,
         Pending,
+        Cancelled,
         AwaitingBranchVerifi = AwaitingBranchVerification,
         AwaitingManagerAppro = AwaitingManagerApproval
     }
@@ -57,6 +58,11 @@ namespace AuditCkDayo.Models
         [ForeignKey("VerifiedById")]
         public virtual User? VerifiedBy { get; set; }
 
+
+        public int? AssignedReviewerId { get; set; }
+
+        [ForeignKey("AssignedReviewerId")]
+        public virtual User? AssignedReviewer { get; set; }
         public DateTime? VerificationDate { get; set; }
 
         public virtual ICollection<AuditItemImage> Images { get; set; } = new List<AuditItemImage>();

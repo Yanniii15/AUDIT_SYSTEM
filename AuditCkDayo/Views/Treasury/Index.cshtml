@@ -35,43 +35,122 @@
     <section class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <div class="rounded-xl border border-outline-variant bg-surface-container p-4 shadow-sm">
             <p class="text-sm text-on-surface-variant">Starting Balance</p>
-            <p class="mt-2 text-2xl font-semibold text-on-surface">@Model.StartingBalance.ToString("C")</p>
+            <p class="mt-2 text-2xl font-semibold text-on-surface">₱@Model.StartingBalance.ToString("N2")</p>
         </div>
         <div class="rounded-xl border border-outline-variant bg-surface-container p-4 shadow-sm">
             <p class="text-sm text-on-surface-variant">Total Cash In</p>
-            <p class="mt-2 text-2xl font-semibold text-green-700">@Model.TotalCashIn.ToString("C")</p>
+            <p class="mt-2 text-2xl font-semibold text-green-700">₱@Model.TotalCashIn.ToString("N2")</p>
         </div>
         <div class="rounded-xl border border-outline-variant bg-surface-container p-4 shadow-sm">
             <p class="text-sm text-on-surface-variant">Total Cash Out</p>
-            <p class="mt-2 text-2xl font-semibold text-red-700">@Model.TotalCashOut.ToString("C")</p>
+            <p class="mt-2 text-2xl font-semibold text-red-700">₱@Model.TotalCashOut.ToString("N2")</p>
         </div>
         <div class="rounded-xl border border-outline-variant bg-surface-container p-4 shadow-sm">
             <p class="text-sm text-on-surface-variant">Net Cash Flow</p>
-            <p class="mt-2 text-2xl font-semibold text-on-surface">@Model.NetCashFlow.ToString("C")</p>
+            <p class="mt-2 text-2xl font-semibold text-on-surface">₱@Model.NetCashFlow.ToString("N2")</p>
         </div>
         <div class="rounded-xl border border-outline-variant bg-surface-container p-4 shadow-sm">
             <p class="text-sm text-on-surface-variant">Closing Balance</p>
-            <p class="mt-2 text-2xl font-semibold text-primary">@Model.ClosingBalance.ToString("C")</p>
+            <p class="mt-2 text-2xl font-semibold text-primary">₱@Model.ClosingBalance.ToString("N2")</p>
         </div>
     </section>
 
-    <section class="overflow-hidden rounded-xl border border-outline-variant bg-surface-container shadow-sm">
-        <div class="flex flex-col gap-1 border-b border-outline-variant p-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-                <h2 class="text-lg font-semibold text-on-surface">Entries for @Model.SelectedDate.ToString("MMMM d, yyyy")</h2>
-                <p class="text-sm text-on-surface-variant">
-                    @if (Model.FlowId.HasValue)
-                    {
-                        <span>Flow #@Model.FlowId &middot; @Model.Status</span>
-                    }
-                    else
-                    {
-                        <span>No treasury flow has been posted for this day.</span>
-                    }
-                </p>
+    <div class="grid gap-6 md:grid-cols-2">
+        <!-- Record Cash In -->
+        <section class="rounded-xl border border-outline-variant bg-surface-container p-4 shadow-sm">
+            <div class="mb-4">
+                <h2 class="text-lg font-semibold text-on-surface">Record cash in</h2>
+                <p class="text-sm text-on-surface-variant">Record cash flowing into the Treasury.</p>
             </div>
-        </div>
+            <form asp-controller="Treasury" asp-action="RecordCashIn" method="post" class="grid gap-4 md:grid-cols-2">
+                @Html.AntiForgeryToken()
+                <input asp-for="ManualCashIn.CashInDate" type="hidden" value="@Model.SelectedDate.ToString("yyyy-MM-dd")" />
+                <div>
+                    <label asp-for="ManualCashIn.Category" class="block text-sm font-medium text-on-surface">Category</label>
+                    <select asp-for="ManualCashIn.Category" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2 text-on-surface">
+                        <option value="@CashFlowCategory.Others">Others</option>
+                        <option value="@CashFlowCategory.Sales">Sales</option>
+                        <option value="@CashFlowCategory.ChangePcf">Change PCF</option>
+                        <option value="@CashFlowCategory.OwnerFunding">Owner Funding</option>
+                        <option value="@CashFlowCategory.CashSurrender">Cash Surrender</option>
+                    </select>
+                </div>
+                <div>
+                    <label asp-for="ManualCashIn.Amount" class="block text-sm font-medium text-on-surface">Amount</label>
+                    <input asp-for="ManualCashIn.Amount" type="number" min="0.01" step="0.01" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2 text-on-surface" />
+                </div>
+                <div class="md:col-span-2">
+                    <label asp-for="ManualCashIn.Purpose" class="block text-sm font-medium text-on-surface">Purpose / remarks</label>
+                    <input asp-for="ManualCashIn.Purpose" maxlength="255" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2 text-on-surface" placeholder="Purpose or details" />
+                </div>
+                <div class="md:col-span-2">
+                    <button type="submit" class="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary shadow-sm hover:bg-primary/90">
+                        Save cash in
+                    </button>
+                </div>
+            </form>
+        </section>
 
+        <!-- Record Cash Out -->
+        <section class="rounded-xl border border-outline-variant bg-surface-container p-4 shadow-sm">
+            <div class="mb-4">
+                <h2 class="text-lg font-semibold text-on-surface">Record cash out</h2>
+                <p class="text-sm text-on-surface-variant">Record cash paid out from the Treasury.</p>
+            </div>
+            <form asp-controller="Treasury" asp-action="RecordCashOut" method="post" class="grid gap-4 md:grid-cols-2">
+                @Html.AntiForgeryToken()
+                <input asp-for="ManualCashOut.CashOutDate" type="hidden" value="@Model.SelectedDate.ToString("yyyy-MM-dd")" />
+                <div>
+                    <label asp-for="ManualCashOut.Category" class="block text-sm font-medium text-on-surface">Cash-out category</label>
+                    <select asp-for="ManualCashOut.Category" id="manual-cashout-category" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2 text-on-surface">
+                        <option value="@CashFlowCategory.Others">Others</option>
+                        <option value="@CashFlowCategory.PcfRelease">PCF</option>
+                        <option value="@CashFlowCategory.ChangePcf">Change PCF</option>
+                        <option value="@CashFlowCategory.Expense">Expense</option>
+                        <option value="@CashFlowCategory.Payroll">Payroll</option>
+                        <option value="@CashFlowCategory.Utilities">Utilities</option>
+                        <option value="@CashFlowCategory.Supplier">Supplier</option>
+                    </select>
+                </div>
+                <div id="manual-cashout-amount-wrap">
+                    <label asp-for="ManualCashOut.Amount" class="block text-sm font-medium text-on-surface">Amount</label>
+                    <input asp-for="ManualCashOut.Amount" id="manual-cashout-amount" type="number" min="0.01" step="0.01" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2 text-on-surface" />
+                </div>
+                <div id="manual-cashout-establishment-wrap" class="md:col-span-2">
+                    <label asp-for="ManualCashOut.EstablishmentId" class="block text-sm font-medium text-on-surface">Establishment</label>
+                    <select asp-for="ManualCashOut.EstablishmentId" asp-items="ViewBag.CashFlowEstablishments" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2 text-on-surface">
+                        <option value="">— none —</option>
+                    </select>
+                </div>
+                <div id="manual-cashout-purpose-wrap" class="md:col-span-2">
+                    <label asp-for="ManualCashOut.Purpose" class="block text-sm font-medium text-on-surface">Purpose / remarks</label>
+                    <input asp-for="ManualCashOut.Purpose" id="manual-cashout-purpose" maxlength="255" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2 text-on-surface" placeholder="Example: KEITH GAS AUG. 5" />
+                </div>
+                <label class="md:col-span-2 inline-flex items-center gap-2 text-sm font-medium text-on-surface">
+                    <input asp-for="ManualCashOut.SplitAcrossEstablishments" id="manual-cashout-split" type="checkbox" class="rounded border-outline text-primary focus:ring-primary" />
+                    Split across establishments
+                </label>
+                <div id="manual-cashout-split-rows" class="hidden md:col-span-2 space-y-3 rounded-lg border border-outline-variant bg-surface p-3">
+                    @for (var rowIndex = 0; rowIndex < 4; rowIndex++)
+                    {
+                        <div class="grid gap-3 grid-cols-[1fr_120px]">
+                            <select name="ManualCashOut.SplitRows[@rowIndex].EstablishmentId" asp-items="ViewBag.CashFlowEstablishments" class="rounded-lg border border-outline bg-surface px-3 py-2 text-on-surface">
+                                <option value="">— select establishment —</option>
+                            </select>
+                            <input name="ManualCashOut.SplitRows[@rowIndex].Amount" type="number" min="0.01" step="0.01" class="rounded-lg border border-outline bg-surface px-3 py-2 text-on-surface" placeholder="Amount" />
+                        </div>
+                    }
+                </div>
+                <div class="md:col-span-2">
+                    <button type="submit" class="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary shadow-sm hover:bg-primary/90">
+                        Save cash out
+                    </button>
+                </div>
+            </form>
+        </section>
+    </div>
+
+    <div class="space-y-4">
         @if (!Model.Entries.Any())
         {
             <div class="p-6 text-center text-on-surface-variant">
@@ -80,37 +159,174 @@
         }
         else
         {
-            <div class="overflow-x-auto">
-                <table class="min-w-full divide-y divide-outline-variant text-sm">
-                    <thead class="bg-surface">
-                        <tr class="text-left text-on-surface-variant">
-                            <th class="px-4 py-3 font-medium">Direction</th>
-                            <th class="px-4 py-3 font-medium">Category</th>
-                            <th class="px-4 py-3 text-right font-medium">Amount</th>
-                            <th class="px-4 py-3 font-medium">Establishment / Cost Center / User</th>
-                            <th class="px-4 py-3 font-medium">Source Document</th>
-                            <th class="px-4 py-3 font-medium">Notes</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-outline-variant">
-                        @foreach (var entry in Model.Entries)
-                        {
-                            <tr class="text-on-surface">
-                                <td class="px-4 py-3">@entry.Direction</td>
-                                <td class="px-4 py-3">@entry.Category</td>
-                                <td class="px-4 py-3 text-right font-semibold">@entry.Amount.ToString("C")</td>
-                                <td class="px-4 py-3">
-                                    <div>@(entry.Establishment?.Name ?? "No establishment")</div>
-                                    <div class="text-xs text-on-surface-variant">@(entry.CostCenter?.Name ?? "No cost center")</div>
-                                    <div class="text-xs text-on-surface-variant">@(entry.RelatedUser?.Name ?? "No related user")</div>
-                                </td>
-                                <td class="px-4 py-3">@(entry.SourceDocumentId?.ToString() ?? "None")</td>
-                                <td class="px-4 py-3">@(string.IsNullOrWhiteSpace(entry.Notes) ? "—" : entry.Notes)</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
+            <div class="bg-surface-container-lowest border border-surface-border rounded-xl shadow-sm overflow-hidden">
+                <div class="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-surface-border">
+                    <!-- CASH IN COLUMN -->
+                    <div class="flex flex-col">
+                        <div class="bg-surface-container-low border-b border-surface-border px-space-6 py-space-3">
+                            <h3 class="font-label-caps uppercase text-[12px] tracking-wider font-bold text-green-700">CASH IN</h3>
+                        </div>
+                        <div class="p-space-6 space-y-space-6">
+                            <!-- SALES -->
+                            <div class="space-y-space-3">
+                                <h4 class="font-label-caps uppercase text-[10px] text-on-surface-variant font-bold tracking-wider">SALES</h4>
+                                <div class="divide-y divide-surface-border border border-surface-border rounded-lg bg-surface-container-low/30 overflow-hidden">
+                                    @{
+                                        var salesIn = Model.Entries.Where(e => e.Direction == CashFlowDirection.In && e.Category == CashFlowCategory.Sales).ToList();
+                                    }
+                                    @foreach (var entry in salesIn)
+                                    {
+                                        <div class="flex justify-between items-center px-space-4 py-space-3 text-sm">
+                                            <span class="text-on-surface font-medium">@(entry.Establishment?.Name ?? "General")</span>
+                                            <span class="font-data-mono text-primary font-bold">₱@entry.Amount.ToString("N2")</span>
+                                        </div>
+                                    }
+                                    @if (!salesIn.Any())
+                                    {
+                                        <div class="px-space-4 py-space-3 text-xs text-on-surface-variant italic">No sales cash-in recorded</div>
+                                    }
+                                </div>
+                            </div>
+
+                            <!-- CHANGE PCF -->
+                            <div class="space-y-space-3">
+                                <h4 class="font-label-caps uppercase text-[10px] text-on-surface-variant font-bold tracking-wider">CHANGE PCF</h4>
+                                <div class="divide-y divide-surface-border border border-surface-border rounded-lg bg-surface-container-low/30 overflow-hidden">
+                                    @{
+                                        var changeIn = Model.Entries.Where(e => e.Direction == CashFlowDirection.In && e.Category == CashFlowCategory.ChangePcf).ToList();
+                                    }
+                                    @foreach (var entry in changeIn)
+                                    {
+                                        <div class="flex justify-between items-center px-space-4 py-space-3 text-sm">
+                                            <span class="text-on-surface font-medium">@(entry.Establishment?.Name ?? "General")</span>
+                                            <span class="font-data-mono text-primary font-bold">₱@entry.Amount.ToString("N2")</span>
+                                        </div>
+                                    }
+                                    @if (!changeIn.Any())
+                                    {
+                                        <div class="px-space-4 py-space-3 text-xs text-on-surface-variant italic">No change PCF recorded</div>
+                                    }
+                                </div>
+                            </div>
+
+                            <!-- OTHERS -->
+                            <div class="space-y-space-3">
+                                <h4 class="font-label-caps uppercase text-[10px] text-on-surface-variant font-bold tracking-wider">OTHERS</h4>
+                                <div class="divide-y divide-surface-border border border-surface-border rounded-lg bg-surface-container-low/30 overflow-hidden">
+                                    @{
+                                        var othersIn = Model.Entries.Where(e => e.Direction == CashFlowDirection.In && e.Category != CashFlowCategory.Sales && e.Category != CashFlowCategory.ChangePcf).ToList();
+                                    }
+                                    @foreach (var entry in othersIn)
+                                    {
+                                        <div class="flex justify-between items-center px-space-4 py-space-3 text-sm">
+                                            <span class="text-on-surface font-medium">@(entry.Notes ?? entry.Category.ToString())</span>
+                                            <span class="font-data-mono text-primary font-bold">₱@entry.Amount.ToString("N2")</span>
+                                        </div>
+                                    }
+                                    @if (!othersIn.Any())
+                                    {
+                                        <div class="px-space-4 py-space-3 text-xs text-on-surface-variant italic">No other cash-in recorded</div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- CASH OUT COLUMN -->
+                    <div class="flex flex-col">
+                        <div class="bg-surface-container-low border-b border-surface-border px-space-6 py-space-3">
+                            <h3 class="font-label-caps uppercase text-[12px] tracking-wider font-bold text-red-700">CASH OUT</h3>
+                        </div>
+                        <div class="p-space-6 space-y-space-6">
+                            <!-- PCF -->
+                            <div class="space-y-space-3">
+                                <h4 class="font-label-caps uppercase text-[10px] text-on-surface-variant font-bold tracking-wider">PCF</h4>
+                                <div class="divide-y divide-surface-border border border-surface-border rounded-lg bg-surface-container-low/30 overflow-hidden">
+                                    @{
+                                        var pcfOut = Model.Entries.Where(e => e.Direction == CashFlowDirection.Out && e.Category == CashFlowCategory.PcfRelease).ToList();
+                                    }
+                                    @foreach (var entry in pcfOut)
+                                    {
+                                        <div class="flex justify-between items-center px-space-4 py-space-3 text-sm">
+                                            <span class="text-on-surface font-medium">
+                                                @(entry.Establishment?.Name ?? entry.RelatedUser?.Name ?? entry.Notes ?? "General")
+                                            </span>
+                                            <span class="font-data-mono text-primary font-bold">₱@entry.Amount.ToString("N2")</span>
+                                        </div>
+                                    }
+                                    @if (!pcfOut.Any())
+                                    {
+                                        <div class="px-space-4 py-space-3 text-xs text-on-surface-variant italic">No PCF cash-out recorded</div>
+                                    }
+                                </div>
+                            </div>
+
+                            <!-- OTHERS -->
+                            <div class="space-y-space-3">
+                                <h4 class="font-label-caps uppercase text-[10px] text-on-surface-variant font-bold tracking-wider">OTHERS</h4>
+                                <div class="divide-y divide-surface-border border border-surface-border rounded-lg bg-surface-container-low/30 overflow-hidden">
+                                    @{
+                                        var othersOut = Model.Entries.Where(e => e.Direction == CashFlowDirection.Out && e.Category != CashFlowCategory.PcfRelease).ToList();
+                                    }
+                                    @foreach (var entry in othersOut)
+                                    {
+                                        <div class="flex justify-between items-center px-space-4 py-space-3 text-sm">
+                                            <span class="text-on-surface font-medium">
+                                                @(entry.Notes ?? entry.Category.ToString())
+                                                @if (entry.Establishment != null)
+                                                {
+                                                    <span class="text-xs text-on-surface-variant">(@entry.Establishment.Name)</span>
+                                                }
+                                            </span>
+                                            <span class="font-data-mono text-primary font-bold">₱@entry.Amount.ToString("N2")</span>
+                                        </div>
+                                    }
+                                    @if (!othersOut.Any())
+                                    {
+                                        <div class="px-space-4 py-space-3 text-xs text-on-surface-variant italic">No other cash-out recorded</div>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         }
-    </section>
-</div>
+    </div>
+
+<script>
+    (() => {
+        const category = document.getElementById('manual-cashout-category');
+        const purposeWrap = document.getElementById('manual-cashout-purpose-wrap');
+        const purpose = document.getElementById('manual-cashout-purpose');
+        const split = document.getElementById('manual-cashout-split');
+        const splitRows = document.getElementById('manual-cashout-split-rows');
+        const amountWrap = document.getElementById('manual-cashout-amount-wrap');
+        const amount = document.getElementById('manual-cashout-amount');
+        const syncPurpose = () => {
+            const isOthers = category?.value === '@CashFlowCategory.Others';
+            const isSplit = split?.checked === true;
+            const estWrap = document.getElementById('manual-cashout-establishment-wrap');
+            purposeWrap?.classList.toggle('hidden', !isOthers);
+            splitRows?.classList.toggle('hidden', !isSplit);
+            amountWrap?.classList.toggle('hidden', isSplit);
+            estWrap?.classList.toggle('hidden', isSplit);
+            if (purpose) {
+                purpose.required = isOthers;
+                if (!isOthers) {
+                    purpose.value = '';
+                }
+            }
+            if (amount) {
+                amount.disabled = isSplit;
+                amount.required = !isSplit;
+                if (isSplit) {
+                    amount.value = '';
+                }
+            }
+        };
+        category?.addEventListener('change', syncPurpose);
+        split?.addEventListener('change', syncPurpose);
+        syncPurpose();
+    })();
+</script>

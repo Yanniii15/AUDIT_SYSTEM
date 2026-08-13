@@ -22,6 +22,7 @@ namespace AuditCkDayo.Controllers
         private readonly AuditDbContext _context;
         private readonly IOcrService _ocrService;
         private readonly IWebHostEnvironment _env;
+        private const string PendingAuditDraftsSessionKey = "PendingAuditDrafts";
 
         public AuditsController(AuditDbContext context, IOcrService ocrService, IWebHostEnvironment env)
         {
@@ -180,6 +181,9 @@ namespace AuditCkDayo.Controllers
                 return Challenge();
             }
 
+            var selectedReviewerId = await ResolvePrivilegedReviewerIdAsync(model.SelectedReviewerId, buyer.Role, "SelectedReviewerId");
+
+            var routesDirectlyToManager = model.CombinedDestinationId == "others";
             // Parse CombinedDestinationId
             if (!string.IsNullOrEmpty(model.CombinedDestinationId))
             {
@@ -187,11 +191,9 @@ namespace AuditCkDayo.Controllers
                 {
                     model.EstablishmentId = int.Parse(model.CombinedDestinationId.Replace("branch-", ""));
                 }
-                else if (model.CombinedDestinationId == "others")
+                else if (routesDirectlyToManager)
                 {
-                    // Fallback to first branch
-                    var firstBranch = await _context.Establishments.FirstOrDefaultAsync(e => e.IsActive && e.IsOperatingBranch);
-                    model.EstablishmentId = firstBranch?.Id ?? 1;
+                    model.EstablishmentId = await EnsureMiscellaneousEstablishmentAsync();
                 }
             }
 
@@ -250,7 +252,8 @@ namespace AuditCkDayo.Controllers
                     SubmittedAt = DateTime.Now,
                     Notes = model.Notes,
                     ReceiptImageUrl = model.ReceiptImageUrls != null && model.ReceiptImageUrls.Count > 0 ? model.ReceiptImageUrls[0] : model.ReceiptImageUrl,
-                    Status = AuditStatus.AwaitingBranchVerification
+                    Status = routesDirectlyToManager ? AuditStatus.AwaitingManagerApproval : AuditStatus.AwaitingBranchVerification,
+                    AssignedReviewerId = selectedReviewerId
                 };
 
                 // Save multi-images
@@ -292,6 +295,7 @@ namespace AuditCkDayo.Controllers
                             Total = item.Total,
                             AssignedEstablishmentId = assignedBranchId,
                             CostCenterId = costCenterId,
+                            BranchVerificationStatus = routesDirectlyToManager ? BranchVerificationStatus.Verified : BranchVerificationStatus.Pending,
                             AllocationNotes = item.AllocationNotes
                         };
                         auditItem.Details.Add(detail);
@@ -313,23 +317,64 @@ namespace AuditCkDayo.Controllers
                 _context.PettyCashLedgers.Add(ledger);
                 await _context.SaveChangesAsync();
 
-                var branchStaffIds = await _context.Users
-                    .AsNoTracking()
-                    .Where(u => u.Role == UserRole.BranchStaff && u.EstablishmentId == model.EstablishmentId.Value && !u.IsDeleted)
-                    .Select(u => u.Id)
-                    .ToListAsync();
-
-                foreach (var branchStaffId in branchStaffIds)
+                if (routesDirectlyToManager)
                 {
-                    _context.Notifications.Add(new Notification
+                    var reviewerIds = selectedReviewerId.HasValue
+                        ? new List<int> { selectedReviewerId.Value }
+                        : await _context.Users
+                            .AsNoTracking()
+                            .Where(u => !u.IsDeleted
+                                && (u.Role == UserRole.Owner || (buyer.ManagerId.HasValue && u.Id == buyer.ManagerId.Value)))
+                            .Select(u => u.Id)
+                            .ToListAsync();
+
+                    foreach (var reviewerId in reviewerIds)
                     {
-                        UserId = branchStaffId,
-                        Title = "Audit Awaiting Branch Verification",
-                        Message = $"A new audit of ₱{model.Amount:N2} from {buyer.Email} is awaiting branch verification.",
-                        Category = "BranchVerify",
-                        LinkUrl = Url.Action("BranchVerifyList", "Audits") ?? "/Audits/BranchVerifyList",
-                        CreatedAt = DateTime.UtcNow
-                    });
+                        _context.Notifications.Add(new Notification
+                        {
+                            UserId = reviewerId,
+                            Title = "Audit Awaiting Manager Approval",
+                            Message = $"A new other-destination audit of ₱{model.Amount:N2} from {buyer.Email} is awaiting manager approval.",
+                            Category = "AuditVerify",
+                            LinkUrl = Url.Action("VerifyList", "Audits") ?? "/Audits/VerifyList",
+                            CreatedAt = DateTime.UtcNow
+                        });
+                    }
+                }
+                else
+                {
+                    var assignedBranchIds = auditItem.Details
+                        .Where(d => d.AssignedEstablishmentId.HasValue)
+                        .Select(d => d.AssignedEstablishmentId!.Value)
+                        .Distinct()
+                        .ToList();
+
+                    if (assignedBranchIds.Count == 0)
+                    {
+                        assignedBranchIds.Add(model.EstablishmentId.Value);
+                    }
+
+                    var branchStaffIds = await _context.Users
+                        .AsNoTracking()
+                        .Where(u => u.Role == UserRole.BranchStaff
+                            && u.EstablishmentId.HasValue
+                            && assignedBranchIds.Contains(u.EstablishmentId.Value)
+                            && !u.IsDeleted)
+                        .Select(u => u.Id)
+                        .ToListAsync();
+
+                    foreach (var branchStaffId in branchStaffIds)
+                    {
+                        _context.Notifications.Add(new Notification
+                        {
+                            UserId = branchStaffId,
+                            Title = "Audit Awaiting Branch Verification",
+                            Message = $"A new audit of ₱{model.Amount:N2} from {buyer.Email} is awaiting branch verification.",
+                            Category = "BranchVerify",
+                            LinkUrl = Url.Action("BranchVerifyList", "Audits") ?? "/Audits/BranchVerifyList",
+                            CreatedAt = DateTime.UtcNow
+                        });
+                    }
                 }
 
                 await _context.SaveChangesAsync();
@@ -350,6 +395,179 @@ namespace AuditCkDayo.Controllers
             HttpContext.Session.Remove("OcrItems");
             return RedirectToAction("Index", "Home");
         }
+
+        [HttpPost]
+        [Authorize(Roles = "Buyer,Owner,Manager,BranchStaff,Admin")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> AddAuditDraft(AuditSubmissionViewModel model)
+        {
+            await ApplyCombinedDestinationAsync(model);
+            if (!model.EstablishmentId.HasValue)
+            {
+                ModelState.AddModelError("CombinedDestinationId", "Please select a destination.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                await PopulateReviewLookupsAsync();
+                return View("Review", model);
+            }
+
+            var drafts = GetPendingAuditDrafts();
+            drafts.Add(model);
+            SavePendingAuditDrafts(drafts);
+            ClearCurrentUploadSession();
+            return RedirectToAction(nameof(BatchReview));
+        }
+
+        [HttpGet]
+        [Authorize(Roles = "Buyer,Owner,Manager,BranchStaff,Admin")]
+        public IActionResult BatchReview()
+        {
+            return View(GetPendingAuditDrafts());
+        }
+
+        [HttpPost]
+        [Authorize(Roles = "Buyer,Owner,Manager,BranchStaff,Admin")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> SubmitAuditBatch()
+        {
+            var buyerIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(buyerIdString) || !int.TryParse(buyerIdString, out var buyerId))
+            {
+                return Challenge();
+            }
+
+            var buyer = await _context.Users.FirstOrDefaultAsync(u => u.Id == buyerId && !u.IsDeleted);
+            if (buyer == null)
+            {
+                return Challenge();
+            }
+
+            var drafts = GetPendingAuditDrafts();
+            if (drafts.Count == 0)
+            {
+                TempData["Error"] = "No processed audit invoices are waiting to submit.";
+                return RedirectToAction(nameof(Upload));
+            }
+
+            var totalAmount = drafts.Sum(d => d.Amount);
+            if (buyer.PcfBalance < totalAmount)
+            {
+                ModelState.AddModelError("", $"Insufficient Petty Cash Fund balance. Required: ₱{totalAmount:N2}, Available: ₱{buyer.PcfBalance:N2}");
+                return View(nameof(BatchReview), drafts);
+            }
+
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                buyer.PcfBalance -= totalAmount;
+
+                foreach (var draft in drafts)
+                {
+                    var routesDirectlyToManager = draft.CombinedDestinationId == "others";
+                    var selectedReviewerId = await ResolvePrivilegedReviewerIdAsync(draft.SelectedReviewerId, buyer.Role, "SelectedReviewerId");
+                    await ApplyCombinedDestinationAsync(draft);
+                    if (!draft.EstablishmentId.HasValue)
+                    {
+                        throw new InvalidOperationException("A batch audit draft is missing its destination.");
+                    }
+
+                    var auditItem = new AuditItem
+                    {
+                        BuyerId = buyerId,
+                        EstablishmentId = draft.EstablishmentId.Value,
+                        Amount = draft.Amount,
+                        Description = draft.Description,
+                        EntryDate = draft.EntryDate,
+                        SubmittedAt = DateTime.Now,
+                        Notes = draft.Notes,
+                        ReceiptImageUrl = draft.ReceiptImageUrls.Count > 0 ? draft.ReceiptImageUrls[0] : draft.ReceiptImageUrl,
+                        Status = routesDirectlyToManager ? AuditStatus.AwaitingManagerApproval : AuditStatus.AwaitingBranchVerification,
+                        AssignedReviewerId = selectedReviewerId
+                    };
+
+                    foreach (var imageUrl in draft.ReceiptImageUrls)
+                    {
+                        auditItem.Images.Add(new AuditItemImage
+                        {
+                            ImageUrl = imageUrl,
+                            DisplayOrder = auditItem.Images.Count
+                        });
+                    }
+
+                    foreach (var item in draft.Items)
+                    {
+                        var assignedBranchId = item.CombinedDestinationId != null && item.CombinedDestinationId.StartsWith("branch-")
+                            ? int.Parse(item.CombinedDestinationId.Replace("branch-", ""))
+                            : (int?)null;
+
+                        auditItem.Details.Add(new AuditItemDetail
+                        {
+                            ItemName = string.IsNullOrWhiteSpace(item.Name) ? "Unknown Item" : item.Name,
+                            Quantity = item.Quantity,
+                            Price = item.Price,
+                            Total = item.Total,
+                            AssignedEstablishmentId = assignedBranchId,
+                            BranchVerificationStatus = routesDirectlyToManager ? BranchVerificationStatus.Verified : BranchVerificationStatus.Pending,
+                            AllocationNotes = item.AllocationNotes
+                        });
+                    }
+
+                    _context.AuditItems.Add(auditItem);
+                    await _context.SaveChangesAsync();
+
+                    if (routesDirectlyToManager)
+                    {
+                        var reviewerIds = selectedReviewerId.HasValue
+                            ? new List<int> { selectedReviewerId.Value }
+                            : await _context.Users
+                                .AsNoTracking()
+                                .Where(u => !u.IsDeleted
+                                    && (u.Role == UserRole.Owner || (buyer.ManagerId.HasValue && u.Id == buyer.ManagerId.Value)))
+                                .Select(u => u.Id)
+                                .ToListAsync();
+
+                        foreach (var reviewerId in reviewerIds)
+                        {
+                            _context.Notifications.Add(new Notification
+                            {
+                                UserId = reviewerId,
+                                Title = "Audit Awaiting Manager Approval",
+                                Message = $"A new other-destination audit of ₱{draft.Amount:N2} from {buyer.Email} is awaiting manager approval.",
+                                Category = "AuditVerify",
+                                LinkUrl = Url.Action("VerifyList", "Audits") ?? "/Audits/VerifyList",
+                                CreatedAt = DateTime.UtcNow
+                            });
+                        }
+                    }
+
+                    _context.PettyCashLedgers.Add(new PettyCashLedger
+                    {
+                        UserId = buyerId,
+                        TransactionType = LedgerTransactionType.ExpenseDeduction,
+                        Amount = -draft.Amount,
+                        ResultingBalance = buyer.PcfBalance,
+                        Timestamp = DateTime.Now,
+                        AssociatedRecordId = auditItem.Id,
+                        Notes = $"Expense deduction for submitted AuditItem ID {auditItem.Id}: {draft.Description}"
+                    });
+                }
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+
+            HttpContext.Session.Remove(PendingAuditDraftsSessionKey);
+            ClearCurrentUploadSession();
+            return RedirectToAction("Index", "Home");
+        }
+
 
         [HttpGet]
         [Authorize(Roles = "Owner,Manager")]
@@ -374,7 +592,7 @@ namespace AuditCkDayo.Controllers
             if (role == "Manager")
             {
                 // Only see assigned buyers
-                query = query.Where(a => a.Buyer.ManagerId == userId);
+                query = query.Where(a => a.AssignedReviewerId == userId || a.Buyer.ManagerId == userId);
             }
 
             var pendingAudits = await query.ToListAsync();
@@ -404,7 +622,7 @@ namespace AuditCkDayo.Controllers
             var role = User.FindFirst(ClaimTypes.Role)?.Value;
 
             // Access check
-            if (role == "Manager" && audit.Buyer.ManagerId != userId)
+            if (role == "Manager" && audit.AssignedReviewerId != userId && audit.Buyer.ManagerId != userId)
             {
                 return Forbid();
             }
@@ -485,6 +703,7 @@ namespace AuditCkDayo.Controllers
                 "UPDATE AuditItems SET Status = {0} WHERE Status = '' OR Status IS NULL",
                 AuditStatus.AwaitingBranchVerification.ToString());
 
+            var branchId = currentUser.EstablishmentId.Value;
             var pendingAudits = await _context.AuditItems
                 .Include(a => a.Buyer)
                 .Include(a => a.Establishment)
@@ -493,8 +712,20 @@ namespace AuditCkDayo.Controllers
                 .Include(a => a.Details)
                     .ThenInclude(d => d.CostCenter)
                 .AsNoTracking()
-                .Where(a => a.Status == AuditStatus.AwaitingBranchVerification && a.EstablishmentId == currentUser.EstablishmentId.Value)
+                .Where(a => a.Status == AuditStatus.AwaitingBranchVerification
+                    && ((!a.Details.Any() && a.EstablishmentId == branchId)
+                        || a.Details.Any(d => d.BranchVerificationStatus == BranchVerificationStatus.Pending
+                            && (d.AssignedEstablishmentId == branchId
+                                || (!d.AssignedEstablishmentId.HasValue && a.EstablishmentId == branchId)))))
                 .ToListAsync();
+
+            foreach (var audit in pendingAudits)
+            {
+                audit.Details = audit.Details
+                    .Where(d => d.BranchVerificationStatus == BranchVerificationStatus.Pending
+                        && DetailBelongsToBranch(d, audit.EstablishmentId, branchId))
+                    .ToList();
+            }
 
             Console.WriteLine($"[DEBUG_QUEUE] BranchStaff ID: {userId}, Establishment ID: {currentUser.EstablishmentId.Value}, Queue size: {pendingAudits.Count}");
             return View(pendingAudits);
@@ -505,7 +736,10 @@ namespace AuditCkDayo.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> BranchVerify(int id, string actionType)
         {
-            var audit = await _context.AuditItems.Include(a => a.Buyer).FirstOrDefaultAsync(a => a.Id == id);
+            var audit = await _context.AuditItems
+                .Include(a => a.Buyer)
+                .Include(a => a.Details)
+                .FirstOrDefaultAsync(a => a.Id == id);
             if (audit == null) return NotFound();
 
             var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -515,7 +749,14 @@ namespace AuditCkDayo.Controllers
             }
             var currentUser = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId && !u.IsDeleted);
 
-            if (currentUser == null || audit.EstablishmentId != currentUser.EstablishmentId) return Forbid();
+            if (currentUser == null || !currentUser.EstablishmentId.HasValue) return Forbid();
+            var branchId = currentUser.EstablishmentId.Value;
+            var branchDetails = audit.Details
+                .Where(d => d.BranchVerificationStatus == BranchVerificationStatus.Pending
+                    && DetailBelongsToBranch(d, audit.EstablishmentId, branchId))
+                .ToList();
+            var legacyAuditWithoutDetailsForBranch = !audit.Details.Any() && audit.EstablishmentId == branchId;
+            if (branchDetails.Count == 0 && !legacyAuditWithoutDetailsForBranch) return Forbid();
             if (audit.Status != AuditStatus.AwaitingBranchVerification) return BadRequest("This item is not awaiting branch verification.");
 
             using var transaction = await _context.Database.BeginTransactionAsync();
@@ -523,10 +764,23 @@ namespace AuditCkDayo.Controllers
             {
                 if (actionType == "Verify")
                 {
-                    audit.Status = AuditStatus.AwaitingManagerApproval;
+                    foreach (var detail in branchDetails)
+                    {
+                        detail.BranchVerificationStatus = BranchVerificationStatus.Verified;
+                    }
+
+                    if (!HasPendingBranchVerification(audit))
+                    {
+                        audit.Status = AuditStatus.AwaitingManagerApproval;
+                    }
                 }
                 else if (actionType == "Reject")
                 {
+                    foreach (var detail in branchDetails)
+                    {
+                        detail.BranchVerificationStatus = BranchVerificationStatus.Rejected;
+                    }
+
                     audit.Status = AuditStatus.Rejected;
                     // Refund immediately
                     audit.Buyer.PcfBalance += audit.Amount;
@@ -546,7 +800,7 @@ namespace AuditCkDayo.Controllers
                 }
 
                 // BranchVerify notifications:
-                if (actionType == "Verify")
+                if (actionType == "Verify" && audit.Status == AuditStatus.AwaitingManagerApproval)
                 {
                     // On Verify, notify the Buyer and the assigned Manager that the audit has passed branch verification.
                     var notifyBuyer = new Notification
@@ -562,7 +816,11 @@ namespace AuditCkDayo.Controllers
 
                     // Notify assigned manager (or Owner if no manager)
                     int managerNotifyId;
-                    if (audit.Buyer.ManagerId.HasValue)
+                    if (audit.AssignedReviewerId.HasValue)
+                    {
+                        managerNotifyId = audit.AssignedReviewerId.Value;
+                    }
+                    else if (audit.Buyer.ManagerId.HasValue)
                     {
                         managerNotifyId = audit.Buyer.ManagerId.Value;
                     }
@@ -607,6 +865,292 @@ namespace AuditCkDayo.Controllers
                 throw;
             }
             return RedirectToAction(nameof(BranchVerifyList));
+        }
+
+        private static bool DetailBelongsToBranch(AuditItemDetail detail, int auditEstablishmentId, int branchId)
+        {
+            return detail.AssignedEstablishmentId == branchId
+                || (!detail.AssignedEstablishmentId.HasValue && auditEstablishmentId == branchId);
+        }
+
+        private static bool HasPendingBranchVerification(AuditItem audit)
+        {
+            return audit.Details.Any(detail =>
+                detail.BranchVerificationStatus == BranchVerificationStatus.Pending
+                && (detail.AssignedEstablishmentId.HasValue
+                    || (!detail.AssignedEstablishmentId.HasValue && audit.EstablishmentId != 0)));
+        }
+
+        [HttpGet]
+        [Authorize(Roles = "Buyer,Owner,Manager,BranchStaff,Admin")]
+        public async Task<IActionResult> Edit(int id)
+        {
+            var audit = await _context.AuditItems
+                .Include(a => a.Buyer)
+                .Include(a => a.Establishment)
+                .Include(a => a.Images)
+                .Include(a => a.Details)
+                .FirstOrDefaultAsync(a => a.Id == id);
+
+            if (audit == null)
+            {
+                return NotFound();
+            }
+
+            var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdString) || !int.TryParse(userIdString, out var userId))
+            {
+                return Challenge();
+            }
+            var role = User.FindFirst(ClaimTypes.Role)?.Value;
+
+            if (!IsPendingAuditStatus(audit.Status))
+            {
+                return BadRequest("Only pending audits can be edited.");
+            }
+
+            if (!CanCorrectPendingAudit(audit, userId, role))
+            {
+                return Forbid();
+            }
+
+            await PopulateReviewLookupsAsync();
+
+            var imageUrls = audit.Images
+                .OrderBy(i => i.DisplayOrder)
+                .Select(i => i.ImageUrl)
+                .ToList();
+            if (imageUrls.Count == 0 && !string.IsNullOrEmpty(audit.ReceiptImageUrl))
+            {
+                imageUrls.Add(audit.ReceiptImageUrl);
+            }
+
+            var model = new AuditSubmissionViewModel
+            {
+                AuditId = audit.Id,
+                EstablishmentId = audit.EstablishmentId,
+                CombinedDestinationId = audit.Establishment.IsMiscellaneous ? "others" : $"branch-{audit.EstablishmentId}",
+                Amount = audit.Amount,
+                Description = audit.Description,
+                EntryDate = audit.EntryDate,
+                Notes = audit.Notes,
+                ReceiptImageUrl = audit.ReceiptImageUrl,
+                ReceiptImageUrls = imageUrls,
+                Items = audit.Details.Select(d => new OcrItemResult
+                {
+                    Name = d.ItemName,
+                    Quantity = d.Quantity,
+                    Price = d.Price,
+                    Total = d.Total,
+                    AssignedEstablishmentId = d.AssignedEstablishmentId,
+                    CostCenterId = d.CostCenterId,
+                    CombinedDestinationId = d.AssignedEstablishmentId.HasValue ? $"branch-{d.AssignedEstablishmentId.Value}" :
+                        (d.CostCenterId.HasValue ? $"cc-{d.CostCenterId.Value}" : null),
+                    AllocationNotes = d.AllocationNotes
+                }).ToList()
+            };
+
+            return View("Review", model);
+        }
+
+        [HttpPost]
+        [Authorize(Roles = "Buyer,Owner,Manager,BranchStaff,Admin")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Edit(int id, AuditSubmissionViewModel model)
+        {
+            var audit = await _context.AuditItems
+                .Include(a => a.Buyer)
+                .Include(a => a.Details)
+                .Include(a => a.Images)
+                .FirstOrDefaultAsync(a => a.Id == id);
+
+            if (audit == null)
+            {
+                return NotFound();
+            }
+
+            var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdString) || !int.TryParse(userIdString, out var userId))
+            {
+                return Challenge();
+            }
+            var role = User.FindFirst(ClaimTypes.Role)?.Value;
+
+            if (!IsPendingAuditStatus(audit.Status))
+            {
+                return BadRequest("Only pending audits can be edited.");
+            }
+
+            if (!CanCorrectPendingAudit(audit, userId, role))
+            {
+                return Forbid();
+            }
+
+            model.AuditId = id;
+            await ApplyCombinedDestinationAsync(model);
+
+            if (!model.EstablishmentId.HasValue)
+            {
+                ModelState.AddModelError("CombinedDestinationId", "Please select a destination.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                await PopulateReviewLookupsAsync();
+                return View("Review", model);
+            }
+
+            var establishmentId = model.EstablishmentId.Value;
+            var establishmentExists = await _context.Establishments.AnyAsync(e => e.Id == establishmentId);
+            if (!establishmentExists)
+            {
+                ModelState.AddModelError("CombinedDestinationId", "The selected destination does not exist.");
+                await PopulateReviewLookupsAsync();
+                return View("Review", model);
+            }
+
+            if (model.Items != null)
+            {
+                foreach (var item in model.Items)
+                {
+                    if (item.Quantity < 0 || item.Price < 0 || item.Total < 0)
+                    {
+                        ModelState.AddModelError("", "Line item quantities, prices, and totals must be non-negative.");
+                        await PopulateReviewLookupsAsync();
+                        return View("Review", model);
+                    }
+                }
+            }
+
+            var amountDelta = model.Amount - audit.Amount;
+            if (amountDelta > 0 && audit.Buyer.PcfBalance < amountDelta)
+            {
+                ModelState.AddModelError("", $"Insufficient Petty Cash Fund balance. Required adjustment: ₱{amountDelta:N2}, Available: ₱{audit.Buyer.PcfBalance:N2}");
+                await PopulateReviewLookupsAsync();
+                return View("Review", model);
+            }
+
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                audit.Buyer.PcfBalance -= amountDelta;
+                var oldAmount = audit.Amount;
+
+                audit.EstablishmentId = establishmentId;
+                audit.Amount = model.Amount;
+                audit.Description = model.Description;
+                audit.EntryDate = model.EntryDate;
+                audit.Notes = model.Notes;
+                audit.ReceiptImageUrl = model.ReceiptImageUrls != null && model.ReceiptImageUrls.Count > 0 ? model.ReceiptImageUrls[0] : model.ReceiptImageUrl;
+
+                var existingDetails = audit.Details.ToList();
+                _context.AuditItemDetails.RemoveRange(existingDetails);
+                audit.Details.Clear();
+                AddAuditDetailsFromModel(audit, model);
+
+                var existingImages = audit.Images.ToList();
+                _context.AuditItemImages.RemoveRange(existingImages);
+                audit.Images.Clear();
+                if (model.ReceiptImageUrls != null && model.ReceiptImageUrls.Count > 0)
+                {
+                    for (int i = 0; i < model.ReceiptImageUrls.Count; i++)
+                    {
+                        audit.Images.Add(new AuditItemImage
+                        {
+                            ImageUrl = model.ReceiptImageUrls[i],
+                            DisplayOrder = i
+                        });
+                    }
+                }
+
+                if (amountDelta != 0)
+                {
+                    _context.PettyCashLedgers.Add(new PettyCashLedger
+                    {
+                        UserId = audit.BuyerId,
+                        TransactionType = LedgerTransactionType.ManualAdjustment,
+                        Amount = -amountDelta,
+                        ResultingBalance = audit.Buyer.PcfBalance,
+                        Timestamp = DateTime.Now,
+                        AssociatedRecordId = audit.Id,
+                        CounterpartyUserId = userId == audit.BuyerId ? null : userId,
+                        Notes = $"Pending audit amount corrected from ₱{oldAmount:N2} to ₱{model.Amount:N2}."
+                    });
+                }
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+
+            return RedirectToAction("Index", "Home");
+        }
+
+        [HttpPost]
+        [Authorize(Roles = "Buyer,Owner,Manager,BranchStaff,Admin")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Void(int id)
+        {
+            var audit = await _context.AuditItems
+                .Include(a => a.Buyer)
+                .FirstOrDefaultAsync(a => a.Id == id);
+
+            if (audit == null)
+            {
+                return NotFound();
+            }
+
+            var userIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userIdString) || !int.TryParse(userIdString, out var userId))
+            {
+                return Challenge();
+            }
+            var role = User.FindFirst(ClaimTypes.Role)?.Value;
+
+            if (!IsPendingAuditStatus(audit.Status))
+            {
+                return BadRequest("Only pending audits can be voided.");
+            }
+
+            if (!CanCorrectPendingAudit(audit, userId, role))
+            {
+                return Forbid();
+            }
+
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
+            {
+                audit.Status = AuditStatus.Cancelled;
+                audit.VerifiedById = userId;
+                audit.VerificationDate = DateTime.Now;
+                audit.Buyer.PcfBalance += audit.Amount;
+
+                _context.PettyCashLedgers.Add(new PettyCashLedger
+                {
+                    UserId = audit.BuyerId,
+                    TransactionType = LedgerTransactionType.ReversalRefund,
+                    Amount = audit.Amount,
+                    ResultingBalance = audit.Buyer.PcfBalance,
+                    Timestamp = DateTime.Now,
+                    AssociatedRecordId = audit.Id,
+                    CounterpartyUserId = userId == audit.BuyerId ? null : userId,
+                    Notes = $"Pending audit voided. Refund of ₱{audit.Amount:N2} to uploader."
+                });
+
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+
+            return RedirectToAction("Index", "Home");
         }
 
         [HttpGet("Audits/Receipt/{filename}")]
@@ -702,7 +1246,7 @@ namespace AuditCkDayo.Controllers
         }
 
         [HttpGet]
-        [Authorize(Roles = "Buyer")]
+        [Authorize(Roles = "Buyer,Owner,Manager,BranchStaff,Admin")]
         public async Task<IActionResult> Surrender()
         {
             var buyerIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -710,7 +1254,6 @@ namespace AuditCkDayo.Controllers
             {
                 return Challenge();
             }
-
 
             var buyer = await _context.Users.FirstOrDefaultAsync(u => u.Id == buyerId && !u.IsDeleted);
             if (buyer == null)
@@ -722,9 +1265,7 @@ namespace AuditCkDayo.Controllers
                 .Where(s => s.BuyerId == buyerId && s.Status == SurrenderStatus.Pending)
                 .SumAsync(s => s.DeclaredAmount);
 
-            ViewBag.PcfBalance = buyer.PcfBalance;
-            ViewBag.ReservedBalance = reserved;
-            ViewBag.AvailableBalance = buyer.PcfBalance - reserved;
+            await PopulateSurrenderLookupsAsync(buyer.PcfBalance, reserved, Math.Max(buyer.PcfBalance - reserved, 0m));
 
             var requests = await _context.SurrenderRequests
                 .Where(s => s.BuyerId == buyerId)
@@ -735,9 +1276,9 @@ namespace AuditCkDayo.Controllers
         }
 
         [HttpPost]
-        [Authorize(Roles = "Buyer")]
+        [Authorize(Roles = "Buyer,Owner,Manager,BranchStaff,Admin")]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> SubmitSurrender(decimal amount, string notes)
+        public async Task<IActionResult> SubmitSurrender(decimal amount, string notes, int? assignedReceiverId = null)
         {
             var buyerIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(buyerIdString) || !int.TryParse(buyerIdString, out var buyerId))
@@ -751,21 +1292,18 @@ namespace AuditCkDayo.Controllers
                 return NotFound("Buyer not found.");
             }
 
-
+            var selectedReceiverId = await ResolvePrivilegedReviewerIdAsync(assignedReceiverId, buyer.Role, "assignedReceiverId");
 
             var reserved = await _context.SurrenderRequests
                 .Where(s => s.BuyerId == buyerId && s.Status == SurrenderStatus.Pending)
                 .SumAsync(s => s.DeclaredAmount);
 
-            var availableBalance = buyer.PcfBalance - reserved;
+            var availableBalance = Math.Max(buyer.PcfBalance - reserved, 0m);
 
-            if (amount <= 0 || amount > availableBalance)
+            if (amount <= 0 || amount > availableBalance || !ModelState.IsValid)
             {
                 ModelState.AddModelError("", "Invalid surrender amount. Amount must be greater than zero and cannot exceed available balance.");
-                
-                ViewBag.PcfBalance = buyer.PcfBalance;
-                ViewBag.ReservedBalance = reserved;
-                ViewBag.AvailableBalance = availableBalance;
+                await PopulateSurrenderLookupsAsync(buyer.PcfBalance, reserved, availableBalance);
 
                 var requests = await _context.SurrenderRequests
                     .Where(s => s.BuyerId == buyerId)
@@ -781,14 +1319,19 @@ namespace AuditCkDayo.Controllers
                 DeclaredAmount = amount,
                 Status = SurrenderStatus.Pending,
                 RequestDate = DateTime.UtcNow,
-                BuyerNotes = notes
+                BuyerNotes = notes,
+                AssignedReceiverId = selectedReceiverId
             };
 
             _context.SurrenderRequests.Add(surrenderRequest);
             await _context.SaveChangesAsync();
-            // SubmitSurrender: create a notification for the buyer's manager (or Owner) stating a surrender request is pending confirmation.
+
             int surrenderManagerId;
-            if (buyer.ManagerId.HasValue)
+            if (selectedReceiverId.HasValue)
+            {
+                surrenderManagerId = selectedReceiverId.Value;
+            }
+            else if (buyer.ManagerId.HasValue)
             {
                 surrenderManagerId = buyer.ManagerId.Value;
             }
@@ -797,6 +1340,7 @@ namespace AuditCkDayo.Controllers
                 var owner = await _context.Users.FirstOrDefaultAsync(u => u.Role == UserRole.Owner);
                 surrenderManagerId = owner?.Id ?? buyerId;
             }
+
             var surrenderPendingNotification = new Notification
             {
                 UserId = surrenderManagerId,
@@ -808,7 +1352,6 @@ namespace AuditCkDayo.Controllers
             };
             _context.Notifications.Add(surrenderPendingNotification);
             await _context.SaveChangesAsync();
-
 
             return RedirectToAction(nameof(Surrender));
         }
@@ -830,7 +1373,7 @@ namespace AuditCkDayo.Controllers
 
             if (currentUserRole == "Manager")
             {
-                query = query.Where(s => s.Buyer.ManagerId == currentUserId);
+                query = query.Where(s => s.AssignedReceiverId == currentUserId || s.Buyer.ManagerId == currentUserId);
             }
 
             var pendingRequests = await query.OrderByDescending(s => s.RequestDate).ToListAsync();
@@ -863,9 +1406,8 @@ namespace AuditCkDayo.Controllers
                 return RedirectToAction(nameof(SurrenderQueue));
             }
 
-            // Verify manager has access to this buyer
             var currentUserRole = User.FindFirst(ClaimTypes.Role)?.Value;
-            if (currentUserRole == "Manager" && request.Buyer.ManagerId != currentUserId)
+            if (currentUserRole == "Manager" && request.AssignedReceiverId != currentUserId && request.Buyer.ManagerId != currentUserId)
             {
                 return Forbid();
             }
@@ -881,16 +1423,46 @@ namespace AuditCkDayo.Controllers
                 using var transaction = await _context.Database.BeginTransactionAsync();
                 try
                 {
+                    var actionDate = DateTime.UtcNow;
                     request.Status = SurrenderStatus.Confirmed;
-                    request.ActionDate = DateTime.UtcNow;
+                    request.ActionDate = actionDate;
                     request.ActionByUserId = currentUserId;
                     request.ActionNotes = actionNotes;
                     request.ConfirmedAmount = request.DeclaredAmount;
 
                     request.Buyer.PcfBalance -= request.DeclaredAmount;
                     request.Buyer.DailyStartingFloat -= request.DeclaredAmount;
-                    currentUser.PcfBalance += request.DeclaredAmount;
-                    currentUser.DailyStartingFloat += request.DeclaredAmount;
+
+                    var cashFlowDate = actionDate.Date;
+                    var flow = await _context.TreasuryCashFlows
+                        .Include(f => f.Entries)
+                        .FirstOrDefaultAsync(f => f.CashFlowDate == cashFlowDate);
+
+                    if (flow == null)
+                    {
+                        flow = new TreasuryCashFlow
+                        {
+                            TreasuryUserId = currentUserId,
+                            CashFlowDate = cashFlowDate,
+                            StartingBalance = 0m,
+                            Status = TreasuryCashFlowStatus.Open
+                        };
+                        _context.TreasuryCashFlows.Add(flow);
+                    }
+
+                    var treasuryEntry = new CashFlowEntry
+                    {
+                        TreasuryCashFlow = flow,
+                        Direction = CashFlowDirection.In,
+                        Category = CashFlowCategory.ChangePcf,
+                        RelatedUserId = request.BuyerId,
+                        Amount = request.DeclaredAmount,
+                        Notes = $"PCF change surrendered by {request.Buyer.Email}. Notes: {actionNotes}",
+                        CreatedByUserId = currentUserId,
+                        ConfirmedByUserId = currentUserId
+                    };
+                    flow.Entries.Add(treasuryEntry);
+                    flow.RecomputeTotals();
 
                     var buyerLedger = new PettyCashLedger
                     {
@@ -898,25 +1470,13 @@ namespace AuditCkDayo.Controllers
                         TransactionType = LedgerTransactionType.CashSurrender,
                         Amount = -request.DeclaredAmount,
                         ResultingBalance = request.Buyer.PcfBalance,
-                        Timestamp = DateTime.Now,
+                        Timestamp = actionDate,
                         AssociatedRecordId = request.Id,
                         CounterpartyUserId = currentUserId,
                         Notes = $"Cash surrender request confirmed. Notes: {actionNotes}"
                     };
 
-                    var receiverLedger = new PettyCashLedger
-                    {
-                        UserId = currentUserId,
-                        TransactionType = LedgerTransactionType.CashSurrender,
-                        Amount = request.DeclaredAmount,
-                        ResultingBalance = currentUser.PcfBalance,
-                        Timestamp = DateTime.Now,
-                        AssociatedRecordId = request.Id,
-                        CounterpartyUserId = request.BuyerId,
-                        Notes = $"Cash surrender received from {request.Buyer.Email}. Notes: {actionNotes}"
-                    };
-
-                    _context.PettyCashLedgers.AddRange(buyerLedger, receiverLedger);
+                    _context.PettyCashLedgers.Add(buyerLedger);
                     await _context.SaveChangesAsync();
                     // Create notification for Buyer stating surrender request confirmed
                     var confirmNotification = new Notification
@@ -965,7 +1525,7 @@ namespace AuditCkDayo.Controllers
         }
 
         [HttpPost]
-        [Authorize(Roles = "Buyer")]
+        [Authorize(Roles = "Buyer,Owner,Manager,BranchStaff,Admin")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> CancelSurrender(int id)
         {
@@ -998,6 +1558,179 @@ namespace AuditCkDayo.Controllers
             await _context.SaveChangesAsync();
             return RedirectToAction(nameof(Surrender));
         }
+
+        private List<AuditSubmissionViewModel> GetPendingAuditDrafts()
+        {
+            var json = HttpContext.Session.GetString(PendingAuditDraftsSessionKey);
+            return string.IsNullOrEmpty(json)
+                ? new List<AuditSubmissionViewModel>()
+                : System.Text.Json.JsonSerializer.Deserialize<List<AuditSubmissionViewModel>>(json) ?? new List<AuditSubmissionViewModel>();
+        }
+
+        private void SavePendingAuditDrafts(List<AuditSubmissionViewModel> drafts)
+        {
+            HttpContext.Session.SetString(PendingAuditDraftsSessionKey, System.Text.Json.JsonSerializer.Serialize(drafts));
+        }
+
+        private void ClearCurrentUploadSession()
+        {
+            HttpContext.Session.Remove("ReceiptImageUrl");
+            HttpContext.Session.Remove("ReceiptImageUrls");
+            HttpContext.Session.Remove("TotalAmount");
+            HttpContext.Session.Remove("TransactionDate");
+            HttpContext.Session.Remove("OcrItems");
+        }
+        private async Task ApplyCombinedDestinationAsync(AuditSubmissionViewModel model)
+        {
+            if (string.IsNullOrEmpty(model.CombinedDestinationId))
+            {
+                return;
+            }
+
+            if (model.CombinedDestinationId.StartsWith("branch-"))
+            {
+                model.EstablishmentId = int.Parse(model.CombinedDestinationId.Replace("branch-", ""));
+            }
+            else if (model.CombinedDestinationId == "others")
+            {
+                model.EstablishmentId = await EnsureMiscellaneousEstablishmentAsync();
+            }
+        }
+
+        private static bool IsPendingAuditStatus(AuditStatus status)
+        {
+            return status == AuditStatus.AwaitingBranchVerification
+                || status == AuditStatus.AwaitingManagerApproval
+                || status == AuditStatus.Pending;
+        }
+
+        private static bool CanCorrectPendingAudit(AuditItem audit, int userId, string? role)
+        {
+            if (!IsPendingAuditStatus(audit.Status))
+            {
+                return false;
+            }
+
+            var canEditOwnSubmission = IsNewAuditRole(role) && audit.BuyerId == userId;
+            var canEditManagerQueue = audit.Status == AuditStatus.AwaitingManagerApproval
+                && (role == "Owner" || (role == "Manager" && audit.Buyer.ManagerId == userId));
+
+            return canEditOwnSubmission || canEditManagerQueue;
+        }
+
+        private static bool IsNewAuditRole(string? role)
+        {
+            return role == "Buyer"
+                || role == "Owner"
+                || role == "Manager"
+                || role == "BranchStaff"
+                || role == "Admin";
+        }
+
+        private static void AddAuditDetailsFromModel(AuditItem audit, AuditSubmissionViewModel model)
+        {
+            if (model.Items == null)
+            {
+                return;
+            }
+
+            foreach (var item in model.Items)
+            {
+                var itemName = string.IsNullOrWhiteSpace(item.Name) ? "Unknown Item" : item.Name;
+                int? assignedBranchId = null;
+                int? costCenterId = null;
+
+                if (!string.IsNullOrEmpty(item.CombinedDestinationId))
+                {
+                    if (item.CombinedDestinationId.StartsWith("branch-"))
+                    {
+                        assignedBranchId = int.Parse(item.CombinedDestinationId.Replace("branch-", ""));
+                    }
+                    else if (item.CombinedDestinationId.StartsWith("cc-"))
+                    {
+                        costCenterId = int.Parse(item.CombinedDestinationId.Replace("cc-", ""));
+                    }
+                }
+
+                audit.Details.Add(new AuditItemDetail
+                {
+                    ItemName = itemName,
+                    Quantity = item.Quantity,
+                    Price = item.Price,
+                    Total = item.Total,
+                    AssignedEstablishmentId = assignedBranchId,
+                    CostCenterId = costCenterId,
+                    AllocationNotes = item.AllocationNotes
+                });
+            }
+        }
+
+        private async Task<int> EnsureMiscellaneousEstablishmentAsync()
+        {
+            var existing = await _context.Establishments
+                .FirstOrDefaultAsync(e => e.IsMiscellaneous && e.Name == "Others");
+
+            if (existing != null)
+            {
+                return existing.Id;
+            }
+
+            var establishment = new Establishment
+            {
+                Name = "Others",
+                IsOperatingBranch = false,
+                IsMiscellaneous = true,
+                IsActive = true
+            };
+
+            _context.Establishments.Add(establishment);
+            await _context.SaveChangesAsync();
+            return establishment.Id;
+        }
+
+        private async Task<int?> ResolvePrivilegedReviewerIdAsync(int? selectedReviewerId, UserRole submitterRole, string modelStateKey)
+        {
+            if (submitterRole is not (UserRole.Owner or UserRole.Manager))
+            {
+                return null;
+            }
+
+            if (!selectedReviewerId.HasValue)
+            {
+                return null;
+            }
+
+            var reviewerExists = await _context.Users
+                .AsNoTracking()
+                .AnyAsync(u => u.Id == selectedReviewerId.Value
+                    && !u.IsDeleted
+                    && (u.Role == UserRole.Owner || u.Role == UserRole.Manager));
+
+            if (!reviewerExists)
+            {
+                ModelState.AddModelError(modelStateKey, "Select an active owner or manager.");
+                return null;
+            }
+
+            return selectedReviewerId.Value;
+        }
+
+
+        private async Task PopulateSurrenderLookupsAsync(decimal pcfBalance, decimal reservedBalance, decimal availableBalance)
+        {
+            ViewBag.PcfBalance = pcfBalance;
+            ViewBag.ReservedBalance = reservedBalance;
+            ViewBag.AvailableBalance = availableBalance;
+
+            var reviewers = await _context.Users
+                .AsNoTracking()
+                .Where(u => !u.IsDeleted && (u.Role == UserRole.Owner || u.Role == UserRole.Manager))
+                .OrderBy(u => u.Role)
+                .ThenBy(u => u.Name)
+                .ToListAsync();
+
+            ViewBag.ReviewerUsers = new SelectList(reviewers, "Id", "Name");
+        }
         private async Task PopulateReviewLookupsAsync()
         {
             var establishments = await _context.Establishments.ToListAsync();
@@ -1021,6 +1754,15 @@ namespace AuditCkDayo.Controllers
             });
 
             ViewBag.CombinedDestinations = combinedList;
+
+            var reviewers = await _context.Users
+                .AsNoTracking()
+                .Where(u => !u.IsDeleted && (u.Role == UserRole.Owner || u.Role == UserRole.Manager))
+                .OrderBy(u => u.Role)
+                .ThenBy(u => u.Name)
+                .ToListAsync();
+
+            ViewBag.ReviewerUsers = new SelectList(reviewers, "Id", "Name");
         }
     }
 }

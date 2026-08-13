@@ -13,7 +13,9 @@
         </div>
         <h1 class="font-headline-lg text-headline-lg text-on-surface">Review Daily Sales Report</h1>
         <p class="font-body-md text-on-surface-variant leading-relaxed">
-            Verify the information from the daily sales report scan. Adjust any errors, verify the breakdown, and confirm to post cash-in.
+            @(Model.CanConfirmToTreasury
+                ? "Verify the daily sales report count, adjust any errors, and confirm to post cash-in."
+                : "Review the daily sales report values, adjust any errors, and submit it for manager verification.")
         </p>
     </div>
 
@@ -93,7 +95,7 @@
                             <div class="text-[9px] uppercase font-bold text-on-surface-variant tracking-wider mb-1">Status</div>
                             <div class="flex items-center gap-1.5 text-body-md font-body-md text-on-surface">
                                 <span class="material-symbols-outlined text-[16px] text-primary">info</span>
-                                @(Model.SalesReportId.HasValue ? "Reviewing Draft" : "New Intake")
+                                @Model.StatusText
                             </div>
                         </div>
                         <div class="bg-surface-container-low rounded-xl p-space-4 border-l-4 border-primary shadow-sm flex flex-col justify-center">
@@ -208,9 +210,9 @@
                             Cash Denomination Breakdown
                         </h4>
                         
-                        <div class="border border-surface-border rounded-xl">
+                        <div class="border border-surface-border rounded-xl max-h-[520px] overflow-y-auto overflow-x-auto">
                             <table class="w-full text-left border-collapse block lg:table">
-                                <thead class="hidden lg:table-header-group">
+                                <thead class="hidden lg:table-header-group lg:sticky lg:top-0 lg:z-10">
                                     <tr class="bg-surface-container-low border-b border-surface-border">
                                         <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px]">Denomination</th>
                                         <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-28">Quantity</th>
@@ -258,9 +260,9 @@
                             <span class="material-symbols-outlined text-[18px]">save</span>
                             Save Draft
                         </button>
-                        <button type="submit" name="actionType" value="Confirm" class="bg-primary text-on-primary px-space-8 py-3 rounded-lg font-label-caps uppercase tracking-widest hover:bg-primary/95 transition-all flex items-center justify-center gap-space-2 shadow-md text-[12px]">
-                            <span class="material-symbols-outlined text-[18px]">check_circle</span>
-                            Confirm to Treasury
+                        <button type="submit" name="actionType" value="@Model.PrimaryActionType" class="bg-primary text-on-primary px-space-8 py-3 rounded-lg font-label-caps uppercase tracking-widest hover:bg-primary/95 transition-all flex items-center justify-center gap-space-2 shadow-md text-[12px]">
+                            <span class="material-symbols-outlined text-[18px]">@Model.PrimaryActionIcon</span>
+                            @Model.PrimaryActionText
                         </button>
                     </div>
                 </form>

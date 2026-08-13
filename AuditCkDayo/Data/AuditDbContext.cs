@@ -101,6 +101,12 @@ namespace AuditCkDayo.Data
                 .HasMaxLength(50);
 
             modelBuilder.Entity<AuditItemDetail>()
+                .Property(ad => ad.BranchVerificationStatus)
+                .HasConversion<string>()
+                .HasMaxLength(50)
+                .HasDefaultValue(BranchVerificationStatus.Pending);
+
+            modelBuilder.Entity<AuditItemDetail>()
                 .HasOne(ad => ad.AssignedEstablishment)
                 .WithMany()
                 .HasForeignKey(ad => ad.AssignedEstablishmentId)
@@ -142,6 +148,13 @@ namespace AuditCkDayo.Data
                 .HasOne(a => a.VerifiedBy)
                 .WithMany()
                 .HasForeignKey(a => a.VerifiedById)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // AuditItem -> AssignedReviewer relationship
+            modelBuilder.Entity<AuditItem>()
+                .HasOne(a => a.AssignedReviewer)
+                .WithMany()
+                .HasForeignKey(a => a.AssignedReviewerId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             // AuditItemDetail configuration
@@ -198,6 +211,12 @@ namespace AuditCkDayo.Data
                 .HasOne(s => s.ActionByUser)
                 .WithMany()
                 .HasForeignKey(s => s.ActionByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<SurrenderRequest>()
+                .HasOne(s => s.AssignedReceiver)
+                .WithMany()
+                .HasForeignKey(s => s.AssignedReceiverId)
                 .OnDelete(DeleteBehavior.Restrict);
 
             // DocumentRecord configuration

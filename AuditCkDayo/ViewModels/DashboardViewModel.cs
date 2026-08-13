@@ -14,6 +14,7 @@ namespace AuditCkDayo.ViewModels
 
         public List<AuditItem> Audits { get; set; } = new List<AuditItem>();
         public List<AuditItem> TodayAudits { get; set; } = new List<AuditItem>();
+        public List<User> CashOnHandUsers { get; set; } = new List<User>();
         public decimal TotalAmount { get; set; }
     }
 }

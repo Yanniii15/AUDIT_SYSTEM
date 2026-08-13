@@ -12,6 +12,7 @@ namespace AuditCkDayo.Models
     public enum CashFlowCategory
     {
         Sales,
+        CashSurrender,
         ChangePcf,
         OwnerFunding,
         PcfRelease,

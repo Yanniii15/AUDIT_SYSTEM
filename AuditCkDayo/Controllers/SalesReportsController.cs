@@ -26,6 +26,28 @@ namespace AuditCkDayo.Controllers
         }
 
         [HttpGet]
+        public async Task<IActionResult> Index()
+        {
+            if (IsBranchStaff())
+            {
+                return RedirectToAction(nameof(Upload));
+            }
+
+            var pendingReports = await _context.SalesReports
+                .AsNoTracking()
+                .Include(r => r.DocumentRecord)
+                .Include(r => r.Establishment)
+                .Where(r => r.Status == SalesReportStatus.PendingManagerVerification
+                    || r.DocumentRecord.ReviewStatus == DocumentReviewStatus.PendingManagerVerification)
+                .OrderBy(r => r.HandoverDate)
+                .ThenBy(r => r.Establishment.Name)
+                .ThenBy(r => r.Id)
+                .ToListAsync();
+
+            return View(pendingReports);
+        }
+
+        [HttpGet]
         public async Task<IActionResult> Upload()
         {
             await PopulateEstablishments();
@@ -205,7 +227,7 @@ namespace AuditCkDayo.Controllers
             }
 
             await PopulateEstablishments(report.EstablishmentId);
-            return View(ToReviewModel(report));
+            return View(BuildReviewModel(report));
         }
 
         [HttpPost]
@@ -233,7 +255,7 @@ namespace AuditCkDayo.Controllers
             }
 
             await PopulateEstablishments(model.EstablishmentId);
-            model.ImageUrl = report.DocumentRecord.ImageUrl;
+            PopulateReviewUiState(model, report);
 
             if (!await IsValidOperatingBranchAsync(model.EstablishmentId))
             {
@@ -245,12 +267,16 @@ namespace AuditCkDayo.Controllers
                 return View(model);
             }
 
-            var isConfirmAction = string.Equals(actionType, "Confirm", StringComparison.OrdinalIgnoreCase);
+            var requestedConfirmAction = string.Equals(actionType, "Confirm", StringComparison.OrdinalIgnoreCase);
+            var canConfirmToTreasury = CanConfirmSalesReportToTreasury();
+            var isConfirmAction = requestedConfirmAction && canConfirmToTreasury;
+            var isSubmitForVerificationAction = string.Equals(actionType, "SubmitForVerification", StringComparison.OrdinalIgnoreCase)
+                || (requestedConfirmAction && !canConfirmToTreasury);
             if (!isConfirmAction && (report.Status == SalesReportStatus.Confirmed || report.DocumentRecord.ReviewStatus == DocumentReviewStatus.Confirmed))
             {
                 ModelState.AddModelError(string.Empty, "Confirmed sales reports cannot be saved as drafts.");
                 TempData["Error"] = "Confirmed sales reports cannot be saved as drafts.";
-                return View(ToReviewModel(report));
+                return View(BuildReviewModel(report));
             }
 
             ApplyReviewModel(report, model);
@@ -290,6 +316,17 @@ namespace AuditCkDayo.Controllers
                 await PostConfirmedSalesReportToTreasuryAsync(report, currentUserId.Value);
 
                 TempData["Message"] = "Sales report confirmed and posted to treasury cash-in.";
+            }
+            else if (isSubmitForVerificationAction)
+            {
+                report.Status = SalesReportStatus.PendingManagerVerification;
+                report.DocumentRecord.ReviewStatus = DocumentReviewStatus.PendingManagerVerification;
+                report.ConfirmedByUserId = null;
+                report.ConfirmedAt = null;
+                report.DocumentRecord.ConfirmedByUserId = null;
+                report.DocumentRecord.ConfirmedAt = null;
+
+                TempData["Message"] = "Sales report submitted for manager verification.";
             }
             else
             {
@@ -430,8 +467,26 @@ namespace AuditCkDayo.Controllers
                 WitnessName = report.WitnessName,
                 Notes = report.Notes,
                 ImageUrl = report.DocumentRecord?.ImageUrl ?? string.Empty,
-                ImageUrls = report.ImageUrls
+                ImageUrls = report.ImageUrls,
+                Status = report.Status,
+                ReviewStatus = report.DocumentRecord?.ReviewStatus ?? DocumentReviewStatus.Draft
             };
+        }
+
+        private SalesReportReviewViewModel BuildReviewModel(SalesReport report)
+        {
+            var model = ToReviewModel(report);
+            model.CanConfirmToTreasury = CanConfirmSalesReportToTreasury();
+            return model;
+        }
+
+        private void PopulateReviewUiState(SalesReportReviewViewModel model, SalesReport report)
+        {
+            model.ImageUrl = report.DocumentRecord?.ImageUrl ?? string.Empty;
+            model.ImageUrls = report.ImageUrls;
+            model.Status = report.Status;
+            model.ReviewStatus = report.DocumentRecord?.ReviewStatus ?? DocumentReviewStatus.Draft;
+            model.CanConfirmToTreasury = CanConfirmSalesReportToTreasury();
         }
 
         private static void ApplyReviewModel(SalesReport report, SalesReportReviewViewModel model)
@@ -461,6 +516,13 @@ namespace AuditCkDayo.Controllers
         private bool IsBranchStaff()
         {
             return string.Equals(User.FindFirstValue(ClaimTypes.Role), UserRole.BranchStaff.ToString(), StringComparison.OrdinalIgnoreCase);
+        }
+
+        private bool CanConfirmSalesReportToTreasury()
+        {
+            var currentRole = User.FindFirstValue(ClaimTypes.Role);
+            return string.Equals(currentRole, UserRole.Owner.ToString(), StringComparison.OrdinalIgnoreCase)
+                || string.Equals(currentRole, UserRole.Manager.ToString(), StringComparison.OrdinalIgnoreCase);
         }
 
         private async Task<bool> CurrentBranchStaffCannotAccessAsync(int establishmentId)

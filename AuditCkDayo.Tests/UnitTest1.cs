@@ -1394,7 +1394,8 @@ namespace AuditCkDayo.Tests
                 ControllerContext = new ControllerContext
                 {
                     HttpContext = httpContext
-                }
+                },
+                TempData = new TempDataDictionary(httpContext, new FakeTempDataProvider())
             };
         }
 
@@ -1472,7 +1473,6 @@ namespace AuditCkDayo.Tests
             {
                 var controller = CreateController(context);
                 var cashFlowCountBefore = context.TreasuryCashFlows.Count();
-
                 var result = controller.Index(selectedDate);
 
                 var viewResult = Assert.IsType<ViewResult>(result);
@@ -1514,7 +1514,6 @@ namespace AuditCkDayo.Tests
             {
                 var controller = CreateController(context);
                 var cashFlowCountBefore = context.TreasuryCashFlows.Count();
-
                 var result = controller.Index(new DateTime(2026, 8, 10));
 
                 var viewResult = Assert.IsType<ViewResult>(result);
@@ -1530,6 +1529,120 @@ namespace AuditCkDayo.Tests
                 Assert.Equal(0m, model.NetCashFlow);
                 Assert.Equal(0m, model.ClosingBalance);
                 Assert.Equal(cashFlowCountBefore, context.TreasuryCashFlows.Count());
+            }
+        }
+
+        [Fact]
+        public async Task RecordCashIn_SavesManualCashInEntry()
+        {
+            var cashInDate = new DateTime(2026, 8, 12);
+            using (var context = new AuditDbContext(_options))
+            {
+                context.Users.Add(new User { Id = 1, Name = "Treasury Owner", Email = "cashin-owner@test.com", PasswordHash = "hash", Role = UserRole.Owner, IsTreasury = true });
+                context.SaveChanges();
+            }
+
+            using (var context = new AuditDbContext(_options))
+            {
+                var controller = CreateController(context);
+                var model = new ManualCashInViewModel
+                {
+                    CashInDate = cashInDate,
+                    Category = CashFlowCategory.Sales,
+                    Amount = 1500m,
+                    Purpose = "Store Sales August 12"
+                };
+
+                var result = await controller.RecordCashIn(model);
+                Assert.IsType<RedirectToActionResult>(result);
+
+                var flow = context.TreasuryCashFlows.Include(f => f.Entries).Single(f => f.CashFlowDate == cashInDate.Date);
+                var entry = Assert.Single(flow.Entries);
+                Assert.Equal(CashFlowDirection.In, entry.Direction);
+                Assert.Equal(CashFlowCategory.Sales, entry.Category);
+                Assert.Equal("Store Sales August 12", entry.Notes);
+                Assert.Equal(1500m, flow.TotalCashIn);
+                Assert.Equal(1500m, flow.ClosingBalance);
+            }
+        }
+
+        [Fact]
+        public async Task RecordCashOut_SavesManualCashOutEntry_OptionalEstablishment()
+        {
+            var cashOutDate = new DateTime(2026, 8, 13);
+            using (var context = new AuditDbContext(_options))
+            {
+                context.Users.Add(new User { Id = 1, Name = "Treasury Owner", Email = "cashout-owner@test.com", PasswordHash = "hash", Role = UserRole.Owner, IsTreasury = true });
+                context.SaveChanges();
+            }
+
+            using (var context = new AuditDbContext(_options))
+            {
+                var controller = CreateController(context);
+                var model = new ManualCashOutViewModel
+                {
+                    CashOutDate = cashOutDate,
+                    Category = CashFlowCategory.Others,
+                    Amount = 850m,
+                    Purpose = "Gas replenishment",
+                    EstablishmentId = null // Optional establishment!
+                };
+
+                var result = await controller.RecordCashOut(model);
+                Assert.IsType<RedirectToActionResult>(result);
+
+                var flow = context.TreasuryCashFlows.Include(f => f.Entries).Single(f => f.CashFlowDate == cashOutDate.Date);
+                var entry = Assert.Single(flow.Entries);
+                Assert.Equal(CashFlowDirection.Out, entry.Direction);
+                Assert.Equal(CashFlowCategory.Others, entry.Category);
+                Assert.Null(entry.EstablishmentId);
+                Assert.Equal("Gas replenishment", entry.Notes);
+                Assert.Equal(850m, flow.TotalCashOut);
+                Assert.Equal(-850m, flow.ClosingBalance);
+            }
+        }
+
+        [Fact]
+        public async Task RecordCashOut_SavesSplitEntriesAcrossEstablishments()
+        {
+            var cashOutDate = new DateTime(2026, 8, 14);
+            using (var context = new AuditDbContext(_options))
+            {
+                context.Users.Add(new User { Id = 1, Name = "Treasury Owner", Email = "split-owner@test.com", PasswordHash = "hash", Role = UserRole.Owner, IsTreasury = true });
+                context.Establishments.AddRange(
+                    new Establishment { Id = 20, Name = "MAIN Branch", IsOperatingBranch = true, IsActive = true },
+                    new Establishment { Id = 21, Name = "B4 Branch", IsOperatingBranch = true, IsActive = true }
+                );
+                context.SaveChanges();
+            }
+
+            using (var context = new AuditDbContext(_options))
+            {
+                var controller = CreateController(context);
+                var model = new ManualCashOutViewModel
+                {
+                    CashOutDate = cashOutDate,
+                    Category = CashFlowCategory.Others,
+                    Purpose = "Shared grocery split",
+                    SplitAcrossEstablishments = true,
+                    SplitRows = new List<ManualCashOutSplitViewModel>
+                    {
+                        new() { EstablishmentId = 20, Amount = 300m },
+                        new() { EstablishmentId = 21, Amount = 200m }
+                    }
+                };
+
+                var result = await controller.RecordCashOut(model);
+                Assert.IsType<RedirectToActionResult>(result);
+
+                var entries = context.CashFlowEntries.AsEnumerable().OrderBy(e => e.Amount).ToList();
+                Assert.Equal(2, entries.Count);
+                Assert.Contains(entries, entry => entry.EstablishmentId == 21 && entry.Amount == 200m && entry.Notes == "Shared grocery split");
+                Assert.Contains(entries, entry => entry.EstablishmentId == 20 && entry.Amount == 300m && entry.Notes == "Shared grocery split");
+
+                var flow = context.TreasuryCashFlows.Single(f => f.CashFlowDate == cashOutDate.Date);
+                Assert.Equal(500m, flow.TotalCashOut);
+                Assert.Equal(-500m, flow.ClosingBalance);
             }
         }
     }

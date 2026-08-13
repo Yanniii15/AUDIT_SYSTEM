@@ -52,29 +52,6 @@
         <a asp-controller="Reports" asp-action="Index" class="h-11 min-w-[84px] bg-surface-container text-on-surface-variant border border-surface-border px-space-5 rounded-lg font-label-caps uppercase text-[11px] tracking-wider hover:bg-surface-container-high transition-all decoration-none inline-flex items-center justify-center whitespace-nowrap">Clear</a>
     </form>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-space-4">
-        <article class="bg-surface-container-lowest border border-surface-border rounded-xl shadow-sm p-space-6">
-            <span class="font-label-caps uppercase text-[10px] text-on-surface-variant">Audit Spend</span>
-            <strong class="block font-headline-lg text-headline-lg text-primary mt-space-2">₱@Model.TotalAuditAmount.ToString("N2")</strong>
-            <span class="text-[12px] text-on-surface-variant">@Model.AuditCount audit records</span>
-        </article>
-        <article class="bg-surface-container-lowest border border-surface-border rounded-xl shadow-sm p-space-6">
-            <span class="font-label-caps uppercase text-[10px] text-on-surface-variant">Approved Spend</span>
-            <strong class="block font-headline-lg text-headline-lg text-audit-success mt-space-2">₱@Model.ApprovedAuditAmount.ToString("N2")</strong>
-            <span class="text-[12px] text-on-surface-variant">@Model.ApprovedAuditCount approved audits</span>
-        </article>
-        <article class="bg-surface-container-lowest border border-surface-border rounded-xl shadow-sm p-space-6">
-            <span class="font-label-caps uppercase text-[10px] text-on-surface-variant">Pending Surrenders</span>
-            <strong class="block font-headline-lg text-headline-lg text-audit-pending mt-space-2">₱@Model.PendingSurrenderAmount.ToString("N2")</strong>
-            <span class="text-[12px] text-on-surface-variant">Awaiting confirmation</span>
-        </article>
-        <article class="bg-primary border border-primary rounded-xl shadow-sm p-space-6 text-on-primary">
-            <span class="font-label-caps uppercase text-[10px] text-primary-fixed-dim">Scoped Cash Balance</span>
-            <strong class="block font-headline-lg text-headline-lg mt-space-2">₱@Model.CurrentCashBalance.ToString("N2")</strong>
-            <span class="text-[12px] text-primary-fixed-dim">Role-safe cash total</span>
-        </article>
-    </div>
-
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-space-6">
         <section class="xl:col-span-2 bg-surface-container-lowest border border-surface-border rounded-xl shadow-sm overflow-hidden">
             <div class="px-space-6 py-space-4 border-b border-surface-border flex items-center justify-between">
@@ -237,47 +214,6 @@
         </aside>
     </div>
 
-    <div class="grid grid-cols-1 xl:grid-cols-2 gap-space-6">
-        <section class="bg-surface-container-lowest border border-surface-border rounded-xl shadow-sm p-space-6">
-            <h2 class="font-headline-sm text-on-surface mb-space-4">Surrender Requests</h2>
-            <div class="space-y-space-3">
-                @foreach (var surrender in Model.SurrenderRequests.Take(8))
-                {
-                    <div class="flex items-center justify-between border-b border-surface-border pb-space-3 last:border-0 last:pb-0">
-                        <div>
-                            <p class="font-body-md font-semibold text-on-surface">@surrender.Buyer.Name</p>
-                            <p class="text-[11px] text-on-surface-variant">@surrender.RequestDate.ToString("MMM dd, yyyy") • @surrender.Status</p>
-                        </div>
-                        <span class="font-data-mono text-primary">₱@surrender.DeclaredAmount.ToString("N2")</span>
-                    </div>
-                }
-                @if (!Model.SurrenderRequests.Any())
-                {
-                    <p class="text-[13px] text-on-surface-variant">No surrender requests in this scope.</p>
-                }
-            </div>
-        </section>
-
-        <section class="bg-surface-container-lowest border border-surface-border rounded-xl shadow-sm p-space-6">
-            <h2 class="font-headline-sm text-on-surface mb-space-4">Cash Ledger</h2>
-            <div class="space-y-space-3">
-                @foreach (var entry in Model.LedgerEntries.Take(8))
-                {
-                    <div class="flex items-center justify-between border-b border-surface-border pb-space-3 last:border-0 last:pb-0">
-                        <div>
-                            <p class="font-body-md font-semibold text-on-surface">@entry.TransactionType</p>
-                            <p class="text-[11px] text-on-surface-variant">@entry.Timestamp.ToString("MMM dd, yyyy hh:mm tt") • @entry.User?.Name</p>
-                        </div>
-                        <span class="font-data-mono @(entry.Amount >= 0 ? "text-audit-success" : "text-audit-error")">₱@entry.Amount.ToString("N2")</span>
-                    </div>
-                }
-                @if (!Model.LedgerEntries.Any())
-                {
-                    <p class="text-[13px] text-on-surface-variant">No cash ledger entries in this scope.</p>
-                }
-            </div>
-        </section>
-    </div>
 </section>
 
 <!-- Full Audit Viewer Modal -->

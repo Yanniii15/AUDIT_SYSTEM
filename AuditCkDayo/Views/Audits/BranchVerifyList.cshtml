@@ -2,6 +2,7 @@
 @{
     ViewData["Title"] = "Pending Deliveries Verification";
     var firstAudit = Model.FirstOrDefault();
+    var currentUserId = int.TryParse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value, out var parsedCurrentUserId) ? parsedCurrentUserId : 0;
 }
 
 <!-- Header Section -->
@@ -35,21 +36,22 @@
                 <h3 class="font-headline-sm text-headline-sm text-on-surface">Delivery Queue</h3>
             </div>
             
-            <div class="hidden lg:block overflow-x-auto">
+            <div class="hidden lg:block max-h-[520px] overflow-y-auto overflow-x-auto">
                 <table class="w-full text-left border-collapse">
-                    <thead>
+                    <thead class="sticky top-0 z-10">
                         <tr class="bg-surface-container-low border-b border-surface-border">
                             <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">Buyer</th>
                             <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">Establishment</th>
                             <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">Date</th>
                             <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px] text-right">Amount</th>
+                            <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px] text-right">Actions</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-surface-border">
                         @if (!Model.Any())
                         {
                             <tr>
-                                <td colspan="4" class="px-space-6 py-space-8 text-center text-on-surface-variant font-body-md">
+                                <td colspan="5" class="px-space-6 py-space-8 text-center text-on-surface-variant font-body-md">
                                     No pending branch deliveries to verify.
                                 </td>
                             </tr>
@@ -92,6 +94,22 @@
                                     <td class="px-space-6 py-space-4 text-right">
                                         <span class="font-data-mono text-primary font-bold">₱@audit.Amount.ToString("N2")</span>
                                     </td>
+                                    <td class="px-space-6 py-space-4">
+                                        @if (audit.BuyerId == currentUserId)
+                                        {
+                                            <div class="flex justify-end gap-space-2" onclick="event.stopPropagation()">
+                                                <a asp-action="Edit" asp-route-id="@audit.Id" class="px-space-3 py-1.5 rounded-lg border border-primary/20 text-primary font-label-caps text-[10px] uppercase hover:bg-primary hover:text-on-primary transition-colors">
+                                                    Edit
+                                                </a>
+                                                <form asp-action="Void" method="post" onsubmit="return confirm('Void this pending audit and refund the uploader?');">
+                                                    <input type="hidden" name="id" value="@audit.Id" />
+                                                    <button type="submit" class="px-space-3 py-1.5 rounded-lg border border-error/20 text-error font-label-caps text-[10px] uppercase hover:bg-error hover:text-on-primary transition-colors">
+                                                        Void
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        }
+                                    </td>
                                 </tr>
                             }
                         }
@@ -101,7 +119,7 @@
         </div>
 
             <!-- Mobile Queue Cards (Stitch Responsive Reference) -->
-            <div class="block lg:hidden space-y-space-4 p-space-4">
+            <div class="block lg:hidden space-y-space-4 p-space-4 max-h-[520px] overflow-y-auto">
                 @if (!Model.Any())
                 {
                     <div class="text-center text-on-surface-variant font-body-md py-space-6">
@@ -162,9 +180,23 @@
                                     <div class="text-[10px] text-on-surface-variant uppercase mb-1">Amount</div>
                                     <div class="font-data-mono text-primary font-bold text-[16px]">₱@audit.Amount.ToString("N2")</div>
                                 </div>
-                                <button type="button" class="bg-primary text-on-primary px-space-4 py-2 rounded-lg font-label-caps text-[11px] uppercase tracking-wider hover:bg-primary/95 transition-all shadow-sm">
-                                    Review
-                                </button>
+                                <div class="flex flex-wrap justify-end gap-space-2" onclick="event.stopPropagation()">
+                                    <button type="button" class="bg-primary text-on-primary px-space-4 py-2 rounded-lg font-label-caps text-[11px] uppercase tracking-wider hover:bg-primary/95 transition-all shadow-sm">
+                                        Review
+                                    </button>
+                                    @if (audit.BuyerId == currentUserId)
+                                    {
+                                        <a asp-action="Edit" asp-route-id="@audit.Id" class="border border-primary/20 text-primary px-space-4 py-2 rounded-lg font-label-caps text-[11px] uppercase tracking-wider hover:bg-primary hover:text-on-primary transition-all">
+                                            Edit
+                                        </a>
+                                        <form asp-action="Void" method="post" onsubmit="return confirm('Void this pending audit and refund the uploader?');">
+                                            <input type="hidden" name="id" value="@audit.Id" />
+                                            <button type="submit" class="border border-error/20 text-error px-space-4 py-2 rounded-lg font-label-caps text-[11px] uppercase tracking-wider hover:bg-error hover:text-on-primary transition-all">
+                                                Void
+                                            </button>
+                                        </form>
+                                    }
+                                </div>
                             </div>
                         </article>
                     }

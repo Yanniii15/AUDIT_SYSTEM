@@ -50,9 +50,9 @@
             <span class="text-on-primary/60 text-[10px] font-data-mono">TOTAL_RECORDS: @Model.Count()</span>
         </div>
         
-        <div class="hidden lg:block overflow-x-auto">
+        <div class="hidden lg:block max-h-[520px] overflow-y-auto overflow-x-auto">
             <table class="w-full text-left border-collapse">
-                <thead>
+                <thead class="sticky top-0 z-10">
                     <tr class="bg-surface-container-low border-b border-surface-border">
                         <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">Name</th>
                         <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">Email</th>
@@ -138,7 +138,7 @@
         </div>
 
         <!-- Mobile Card Layout (Stitch Responsive Reference) -->
-        <div class="block lg:hidden space-y-space-4 p-space-4">
+        <div class="block lg:hidden space-y-space-4 p-space-4 max-h-[520px] overflow-y-auto">
             @foreach (var user in Model)
             {
                 var badgeStyle = user.Role == AuditCkDayo.Models.UserRole.Owner ? "bg-primary/10 text-primary border-primary/20" : 

@@ -12,7 +12,7 @@
         </div>
         <h1 class="font-headline-lg text-headline-lg text-on-surface">Cash Surrender Approvals</h1>
         <p class="font-body-md text-on-surface-variant leading-relaxed">
-            Verify and confirm receipt of physical cash from buyers. Confirming will permanently deduct the amount from the buyer's balance.
+            Verify and confirm receipt of physical cash from buyers. Confirming deducts the buyer's PCF balance and posts the surrendered change to Treasury cash-in for the confirmation date.
         </p>
     </div>
 </div>
@@ -28,9 +28,9 @@
                 </span>
             </div>
             
-            <div class="hidden lg:block overflow-x-auto">
+            <div class="hidden lg:block max-h-[520px] overflow-y-auto overflow-x-auto">
                 <table class="w-full text-left border-collapse">
-                    <thead>
+                    <thead class="sticky top-0 z-10">
                         <tr class="bg-surface-container-low border-b border-surface-border">
                             <th class="px-6 py-4 font-label-caps text-[11px] uppercase tracking-wider text-on-surface-variant">Buyer</th>
                             <th class="px-6 py-4 font-label-caps text-[11px] uppercase tracking-wider text-on-surface-variant text-right">Declared Amount</th>
@@ -91,7 +91,7 @@
             </div>
 
             <!-- Mobile Card Layout (Stitch Responsive Reference) -->
-            <div class="block lg:hidden space-y-space-4 p-space-4">
+            <div class="block lg:hidden space-y-space-4 p-space-4 max-h-[520px] overflow-y-auto">
                 @if (!Model.Any())
                 {
                     <div class="text-center text-on-surface-variant font-body-md py-space-6">

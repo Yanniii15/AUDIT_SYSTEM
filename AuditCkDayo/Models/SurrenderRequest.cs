@@ -46,6 +46,11 @@ namespace AuditCkDayo.Models
         [ForeignKey("ActionByUserId")]
         public virtual User? ActionByUser { get; set; }
 
+        public int? AssignedReceiverId { get; set; }
+
+        [ForeignKey("AssignedReceiverId")]
+        public virtual User? AssignedReceiver { get; set; }
+
         [MaxLength(255)]
         public string? BuyerNotes { get; set; }
 

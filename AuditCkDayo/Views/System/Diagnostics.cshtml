@@ -1,0 +1,67 @@
+@model AuditCkDayo.ViewModels.SystemDiagnosticsReport
+@{
+    ViewData["Title"] = "System Diagnostics";
+
+    string StatusClasses(AuditCkDayo.ViewModels.DiagnosticsCheckStatus status) => status switch
+    {
+        AuditCkDayo.ViewModels.DiagnosticsCheckStatus.Pass => "bg-audit-success/10 border-audit-success/20 text-audit-success",
+        AuditCkDayo.ViewModels.DiagnosticsCheckStatus.Warn => "bg-audit-pending/10 border-audit-pending/20 text-audit-pending",
+        _ => "bg-audit-error/10 border-audit-error/20 text-audit-error"
+    };
+
+    string StatusIcon(AuditCkDayo.ViewModels.DiagnosticsCheckStatus status) => status switch
+    {
+        AuditCkDayo.ViewModels.DiagnosticsCheckStatus.Pass => "check_circle",
+        AuditCkDayo.ViewModels.DiagnosticsCheckStatus.Warn => "warning",
+        _ => "error"
+    };
+}
+
+<div class="space-y-6">
+    <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-space-4">
+        <div class="flex flex-col gap-space-2 max-w-3xl">
+            <div class="flex items-center gap-space-2 text-primary">
+                <span class="material-symbols-outlined text-[20px]">settings_suggest</span>
+                <span class="font-label-caps uppercase tracking-widest text-on-surface-variant">System Settings</span>
+            </div>
+            <h1 class="font-headline-lg text-headline-lg text-on-surface">System Diagnostics</h1>
+            <p class="font-body-md text-on-surface-variant leading-relaxed">
+                Tester checks database access, seed accounts, editable upload folders, OCR configuration, and runtime paths.
+            </p>
+        </div>
+        <div class="rounded-xl border px-space-5 py-space-3 @StatusClasses(Model.OverallStatus)">
+            <div class="flex items-center gap-space-2 font-label-caps uppercase tracking-widest text-[12px]">
+                <span class="material-symbols-outlined text-[18px]">@StatusIcon(Model.OverallStatus)</span>
+                Overall: @Model.OverallStatus
+            </div>
+            <div class="text-[11px] mt-space-1 opacity-80">Checked @Model.CheckedAt.ToLocalTime().ToString("MMM d, yyyy h:mm tt")</div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-space-5">
+        @foreach (var group in Model.Groups)
+        {
+            <section class="bg-surface-container-lowest rounded-xl shadow-sm border border-surface-border/50 overflow-hidden">
+                <div class="bg-primary px-space-6 py-space-4 flex items-center justify-between">
+                    <span class="text-on-primary font-label-caps uppercase tracking-tighter text-[11px]">@group.Name</span>
+                    <span class="text-on-primary/70 text-[11px] font-data-mono">@group.Checks.Count checks</span>
+                </div>
+                <div class="divide-y divide-surface-border">
+                    @foreach (var check in group.Checks)
+                    {
+                        <div class="p-space-5 flex flex-col gap-space-2">
+                            <div class="flex items-center justify-between gap-space-3">
+                                <div class="font-semibold text-on-surface">@check.Name</div>
+                                <span class="inline-flex items-center gap-space-1 rounded-full border px-space-3 py-space-1 text-[11px] font-label-caps uppercase tracking-wider whitespace-nowrap @StatusClasses(check.Status)">
+                                    <span class="material-symbols-outlined text-[15px]">@StatusIcon(check.Status)</span>
+                                    @check.Status
+                                </span>
+                            </div>
+                            <div class="font-data-mono text-[12px] leading-relaxed text-on-surface-variant break-words">@check.Detail</div>
+                        </div>
+                    }
+                </div>
+            </section>
+        }
+    </div>
+</div>

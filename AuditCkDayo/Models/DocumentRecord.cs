@@ -21,6 +21,7 @@ namespace AuditCkDayo.Models
     {
         Uploaded,
         Draft,
+        PendingManagerVerification,
         Confirmed,
         Rejected
     }
