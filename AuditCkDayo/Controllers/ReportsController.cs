@@ -192,7 +192,7 @@ public class ReportsController : Controller
                     .Select(ad => new BuyerExpenseLine
                     {
                         Date = ad.AuditItem.EntryDate,
-                        Description = ad.AuditItem.Description,
+                        Description = ad.ItemName,
                         Amount = ad.Quantity * ad.Price,
                         Allocation = ad.AssignedEstablishment != null ? ad.AssignedEstablishment.Name : (ad.CostCenter != null ? ad.CostCenter.Name : "OTHERS")
                     })
