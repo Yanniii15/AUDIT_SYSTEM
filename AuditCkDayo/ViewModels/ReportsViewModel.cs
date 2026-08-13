@@ -38,6 +38,8 @@ public class ReportsViewModel
     public List<SurrenderRequest> SurrenderRequests { get; set; } = new();
     public List<PettyCashLedger> LedgerEntries { get; set; } = new();
     public TreasuryAuditReportViewModel TreasuryAudit { get; set; } = new();
+    public BuyerAuditReportViewModel BuyerAudit { get; set; } = new();
+    public BranchAuditReportViewModel BranchAudit { get; set; } = new();
 }
 
 public class ReportStatusSummary
@@ -228,4 +230,47 @@ public class TreasuryAuditCashOutRowViewModel
     public DateTime Date { get; set; }
     public string Description { get; set; } = string.Empty;
     public decimal Amount { get; set; }
+}
+public class BuyerAuditReportViewModel
+{
+    public int? BuyerId { get; set; }
+    public string BuyerName { get; set; } = string.Empty;
+    public List<PcfReleaseLine> Releases { get; set; } = new();
+    public List<BuyerExpenseLine> Expenses { get; set; } = new();
+    public decimal TotalPc => Releases.Sum(r => r.Amount);
+    public decimal TotalExpenses => Expenses.Sum(e => e.Amount);
+    public decimal ExpectedChange => TotalPc - TotalExpenses;
+    public decimal ActualChangeReturned { get; set; }
+    public decimal ShortOverAmount => ActualChangeReturned - ExpectedChange;
+}
+
+public class PcfReleaseLine
+{
+    public DateTime Date { get; set; }
+    public decimal Amount { get; set; }
+    public string IssuedBy { get; set; } = string.Empty;
+}
+
+public class BuyerExpenseLine
+{
+    public DateTime Date { get; set; }
+    public string Description { get; set; } = string.Empty;
+    public decimal Amount { get; set; }
+    public string Allocation { get; set; } = string.Empty;
+}
+
+public class BranchAuditReportViewModel
+{
+    public int? BranchId { get; set; }
+    public string BranchName { get; set; } = "All Branches";
+    public List<BranchExpenseLine> Expenses { get; set; } = new();
+    public decimal TotalExpenses => Expenses.Sum(e => e.Amount);
+}
+
+public class BranchExpenseLine
+{
+    public DateTime Date { get; set; }
+    public string Description { get; set; } = string.Empty;
+    public decimal Amount { get; set; }
+    public string Allocation { get; set; } = string.Empty;
 }

@@ -19,7 +19,7 @@
         </div>
     </div>
 
-    <form method="get" asp-controller="Reports" asp-action="Index" class="bg-surface-container-lowest border border-surface-border rounded-xl shadow-sm p-space-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[repeat(5,minmax(140px,1fr))_auto_auto] gap-space-3 items-end">
+    <form method="get" asp-controller="Reports" asp-action="Index" class="bg-surface-container-lowest border border-surface-border rounded-xl shadow-sm p-space-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-[repeat(6,minmax(140px,1fr))_auto_auto] gap-space-3 items-end">
         <div class="flex flex-col min-w-0">
             <span class="font-label-caps text-[10px] leading-none text-on-surface-variant mb-2 uppercase tracking-wider">Start Date</span>
             <input name="StartDate" value="@(Model.Filter.StartDate?.ToString("yyyy-MM-dd"))" class="h-11 w-full bg-surface-container-low border border-surface-border rounded-lg px-space-3 py-0 text-[14px] text-on-surface focus:outline-none focus:border-primary/50" type="date" />
@@ -44,6 +44,12 @@
             <span class="font-label-caps text-[10px] leading-none text-on-surface-variant mb-2 uppercase tracking-wider">Buyer</span>
             <select name="BuyerId" class="h-11 w-full bg-surface-container-low border border-surface-border rounded-lg px-space-3 py-0 text-[14px] text-on-surface focus:outline-none focus:border-primary/50" asp-items="ViewBag.Buyers">
                 <option value="">All Buyers</option>
+            </select>
+        </div>
+        <div class="flex flex-col min-w-0">
+            <span class="font-label-caps text-[10px] leading-none text-on-surface-variant mb-2 uppercase tracking-wider">Treasury Handler</span>
+            <select name="TreasuryHandlerId" class="h-11 w-full bg-surface-container-low border border-surface-border rounded-lg px-space-3 py-0 text-[14px] text-on-surface focus:outline-none focus:border-primary/50" asp-items="ViewBag.TreasuryHandlers">
+                <option value="">All Handlers</option>
             </select>
         </div>
         <button type="submit" class="h-11 min-w-[96px] bg-primary text-on-primary px-space-5 rounded-lg font-label-caps uppercase text-[11px] tracking-wider hover:brightness-110 transition-all inline-flex items-center justify-center gap-space-2 whitespace-nowrap">
@@ -214,6 +220,239 @@
         </aside>
     </div>
 
+    <div class="mt-space-6 border-t border-surface-border pt-space-6">
+        <h2 class="font-headline-md text-headline-md text-on-surface mb-space-4">Generated Audit Sheets</h2>
+        
+        <!-- If Treasury Handler is selected (or by default if no buyer/branch is selected) -->
+        @if (Model.Filter.TreasuryHandlerId.HasValue || (!Model.Filter.BuyerId.HasValue && !Model.Filter.EstablishmentId.HasValue))
+        {
+            <div class="bg-surface-container-lowest border border-surface-border rounded-xl shadow-sm overflow-hidden mb-space-6">
+                <div class="px-space-6 py-space-4 border-b border-surface-border flex items-center justify-between bg-surface-container-low">
+                    <div>
+                        <h3 class="font-headline-sm text-on-surface">Daily Cash Flow</h3>
+                        <p class="text-xs text-on-surface-variant">Reconciliation for handler: @(Model.TreasuryAudit.TreasuryHandlerName) from @(Model.TreasuryAudit.StartDate.ToString("MMMM dd, yyyy")) to @(Model.TreasuryAudit.EndDate.ToString("MMMM dd, yyyy"))</p>
+                    </div>
+                    <span class="px-space-3 py-1 bg-primary/10 text-primary border border-primary/20 rounded-full text-[10px] font-label-caps uppercase">Treasury View</span>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse text-sm">
+                        <thead>
+                            <tr class="bg-surface-container-low border-b border-surface-border text-xs uppercase text-on-surface-variant font-semibold">
+                                <th class="px-space-6 py-space-3">Date</th>
+                                @foreach (var col in Model.TreasuryAudit.CashInColumns)
+                                {
+                                    <th class="px-space-6 py-space-3 text-right">@col.Label</th>
+                                }
+                                <th class="px-space-6 py-space-3 text-right">Total Cash In</th>
+                                <th class="px-space-6 py-space-3 text-right">Total Cash Out</th>
+                                <th class="px-space-6 py-space-3 text-right">Net Cash Flow</th>
+                                <th class="px-space-6 py-space-3 text-right">Closing Balance</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-surface-border font-data-mono">
+                            @foreach (var row in Model.TreasuryAudit.CashInRows)
+                            {
+                                var dailyFlow = Model.TreasuryAudit.CashOutRows.Where(r => r.Date == row.Date).ToList();
+                                var totalIn = row.Amounts.Values.Sum();
+                                var totalOut = dailyFlow.Sum(r => r.Amount);
+                                var netFlow = totalIn;
+                                
+                                <tr>
+                                    <td class="px-space-6 py-space-4 text-on-surface font-body-md">@row.Date.ToString("MM-dd")</td>
+                                    @foreach (var col in Model.TreasuryAudit.CashInColumns)
+                                    {
+                                        <td class="px-space-6 py-space-4 text-right">
+                                            @(row.Amounts.ContainsKey(col.Label) ? row.Amounts[col.Label].ToString("N2") : "-")
+                                        </td>
+                                    }
+                                    <td class="px-space-6 py-space-4 text-right text-audit-success font-bold">₱@totalIn.ToString("N2")</td>
+                                    <td class="px-space-6 py-space-4 text-right text-audit-error font-bold">₱@totalOut.ToString("N2")</td>
+                                    <td class="px-space-6 py-space-4 text-right">₱@netFlow.ToString("N2")</td>
+                                    <td class="px-space-6 py-space-4 text-right text-primary font-bold">₱@((totalIn - totalOut).ToString("N2"))</td>
+                                </tr>
+                            }
+                            @if (!Model.TreasuryAudit.CashInRows.Any())
+                            {
+                                <tr>
+                                    <td colspan="@(Model.TreasuryAudit.CashInColumns.Count + 5)" class="px-space-6 py-space-8 text-center text-on-surface-variant font-body-md">No treasury records found for the selected handler and date range.</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+
+        <!-- If Buyer is selected -->
+        @if (Model.Filter.BuyerId.HasValue && Model.BuyerAudit.BuyerId.HasValue)
+        {
+            <div class="bg-surface-container-lowest border border-surface-border rounded-xl shadow-sm overflow-hidden mb-space-6 max-w-4xl">
+                <div class="px-space-6 py-space-4 border-b border-surface-border flex items-center justify-between bg-surface-container-low">
+                    <div>
+                        <h3 class="font-headline-sm text-on-surface">Petty Cash Liquidation Audit</h3>
+                        <p class="text-xs text-on-surface-variant">Accountability report for Buyer: <strong class="text-on-surface font-semibold">@Model.BuyerAudit.BuyerName</strong></p>
+                    </div>
+                    <span class="px-space-3 py-1 bg-secondary/10 text-secondary border border-secondary/20 rounded-full text-[10px] font-label-caps uppercase">Buyer View</span>
+                </div>
+                
+                <!-- PCF Issuance Block -->
+                <div class="p-space-6 border-b border-surface-border bg-surface-container-lowest">
+                    <h4 class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold mb-space-3">Petty Cash Issuances</h4>
+                    <div class="overflow-x-auto border border-surface-border rounded-lg">
+                        <table class="w-full text-left text-sm border-collapse">
+                            <thead>
+                                <tr class="bg-surface-container-low border-b border-surface-border text-xs uppercase text-on-surface-variant">
+                                    <th class="px-4 py-2.5">Date</th>
+                                    <th class="px-4 py-2.5 text-right">Amount</th>
+                                    <th class="px-4 py-2.5">Issued By / Custodian</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-surface-border font-data-mono">
+                                @foreach (var rel in Model.BuyerAudit.Releases)
+                                {
+                                    <tr>
+                                        <td class="px-4 py-3 font-body-md text-on-surface">@rel.Date.ToString("MMMM dd, yyyy")</td>
+                                        <td class="px-4 py-3 text-right">₱@rel.Amount.ToString("N2")</td>
+                                        <td class="px-4 py-3 font-body-md text-on-surface-variant">@rel.IssuedBy</td>
+                                    </tr>
+                                }
+                                @if (!Model.BuyerAudit.Releases.Any())
+                                {
+                                    <tr>
+                                        <td colspan="3" class="px-4 py-4 text-center font-body-md text-on-surface-variant">No PCF releases recorded.</td>
+                                    </tr>
+                                }
+                                <tr class="bg-surface-container-low font-bold">
+                                    <td class="px-4 py-3 uppercase text-xs">Total PC</td>
+                                    <td class="px-4 py-3 text-right text-primary">₱@Model.BuyerAudit.TotalPc.ToString("N2")</td>
+                                    <td></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Expenses Block -->
+                <div class="p-space-6 border-b border-surface-border bg-surface-container-lowest">
+                    <h4 class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold mb-space-3">Itemized Expense Breakdown</h4>
+                    <div class="overflow-x-auto border border-surface-border rounded-lg">
+                        <table class="w-full text-left text-sm border-collapse">
+                            <thead>
+                                <tr class="bg-surface-container-low border-b border-surface-border text-xs uppercase text-on-surface-variant">
+                                    <th class="px-4 py-2.5">Date</th>
+                                    <th class="px-4 py-2.5">Description</th>
+                                    <th class="px-4 py-2.5 text-right">Amount</th>
+                                    <th class="px-4 py-2.5">Allocation</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-surface-border font-data-mono">
+                                @foreach (var exp in Model.BuyerAudit.Expenses)
+                                {
+                                    <tr>
+                                        <td class="px-4 py-3 font-body-md text-on-surface">@exp.Date.ToString("MM-dd")</td>
+                                        <td class="px-4 py-3 font-body-md text-on-surface">@exp.Description</td>
+                                        <td class="px-4 py-3 text-right">₱@exp.Amount.ToString("N2")</td>
+                                        <td class="px-4 py-3 font-body-md text-on-surface-variant">@exp.Allocation</td>
+                                    </tr>
+                                }
+                                @if (!Model.BuyerAudit.Expenses.Any())
+                                {
+                                    <tr>
+                                        <td colspan="4" class="px-4 py-4 text-center font-body-md text-on-surface-variant">No validated expenses.</td>
+                                    </tr>
+                                }
+                                <tr class="bg-surface-container-low font-bold">
+                                    <td class="px-4 py-3 uppercase text-xs">Total Expenses</td>
+                                    <td class="px-4 py-3 text-right text-primary">₱@Model.BuyerAudit.TotalExpenses.ToString("N2")</td>
+                                    <td colspan="2"></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Reconciliation Summary Block -->
+                <div class="p-space-6 bg-surface-container-low grid grid-cols-2 sm:grid-cols-5 gap-space-4 font-data-mono">
+                    <div class="flex flex-col gap-1 border-r border-surface-border font-body-md">
+                        <span class="text-[9px] uppercase font-bold text-on-surface-variant tracking-wider">Total PC</span>
+                        <span class="text-sm font-bold text-on-surface">₱@Model.BuyerAudit.TotalPc.ToString("N2")</span>
+                    </div>
+                    <div class="flex flex-col gap-1 border-r border-surface-border font-body-md">
+                        <span class="text-[9px] uppercase font-bold text-on-surface-variant tracking-wider">Total Exp</span>
+                        <span class="text-sm font-bold text-on-surface">₱@Model.BuyerAudit.TotalExpenses.ToString("N2")</span>
+                    </div>
+                    <div class="flex flex-col gap-1 border-r border-surface-border font-bold">
+                        <span class="text-[9px] uppercase font-bold text-on-surface-variant tracking-wider">Change (Expected)</span>
+                        <span class="text-sm">₱@Model.BuyerAudit.ExpectedChange.ToString("N2")</span>
+                    </div>
+                    <div class="flex flex-col gap-1 border-r border-surface-border font-body-md">
+                        <span class="text-[9px] uppercase font-bold text-on-surface-variant tracking-wider">A. Change (Returned)</span>
+                        <span class="text-sm font-bold text-on-surface">₱@Model.BuyerAudit.ActualChangeReturned.ToString("N2")</span>
+                    </div>
+                    @{
+                        var varianceColor = Model.BuyerAudit.ShortOverAmount < 0 ? "text-audit-error" : 
+                                            (Model.BuyerAudit.ShortOverAmount > 0 ? "text-audit-success" : "text-on-surface");
+                    }
+                    <div class="flex flex-col gap-1 font-bold @varianceColor">
+                        <span class="text-[9px] uppercase font-bold text-on-surface-variant tracking-wider">Short / Over</span>
+                        <span class="text-sm">
+                            @(Model.BuyerAudit.ShortOverAmount < 0 ? "-" : (Model.BuyerAudit.ShortOverAmount > 0 ? "+" : ""))₱@Math.Abs(Model.BuyerAudit.ShortOverAmount).ToString("N2")
+                        </span>
+                    </div>
+                </div>
+            </div>
+        }
+
+        <!-- If Branch is selected -->
+        @if (Model.Filter.EstablishmentId.HasValue || (!Model.Filter.BuyerId.HasValue && !Model.Filter.TreasuryHandlerId.HasValue))
+        {
+            <div class="bg-surface-container-lowest border border-surface-border rounded-xl shadow-sm overflow-hidden mb-space-6 max-w-4xl">
+                <div class="px-space-6 py-space-4 border-b border-surface-border flex items-center justify-between bg-surface-container-low">
+                    <div>
+                        <h3 class="font-headline-sm text-on-surface">Branch Audit / Expense Allocations</h3>
+                        <p class="text-xs text-on-surface-variant">Reconciliation for location: <strong class="text-on-surface font-semibold">@Model.BranchAudit.BranchName</strong></p>
+                    </div>
+                    <span class="px-space-3 py-1 bg-audit-success/10 text-audit-success border border-audit-success/20 rounded-full text-[10px] font-label-caps uppercase">Branch View</span>
+                </div>
+                <div class="overflow-x-auto p-space-6 bg-surface-container-lowest">
+                    <div class="border border-surface-border rounded-lg overflow-hidden">
+                        <table class="w-full text-left text-sm border-collapse">
+                            <thead>
+                                <tr class="bg-surface-container-low border-b border-surface-border text-xs uppercase text-on-surface-variant font-semibold">
+                                    <th class="px-4 py-2.5">Date</th>
+                                    <th class="px-4 py-2.5">Description</th>
+                                    <th class="px-4 py-2.5 text-right">Amount</th>
+                                    <th class="px-4 py-2.5">Category / Allocation</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-surface-border font-data-mono">
+                                @foreach (var exp in Model.BranchAudit.Expenses)
+                                {
+                                    <tr>
+                                        <td class="px-4 py-3 font-body-md text-on-surface">@exp.Date.ToString("MM-dd")</td>
+                                        <td class="px-4 py-3 font-body-md text-on-surface">@exp.Description</td>
+                                        <td class="px-4 py-3 text-right">₱@exp.Amount.ToString("N2")</td>
+                                        <td class="px-4 py-3 font-body-md text-on-surface-variant">@exp.Allocation</td>
+                                    </tr>
+                                }
+                                @if (!Model.BranchAudit.Expenses.Any())
+                                {
+                                    <tr>
+                                        <td colspan="4" class="px-4 py-6 text-center font-body-md text-on-surface-variant">No itemized branch allocation records found.</td>
+                                    </tr>
+                                }
+                                <tr class="bg-surface-container-low font-bold">
+                                    <td class="px-4 py-3 uppercase text-xs">Total Expenses</td>
+                                    <td class="px-4 py-3 text-right text-primary">₱@Model.BranchAudit.TotalExpenses.ToString("N2")</td>
+                                    <td colspan="2"></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
 </section>
 
 <!-- Full Audit Viewer Modal -->

@@ -136,6 +136,116 @@ public class ReportsController : Controller
             .OrderByDescending(s => s.Amount)
             .ToList();
 
+        // Populate Buyer Liquidation Audit if BuyerId is selected
+        if (filter.BuyerId.HasValue)
+        {
+            var buyer = await _context.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == filter.BuyerId.Value && !u.IsDeleted);
+            if (buyer != null)
+            {
+                model.BuyerAudit = new BuyerAuditReportViewModel
+                {
+                    BuyerId = buyer.Id,
+                    BuyerName = buyer.Name
+                };
+
+                var releasesQuery = _context.PcfReleases
+                    .AsNoTracking()
+                    .Include(r => r.ReleasedByTreasuryUser)
+                    .Where(r => r.ReceiverUserId == filter.BuyerId.Value);
+
+                if (filter.StartDate.HasValue)
+                {
+                    releasesQuery = releasesQuery.Where(r => r.ReleaseDate >= filter.StartDate.Value);
+                }
+                if (filter.EndDate.HasValue)
+                {
+                    releasesQuery = releasesQuery.Where(r => r.ReleaseDate < filter.EndDate.Value.AddDays(1));
+                }
+
+                model.BuyerAudit.Releases = await releasesQuery
+                    .Select(r => new PcfReleaseLine
+                    {
+                        Date = r.ReleaseDate,
+                        Amount = r.Amount,
+                        IssuedBy = r.ReleasedByTreasuryUser.Name
+                    })
+                    .OrderBy(r => r.Date)
+                    .ToListAsync();
+
+                var expensesQuery = _context.AuditItemDetails
+                    .AsNoTracking()
+                    .Include(ad => ad.AuditItem)
+                    .Include(ad => ad.AssignedEstablishment)
+                    .Include(ad => ad.CostCenter)
+                    .Where(ad => ad.AuditItem.BuyerId == filter.BuyerId.Value && ad.AuditItem.Status == AuditStatus.Approved);
+
+                if (filter.StartDate.HasValue)
+                {
+                    expensesQuery = expensesQuery.Where(ad => ad.AuditItem.EntryDate >= filter.StartDate.Value);
+                }
+                if (filter.EndDate.HasValue)
+                {
+                    expensesQuery = expensesQuery.Where(ad => ad.AuditItem.EntryDate < filter.EndDate.Value.AddDays(1));
+                }
+
+                model.BuyerAudit.Expenses = await expensesQuery
+                    .Select(ad => new BuyerExpenseLine
+                    {
+                        Date = ad.AuditItem.EntryDate,
+                        Description = ad.ItemName,
+                        Amount = ad.Quantity * ad.Price,
+                        Allocation = ad.AssignedEstablishment != null ? ad.AssignedEstablishment.Name : (ad.CostCenter != null ? ad.CostCenter.Name : "OTHERS")
+                    })
+                    .OrderBy(ad => ad.Date)
+                    .ToListAsync();
+
+                var releaseIds = await releasesQuery.Select(r => r.Id).ToListAsync();
+                model.BuyerAudit.ActualChangeReturned = await _context.AuditSettlements
+                    .AsNoTracking()
+                    .Where(s => s.PcfReleaseId.HasValue && releaseIds.Contains(s.PcfReleaseId.Value))
+                    .SumAsync(s => s.ActualChangeReturned);
+            }
+        }
+
+        // Always populate BranchAudit, but filter by establishment if set
+        model.BranchAudit = new BranchAuditReportViewModel
+        {
+            BranchId = filter.EstablishmentId,
+            BranchName = filter.EstablishmentId.HasValue
+                ? (await _context.Establishments.AsNoTracking().Where(e => e.Id == filter.EstablishmentId.Value).Select(e => e.Name).FirstOrDefaultAsync() ?? "All Branches")
+                : "All Branches"
+        };
+
+        var branchExpensesQuery = _context.AuditItemDetails
+            .AsNoTracking()
+            .Include(ad => ad.AuditItem)
+            .Include(ad => ad.AssignedEstablishment)
+            .Include(ad => ad.CostCenter)
+            .Where(ad => ad.AuditItem.Status == AuditStatus.Approved);
+
+        if (filter.EstablishmentId.HasValue)
+        {
+            branchExpensesQuery = branchExpensesQuery.Where(ad => ad.AssignedEstablishmentId == filter.EstablishmentId.Value);
+        }
+        if (filter.StartDate.HasValue)
+        {
+            branchExpensesQuery = branchExpensesQuery.Where(ad => ad.AuditItem.EntryDate >= filter.StartDate.Value);
+        }
+        if (filter.EndDate.HasValue)
+        {
+            branchExpensesQuery = branchExpensesQuery.Where(ad => ad.AuditItem.EntryDate < filter.EndDate.Value.AddDays(1));
+        }
+
+        model.BranchAudit.Expenses = await branchExpensesQuery
+            .Select(ad => new BranchExpenseLine
+            {
+                Date = ad.AuditItem.EntryDate,
+                Description = ad.ItemName,
+                Amount = ad.Quantity * ad.Price,
+                Allocation = ad.AssignedEstablishment != null ? ad.AssignedEstablishment.Name : (ad.CostCenter != null ? ad.CostCenter.Name : "OTHERS")
+            })
+            .OrderBy(ad => ad.Date)
+            .ToListAsync();
         await PopulateFiltersAsync(filter, role, userId, currentUser);
         return View(model);
     }
