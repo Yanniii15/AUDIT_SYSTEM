@@ -2,6 +2,25 @@
 @{
     ViewData["Title"] = "Reports";
 }
+<style>
+    /* Force custom thin scrollbars to show on elements styled with max-height on the reports page */
+    [style*="max-height"]::-webkit-scrollbar {
+        display: block !important;
+        width: 8px !important;
+        height: 8px !important;
+    }
+    [style*="max-height"]::-webkit-scrollbar-thumb {
+        background-color: rgba(0, 0, 0, 0.25) !important;
+        border-radius: 4px !important;
+    }
+    [style*="max-height"]::-webkit-scrollbar-thumb:hover {
+        background-color: rgba(0, 0, 0, 0.35) !important;
+    }
+    [style*="max-height"]::-webkit-scrollbar-track {
+        background-color: rgba(0, 0, 0, 0.03) !important;
+        border-radius: 4px !important;
+    }
+</style>
 
 <section class="space-y-space-6">
     <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-space-4">
@@ -64,15 +83,15 @@
                 <h2 class="font-headline-sm text-on-surface">Recent Audits</h2>
                 <span class="text-[12px] text-on-surface-variant">Latest 25</span>
             </div>
-            <div class="hidden lg:block overflow-x-auto">
+            <div class="hidden lg:block" style="max-height: 440px; overflow-y: auto; overflow-x: auto;">
                 <table class="w-full text-left border-collapse">
                     <thead>
-                        <tr class="bg-surface-container-low border-b border-surface-border">
-                            <th class="px-space-6 py-space-3 font-label-caps uppercase text-[11px] text-on-surface-variant">Date</th>
-                            <th class="px-space-6 py-space-3 font-label-caps uppercase text-[11px] text-on-surface-variant">Buyer</th>
-                            <th class="px-space-6 py-space-3 font-label-caps uppercase text-[11px] text-on-surface-variant">Establishment</th>
-                            <th class="px-space-6 py-space-3 font-label-caps uppercase text-[11px] text-on-surface-variant text-right">Amount</th>
-                            <th class="px-space-6 py-space-3 font-label-caps uppercase text-[11px] text-on-surface-variant text-center">Status</th>
+                        <tr class="bg-surface-container-low border-b border-surface-border sticky top-0 z-10">
+                            <th class="px-space-6 py-space-3 font-label-caps uppercase text-[11px] text-on-surface-variant bg-surface-container-low">Date</th>
+                            <th class="px-space-6 py-space-3 font-label-caps uppercase text-[11px] text-on-surface-variant bg-surface-container-low">Buyer</th>
+                            <th class="px-space-6 py-space-3 font-label-caps uppercase text-[11px] text-on-surface-variant bg-surface-container-low">Establishment</th>
+                            <th class="px-space-6 py-space-3 font-label-caps uppercase text-[11px] text-on-surface-variant text-right bg-surface-container-low">Amount</th>
+                            <th class="px-space-6 py-space-3 font-label-caps uppercase text-[11px] text-on-surface-variant text-center bg-surface-container-low">Status</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-surface-border">
@@ -234,19 +253,19 @@
                     </div>
                     <span class="px-space-3 py-1 bg-primary/10 text-primary border border-primary/20 rounded-full text-[10px] font-label-caps uppercase">Treasury View</span>
                 </div>
-                <div class="overflow-x-auto">
+                <div style="max-height: 440px; overflow-y: auto; overflow-x: auto;">
                     <table class="w-full text-left border-collapse text-sm">
                         <thead>
-                            <tr class="bg-surface-container-low border-b border-surface-border text-xs uppercase text-on-surface-variant font-semibold">
-                                <th class="px-space-6 py-space-3">Date</th>
+                            <tr class="bg-surface-container-low border-b border-surface-border text-xs uppercase text-on-surface-variant font-semibold sticky top-0 z-10">
+                                <th class="px-space-6 py-space-3 bg-surface-container-low">Date</th>
                                 @foreach (var col in Model.TreasuryAudit.CashInColumns)
                                 {
-                                    <th class="px-space-6 py-space-3 text-right">@col.Label</th>
+                                    <th class="px-space-6 py-space-3 text-right bg-surface-container-low">@col.Label</th>
                                 }
-                                <th class="px-space-6 py-space-3 text-right">Total Cash In</th>
-                                <th class="px-space-6 py-space-3 text-right">Total Cash Out</th>
-                                <th class="px-space-6 py-space-3 text-right">Net Cash Flow</th>
-                                <th class="px-space-6 py-space-3 text-right">Closing Balance</th>
+                                <th class="px-space-6 py-space-3 text-right bg-surface-container-low">Total Cash In</th>
+                                <th class="px-space-6 py-space-3 text-right bg-surface-container-low">Total Cash Out</th>
+                                <th class="px-space-6 py-space-3 text-right bg-surface-container-low">Net Cash Flow</th>
+                                <th class="px-space-6 py-space-3 text-right bg-surface-container-low">Closing Balance</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-surface-border font-data-mono">
@@ -298,13 +317,13 @@
                 <!-- PCF Issuance Block -->
                 <div class="p-space-6 border-b border-surface-border bg-surface-container-lowest">
                     <h4 class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold mb-space-3">Petty Cash Issuances</h4>
-                    <div class="overflow-x-auto border border-surface-border rounded-lg">
+                    <div class="border border-surface-border rounded-lg" style="max-height: 440px; overflow-y: auto; overflow-x: auto;">
                         <table class="w-full text-left text-sm border-collapse">
                             <thead>
-                                <tr class="bg-surface-container-low border-b border-surface-border text-xs uppercase text-on-surface-variant">
-                                    <th class="px-4 py-2.5">Date</th>
-                                    <th class="px-4 py-2.5 text-right">Amount</th>
-                                    <th class="px-4 py-2.5">Issued By / Custodian</th>
+                                <tr class="bg-surface-container-low border-b border-surface-border text-xs uppercase text-on-surface-variant sticky top-0 z-10">
+                                    <th class="px-4 py-2.5 bg-surface-container-low">Date</th>
+                                    <th class="px-4 py-2.5 text-right bg-surface-container-low">Amount</th>
+                                    <th class="px-4 py-2.5 bg-surface-container-low">Issued By / Custodian</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-surface-border font-data-mono">
@@ -335,14 +354,14 @@
                 <!-- Expenses Block -->
                 <div class="p-space-6 border-b border-surface-border bg-surface-container-lowest">
                     <h4 class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold mb-space-3">Itemized Expense Breakdown</h4>
-                    <div class="overflow-x-auto border border-surface-border rounded-lg">
+                    <div class="border border-surface-border rounded-lg" style="max-height: 440px; overflow-y: auto; overflow-x: auto;">
                         <table class="w-full text-left text-sm border-collapse">
                             <thead>
-                                <tr class="bg-surface-container-low border-b border-surface-border text-xs uppercase text-on-surface-variant">
-                                    <th class="px-4 py-2.5">Date</th>
-                                    <th class="px-4 py-2.5">Description</th>
-                                    <th class="px-4 py-2.5 text-right">Amount</th>
-                                    <th class="px-4 py-2.5">Allocation</th>
+                                <tr class="bg-surface-container-low border-b border-surface-border text-xs uppercase text-on-surface-variant sticky top-0 z-10">
+                                    <th class="px-4 py-2.5 bg-surface-container-low">Date</th>
+                                    <th class="px-4 py-2.5 bg-surface-container-low">Description</th>
+                                    <th class="px-4 py-2.5 text-right bg-surface-container-low">Amount</th>
+                                    <th class="px-4 py-2.5 bg-surface-container-low">Allocation</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-surface-border font-data-mono">
@@ -415,14 +434,14 @@
                     <span class="px-space-3 py-1 bg-audit-success/10 text-audit-success border border-audit-success/20 rounded-full text-[10px] font-label-caps uppercase">Branch View</span>
                 </div>
                 <div class="overflow-x-auto p-space-6 bg-surface-container-lowest">
-                    <div class="border border-surface-border rounded-lg overflow-hidden">
+                    <div class="border border-surface-border rounded-lg" style="max-height: 440px; overflow-y: auto; overflow-x: auto;">
                         <table class="w-full text-left text-sm border-collapse">
                             <thead>
-                                <tr class="bg-surface-container-low border-b border-surface-border text-xs uppercase text-on-surface-variant font-semibold">
-                                    <th class="px-4 py-2.5">Date</th>
-                                    <th class="px-4 py-2.5">Description</th>
-                                    <th class="px-4 py-2.5 text-right">Amount</th>
-                                    <th class="px-4 py-2.5">Category / Allocation</th>
+                                <tr class="bg-surface-container-low border-b border-surface-border text-xs uppercase text-on-surface-variant font-semibold sticky top-0 z-10">
+                                    <th class="px-4 py-2.5 bg-surface-container-low">Date</th>
+                                    <th class="px-4 py-2.5 bg-surface-container-low">Description</th>
+                                    <th class="px-4 py-2.5 text-right bg-surface-container-low">Amount</th>
+                                    <th class="px-4 py-2.5 bg-surface-container-low">Category / Allocation</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-surface-border font-data-mono">
