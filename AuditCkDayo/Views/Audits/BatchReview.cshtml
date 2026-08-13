@@ -35,22 +35,22 @@
                 <table class="w-full text-left border-collapse">
                     <thead class="sticky top-0 z-10">
                         <tr class="bg-surface-container-low border-b border-surface-border">
-                            <th class="px-space-5 py-space-3 font-label-caps uppercase text-[10px] text-on-surface-variant">#</th>
+                            <th class="px-space-5 py-space-3 font-label-caps uppercase text-[10px] text-on-surface-variant w-16">#</th>
                             <th class="px-space-5 py-space-3 font-label-caps uppercase text-[10px] text-on-surface-variant">Description</th>
-                            <th class="px-space-5 py-space-3 font-label-caps uppercase text-[10px] text-on-surface-variant">Receipt files</th>
-                            <th class="px-space-5 py-space-3 font-label-caps uppercase text-[10px] text-on-surface-variant text-right">Amount</th>
-                            <th class="px-space-5 py-space-3 font-label-caps uppercase text-[10px] text-on-surface-variant">Date</th>
+                            <th class="px-space-5 py-space-3 font-label-caps uppercase text-[10px] text-on-surface-variant w-32 text-center">Receipt files</th>
+                            <th class="px-space-5 py-space-3 font-label-caps uppercase text-[10px] text-on-surface-variant w-32 text-right">Amount</th>
+                            <th class="px-space-5 py-space-3 font-label-caps uppercase text-[10px] text-on-surface-variant w-40 text-center">Date</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-surface-border">
                         @for (var i = 0; i < Model.Count; i++)
                         {
-                            <tr>
-                                <td class="px-space-5 py-space-3 font-data-mono text-on-surface-variant">@(i + 1)</td>
-                                <td class="px-space-5 py-space-3 text-on-surface">@Model[i].Description</td>
-                                <td class="px-space-5 py-space-3 text-on-surface-variant">@(Model[i].ReceiptImageUrls?.Count ?? 0)</td>
-                                <td class="px-space-5 py-space-3 text-right font-data-mono text-primary">₱@Model[i].Amount.ToString("N2")</td>
-                                <td class="px-space-5 py-space-3 text-on-surface-variant">@Model[i].EntryDate.ToString("yyyy-MM-dd")</td>
+                            <tr class="hover:bg-surface-container-low/50 transition-colors">
+                                <td class="px-space-5 py-space-4 font-data-mono text-on-surface-variant w-16">@(i + 1)</td>
+                                <td class="px-space-5 py-space-4 text-on-surface font-semibold">@Model[i].Description</td>
+                                <td class="px-space-5 py-space-4 text-on-surface-variant w-32 text-center font-data-mono">@(Model[i].ReceiptImageUrls?.Count ?? 0)</td>
+                                <td class="px-space-5 py-space-4 text-right font-data-mono text-primary font-bold w-32">₱@Model[i].Amount.ToString("N2")</td>
+                                <td class="px-space-5 py-space-4 text-center font-data-mono text-on-surface-variant w-40">@Model[i].EntryDate.ToString("yyyy-MM-dd")</td>
                             </tr>
                         }
                     </tbody>

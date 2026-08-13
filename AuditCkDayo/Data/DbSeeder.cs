@@ -115,6 +115,27 @@ namespace AuditCkDayo.Data
                 IsTreasury = true
             });
 
+            EnsureUser("maymay@ckr.com", () => new User
+            {
+                Name = "Dorothy May",
+                Email = "maymay@ckr.com",
+                PasswordHash = defaultPasswordHash,
+                Role = UserRole.Manager,
+                PcfBalance = 500m,
+                DailyStartingFloat = 500m,
+                IsTreasury = true
+            });
+
+            EnsureUser("chelsea@ckr.com", () => new User
+            {
+                Name = "Chelsea Manager",
+                Email = "chelsea@ckr.com",
+                PasswordHash = defaultPasswordHash,
+                Role = UserRole.Manager,
+                PcfBalance = 500m,
+                DailyStartingFloat = 500m,
+                IsTreasury = true
+            });
             EnsureUser("buyer1@test.com", () => new User
             {
                 Name = "Buyer One",
