@@ -4668,4 +4668,131 @@ namespace AuditCkDayo.Tests
         }
     }
 }
+
+    public class MockHttpMessageHandler : HttpMessageHandler
+    {
+        public int CallCount { get; set; }
+        public List<HttpRequestMessage> Requests { get; } = new List<HttpRequestMessage>();
+
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, System.Threading.CancellationToken cancellationToken)
+        {
+            CallCount++;
+            Requests.Add(request);
+
+            var url = request.RequestUri?.ToString() ?? "";
+            string content = "{}";
+
+            if (url.Contains("transcriptions"))
+            {
+                content = "{\"text\": \"What is our net profit for this month?\"}";
+            }
+            else if (url.Contains("completions"))
+            {
+                content = "{\"choices\": [{\"message\": {\"content\": \"The net profit is 1,234.56 pesos.\"}}]}";
+            }
+
+            return new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+            {
+                Content = new StringContent(content, System.Text.Encoding.UTF8, "application/json")
+            };
+        }
+    }
+
+    public class VoiceControllerTests : IDisposable
+    {
+        private readonly SqliteConnection _connection;
+        private readonly DbContextOptions<AuditDbContext> _options;
+
+        public VoiceControllerTests()
+        {
+            _connection = new SqliteConnection("Filename=:memory:");
+            _connection.Open();
+
+            _options = new DbContextOptionsBuilder<AuditDbContext>()
+                .UseSqlite(_connection)
+                .Options;
+
+            using (var context = new AuditDbContext(_options))
+            {
+                context.Database.EnsureCreated();
+            }
+        }
+
+        public void Dispose()
+        {
+            _connection.Dispose();
+        }
+
+        [Fact]
+        public async Task VoiceController_ProcessesOwnerVoiceQuerySuccessfully()
+        {
+            using (var context = new AuditDbContext(_options))
+            {
+                var establishment = new Establishment { Id = 1, Name = "Main Branch", IsOperatingBranch = true, IsActive = true };
+                context.Establishments.Add(establishment);
+
+                var buyer = new User { Id = 1, Name = "Buyer One", Email = "buyer@test.com", PasswordHash = "hash", Role = UserRole.Buyer };
+                context.Users.Add(buyer);
+
+                var auditItem = new AuditItem
+                {
+                    Id = 1,
+                    EstablishmentId = 1,
+                    BuyerId = 1,
+                    Status = AuditStatus.Approved,
+                    Amount = 100m,
+                    Description = "Sample expense",
+                    SubmittedAt = DateTime.UtcNow
+                };
+                context.AuditItems.Add(auditItem);
+
+                var doc = new DocumentRecord { Id = 1, ImageUrl = "/test.xlsx", UploadedAt = DateTime.UtcNow, UploadedByUserId = 1, OcrStatus = OcrStatus.Parsed, ReviewStatus = DocumentReviewStatus.Confirmed };
+                context.DocumentRecords.Add(doc);
+
+                var salesReport = new SalesReport
+                {
+                    Id = 1,
+                    EstablishmentId = 1,
+                    DocumentRecordId = 1,
+                    Status = SalesReportStatus.Confirmed,
+                    BusinessDate = DateTime.Today,
+                    HandoverDate = DateTime.Today,
+                    GrossSales = 500m,
+                    CashOut = 200m,
+                    ConfirmedCashToHandover = 300m
+                };
+                context.SalesReports.Add(salesReport);
+
+                await context.SaveChangesAsync();
+            }
+
+            using (var context = new AuditDbContext(_options))
+            {
+                var voiceBiService = new VoiceBiService(context);
+                var config = new MockConfiguration("gsk_dummy_key_for_testing_purposes_only");
+                var handler = new MockHttpMessageHandler();
+                var httpClient = new HttpClient(handler);
+
+                var controller = new VoiceController(voiceBiService, config, httpClient);
+
+                var audioBytes = new byte[] { 0x0, 0x1, 0x2, 0x3 };
+                var ms = new MemoryStream(audioBytes);
+                var audioFile = new FormFile(ms, 0, audioBytes.Length, "audioFile", "query.wav")
+                {
+                    Headers = new HeaderDictionary(),
+                    ContentType = "audio/wav"
+                };
+
+                var result = await controller.UploadQuery(audioFile);
+
+                var okResult = Assert.IsType<OkObjectResult>(result);
+                var data = okResult.Value;
+                Assert.NotNull(data);
+                
+                var json = JsonSerializer.Serialize(data);
+                Assert.Contains("The net profit is 1,234.56 pesos.", json);
+                Assert.True(handler.CallCount >= 2);
+            }
+        }
+    }
 }
