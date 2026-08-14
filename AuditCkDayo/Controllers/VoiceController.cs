@@ -120,7 +120,7 @@ namespace AuditCkDayo.Controllers
                     googleApiKey = apiKey;
                 }
 
-                var googleChatUrl = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={googleApiKey}";
+                var googleChatUrl = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={googleApiKey}";
 
                 var prompt = "System Prompt: You are a helpful business voice assistant. Answer the user's question about the branch P&L, sales, or cash flow using ONLY the following structured JSON data. Keep the answer extremely brief (1-2 sentences max) so it is pleasant to read out loud. Do not perform calculations yourself - use the exact numbers from the data. If the question cannot be answered from the data, say you do not have that information.\n\nJSON Data:\n" + biJson + "\n\nUser Question: " + transcribedText;
 
