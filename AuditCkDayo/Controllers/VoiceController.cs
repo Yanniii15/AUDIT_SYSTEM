@@ -111,45 +111,57 @@ namespace AuditCkDayo.Controllers
                 return StatusCode(500, new { error = $"Failed to fetch BI data snapshot: {ex.Message}" });
             }
 
-            // 3. Pipe everything to Groq Llama 3 API
+            // 3. Pipe everything to Google AI Studio Gemma 2 API
             try
             {
-                var systemPrompt = "You are a helpful business voice assistant. Answer the user's question about the branch P&L, sales, or cash flow using ONLY the following structured JSON data. Keep the answer extremely brief (1-2 sentences max) so it is pleasant to read out loud. Do not perform calculations yourself - use the exact numbers from the data. If the question cannot be answered from the data, say you do not have that information.\n\nJSON Data:\n" + biJson;
+                var googleApiKey = _configuration["GoogleGemini:ApiKey"] ?? "";
+                if (string.IsNullOrEmpty(googleApiKey) || googleApiKey == "YOUR_GEMINI_API_KEY")
+                {
+                    googleApiKey = apiKey;
+                }
+
+                var googleChatUrl = $"https://generativelanguage.googleapis.com/v1beta/models/gemma-2-27b-it:generateContent?key={googleApiKey}";
+
+                var prompt = "System Prompt: You are a helpful business voice assistant. Answer the user's question about the branch P&L, sales, or cash flow using ONLY the following structured JSON data. Keep the answer extremely brief (1-2 sentences max) so it is pleasant to read out loud. Do not perform calculations yourself - use the exact numbers from the data. If the question cannot be answered from the data, say you do not have that information.\n\nJSON Data:\n" + biJson + "\n\nUser Question: " + transcribedText;
 
                 var payload = new
                 {
-                    model = "llama3-8b-8192",
-                    messages = new[]
+                    contents = new[]
                     {
-                        new { role = "system", content = systemPrompt },
-                        new { role = "user", content = transcribedText }
+                        new
+                        {
+                            parts = new[]
+                            {
+                                new { text = prompt }
+                            }
+                        }
                     },
-                    temperature = 0.2
+                    generationConfig = new
+                    {
+                        temperature = 0.2
+                    }
                 };
 
-                using var request = new HttpRequestMessage(HttpMethod.Post, chatUrl);
-                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
+                using var request = new HttpRequestMessage(HttpMethod.Post, googleChatUrl);
                 request.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
 
                 var response = await _httpClient.SendAsync(request);
                 if (!response.IsSuccessStatusCode)
                 {
                     var errorMsg = await response.Content.ReadAsStringAsync();
-                    return StatusCode((int)response.StatusCode, new { error = $"Llama 3 generation failed: {errorMsg}" });
+                    return StatusCode((int)response.StatusCode, new { error = $"Gemma 2 generation failed: {errorMsg}" });
                 }
 
                 var jsonResponse = await response.Content.ReadAsStringAsync();
                 using var doc = JsonDocument.Parse(jsonResponse);
-                if (doc.RootElement.TryGetProperty("choices", out var choicesProp) &&
-                    choicesProp.GetArrayLength() > 0 &&
-                    choicesProp[0].TryGetProperty("message", out var messageProp) &&
-                    messageProp.TryGetProperty("content", out var contentProp))
-                {
-                    var answer = contentProp.GetString() ?? "";
-                    return Ok(new { text = answer });
-                }
+                var answer = doc.RootElement
+                    .GetProperty("candidates")[0]
+                    .GetProperty("content")
+                    .GetProperty("parts")[0]
+                    .GetProperty("text")
+                    .GetString() ?? "";
 
-                return StatusCode(500, new { error = "Invalid response format from Llama 3." });
+                return Ok(new { text = answer.Trim() });
             }
             catch (Exception ex)
             {

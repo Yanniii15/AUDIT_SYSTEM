@@ -153,20 +153,6 @@ namespace AuditCkDayo.Controllers
             var ocrStatus = OcrStatus.Failed;
             string? ocrRawJson = null;
 
-            try
-            {
-                await using var ocrStream = System.IO.File.OpenRead(firstImagePath);
-                ocrResult = await _ocrService.ParseSalesReportAsync(ocrStream);
-                ocrStatus = OcrStatus.Parsed;
-                ocrRawJson = string.IsNullOrWhiteSpace(ocrResult.RawJson)
-                    ? JsonSerializer.Serialize(ocrResult)
-                    : ocrResult.RawJson;
-            }
-            catch (Exception)
-            {
-                TempData["Warning"] = "OCR parsing failed. You can still review and enter the sales report values manually.";
-            }
-
             var document = new DocumentRecord
             {
                 DocumentType = DocumentType.DailySalesReport,

@@ -26,7 +26,6 @@ builder.Services.AddSession(options =>
 });
 
 builder.Services.AddScoped<AuditCkDayo.Services.GoogleGeminiOcrService>();
-builder.Services.AddScoped<AuditCkDayo.Services.TesseractOcrService>();
 builder.Services.AddScoped<AuditCkDayo.Services.IOcrService, AuditCkDayo.Services.FallbackOcrService>();
 builder.Services.AddSingleton<AuditCkDayo.Services.IDiagnosticsPathProvider, AuditCkDayo.Services.AppDiagnosticsPathProvider>();
 builder.Services.AddScoped<AuditCkDayo.Services.SystemDiagnosticsService>();

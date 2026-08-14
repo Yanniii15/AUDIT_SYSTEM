@@ -406,7 +406,7 @@ namespace AuditCkDayo.Tests
     public class FallbackOcrServiceTests
     {
         [Fact]
-        public async Task ParseReceiptAsync_WhenGeminiFails_CallsTesseractFallback()
+        public async Task ParseReceiptAsync_WhenGeminiFails_ReturnsEmptyOcrResult()
         {
             var configMap = new Dictionary<string, string>
             {
@@ -415,15 +415,15 @@ namespace AuditCkDayo.Tests
             var config = new ConfigurationBuilder().AddInMemoryCollection(configMap!).Build();
             
             var gemini = new GoogleGeminiOcrService(config);
-            var tesseract = new TesseractOcrService();
-            var fallback = new FallbackOcrService(gemini, tesseract);
+            var fallback = new FallbackOcrService(gemini);
             
             var dummyStream = new MemoryStream(Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="));
             
             var result = await fallback.ParseReceiptAsync(new List<Stream> { dummyStream });
             
             Assert.NotNull(result);
-            Assert.NotNull(result.TransactionDate);
+            Assert.Null(result.TransactionDate);
+            Assert.Equal(0m, result.TotalAmount);
         }
 
         [Fact]
@@ -4690,6 +4690,10 @@ namespace AuditCkDayo.Tests
             {
                 content = "{\"choices\": [{\"message\": {\"content\": \"The net profit is 1,234.56 pesos.\"}}]}";
             }
+            else if (url.Contains("generateContent"))
+            {
+                content = "{\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"The net profit is 1,234.56 pesos.\"}]}}]}";
+            }
 
             return new HttpResponseMessage(System.Net.HttpStatusCode.OK)
             {
@@ -4792,6 +4796,54 @@ namespace AuditCkDayo.Tests
                 var json = JsonSerializer.Serialize(data);
                 Assert.Contains("The net profit is 1,234.56 pesos.", json);
                 Assert.True(handler.CallCount >= 2);
+            }
+        }
+
+        [Fact]
+        public async Task VoiceBiService_IncludesDetailedDailySalesReportsAndLines()
+        {
+            using (var context = new AuditDbContext(_options))
+            {
+                var establishment = new Establishment { Id = 10, Name = "CKR Main", IsOperatingBranch = true, IsActive = true };
+                context.Establishments.Add(establishment);
+
+                var uploader = new User { Id = 10, Name = "Staff", Email = "staff@test.com", PasswordHash = "hash", Role = UserRole.BranchStaff };
+                context.Users.Add(uploader);
+
+                var doc = new DocumentRecord { Id = 10, ImageUrl = "/test.xlsx", UploadedAt = DateTime.UtcNow, UploadedByUserId = 10, OcrStatus = OcrStatus.Parsed, ReviewStatus = DocumentReviewStatus.Confirmed };
+                context.DocumentRecords.Add(doc);
+
+                var salesReport = new SalesReport
+                {
+                    Id = 10,
+                    EstablishmentId = 10,
+                    DocumentRecordId = 10,
+                    Status = SalesReportStatus.Confirmed,
+                    BusinessDate = DateTime.Today,
+                    HandoverDate = DateTime.Today,
+                    GrossSales = 500m,
+                    CashSales = 150m,
+                    FoodSales = 300m,
+                    BeerSales = 50m,
+                    BeverageSales = 50m
+                };
+                salesReport.Lines.Add(new SalesReportLine { LineType = SalesReportLineType.GCash, Amount = 456m, Label = "GCash Line" });
+                salesReport.Lines.Add(new SalesReportLine { LineType = SalesReportLineType.BankTransfer, Amount = 529m, Label = "BDO" });
+
+                context.SalesReports.Add(salesReport);
+                await context.SaveChangesAsync();
+            }
+
+            using (var context = new AuditDbContext(_options))
+            {
+                var service = new VoiceBiService(context);
+                var today = DateTime.Today;
+                var json = await service.GetPnlSummaryJsonAsync(today.AddDays(-1), today.AddDays(1));
+
+                Assert.Contains("DailySalesReports", json);
+                Assert.Contains("CashSales", json);
+                Assert.Contains("GCash Line", json);
+                Assert.Contains("BDO", json);
             }
         }
     }

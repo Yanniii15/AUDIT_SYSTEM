@@ -8,36 +8,22 @@ namespace AuditCkDayo.Services
     public class FallbackOcrService : IOcrService
     {
         private readonly GoogleGeminiOcrService _geminiService;
-        private readonly TesseractOcrService _tesseractService;
 
-        public FallbackOcrService(GoogleGeminiOcrService geminiService, TesseractOcrService tesseractService)
+        public FallbackOcrService(GoogleGeminiOcrService geminiService)
         {
             _geminiService = geminiService;
-            _tesseractService = tesseractService;
         }
 
         public async Task<OcrResult> ParseReceiptAsync(List<Stream> imageStreams)
         {
-            // We must copy the streams so that if the first attempt (Gemini) fails, 
-            // the streams are still readable from the beginning for the fallback (Tesseract).
             var copiedForGemini = new List<Stream>();
-            var copiedForTesseract = new List<Stream>();
 
             foreach (var stream in imageStreams)
             {
                 var geminiMs = new MemoryStream();
-                var tesseractMs = new MemoryStream();
-
                 await stream.CopyToAsync(geminiMs);
-                
                 geminiMs.Position = 0;
-                geminiMs.CopyTo(tesseractMs);
-
-                geminiMs.Position = 0;
-                tesseractMs.Position = 0;
-
                 copiedForGemini.Add(geminiMs);
-                copiedForTesseract.Add(tesseractMs);
             }
 
             try
@@ -47,28 +33,20 @@ namespace AuditCkDayo.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[FALLBACK_OCR] Gemini failed, falling back to local Tesseract OCR. Error: {ex.Message}");
-                return await _tesseractService.ParseReceiptAsync(copiedForTesseract);
+                Console.WriteLine($"[FALLBACK_OCR] Gemini failed, returning empty result. Error: {ex.Message}");
+                return new OcrResult();
             }
             finally
             {
                 foreach (var s in copiedForGemini) s.Dispose();
-                foreach (var s in copiedForTesseract) s.Dispose();
             }
         }
 
         public async Task<SalesReportOcrResult> ParseSalesReportAsync(Stream imageStream)
         {
             var geminiMs = new MemoryStream();
-            var tesseractMs = new MemoryStream();
-
             await imageStream.CopyToAsync(geminiMs);
-            
             geminiMs.Position = 0;
-            geminiMs.CopyTo(tesseractMs);
-
-            geminiMs.Position = 0;
-            tesseractMs.Position = 0;
 
             try
             {
@@ -77,13 +55,12 @@ namespace AuditCkDayo.Services
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[FALLBACK_OCR] Gemini SalesReport failed, falling back to local Tesseract OCR. Error: {ex.Message}");
-                return await _tesseractService.ParseSalesReportAsync(tesseractMs);
+                Console.WriteLine($"[FALLBACK_OCR] Gemini SalesReport failed, returning empty result. Error: {ex.Message}");
+                return new SalesReportOcrResult();
             }
             finally
             {
                 geminiMs.Dispose();
-                tesseractMs.Dispose();
             }
         }
     }

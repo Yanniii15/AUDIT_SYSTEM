@@ -33,6 +33,7 @@ namespace AuditCkDayo.Services
                 .AsNoTracking()
                 .Include(r => r.DocumentRecord)
                 .Include(r => r.Establishment)
+                .Include(r => r.Lines)
                 .Where(r => r.Status == SalesReportStatus.Confirmed)
                 .ToListAsync();
 
@@ -63,6 +64,41 @@ namespace AuditCkDayo.Services
                     GrossProfit = b.GrossProfit.ToString("N2"),
                     NetProfit = b.NetProfit.ToString("N2"),
                     NetProfitPercentage = $"{b.NetProfitPercentage}%"
+                }).ToList(),
+                DailySalesReports = salesReports.Select(r => new
+                {
+                    r.Id,
+                    BranchName = r.Establishment.Name,
+                    BusinessDate = r.BusinessDate.ToString("yyyy-MM-dd"),
+                    HandoverDate = r.HandoverDate.ToString("yyyy-MM-dd"),
+                    r.CashierName,
+                    r.GrossSales,
+                    r.ClosingGrossSales,
+                    r.FoodSales,
+                    r.BeerSales,
+                    r.BeverageSales,
+                    r.OtherSales,
+                    r.CashSales,
+                    r.SeniorDiscount,
+                    r.PwdDiscount,
+                    r.LoyaltyCardDiscount,
+                    r.GiftVoucherDiscount,
+                    r.EmployeeTenPercentDiscount,
+                    r.EmployeeFivePercentDiscount,
+                    r.EaglesDiscount,
+                    r.SalesShortageAmount,
+                    r.SalesShortageReason,
+                    r.SalesOverageAmount,
+                    r.SalesOverageReason,
+                    r.RestoPcf,
+                    r.PcfFromSales,
+                    r.ChangeAmount,
+                    Lines = r.Lines.Select(l => new
+                    {
+                        l.LineType,
+                        l.Amount,
+                        l.Label
+                    }).ToList()
                 }).ToList()
             };
 
