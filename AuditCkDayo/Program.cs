@@ -30,6 +30,7 @@ builder.Services.AddScoped<AuditCkDayo.Services.TesseractOcrService>();
 builder.Services.AddScoped<AuditCkDayo.Services.IOcrService, AuditCkDayo.Services.FallbackOcrService>();
 builder.Services.AddSingleton<AuditCkDayo.Services.IDiagnosticsPathProvider, AuditCkDayo.Services.AppDiagnosticsPathProvider>();
 builder.Services.AddScoped<AuditCkDayo.Services.SystemDiagnosticsService>();
+builder.Services.AddScoped<AuditCkDayo.Services.VoiceBiService>();
 
 var app = builder.Build();
 app.UseForwardedHeaders(new ForwardedHeadersOptions
