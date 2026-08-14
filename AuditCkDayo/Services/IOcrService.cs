@@ -15,6 +15,9 @@ namespace AuditCkDayo.Services
         public int? CostCenterId { get; set; }
         public string? CombinedDestinationId { get; set; }
         public string? AllocationNotes { get; set; }
+        public int? PnlCategoryId { get; set; }
+        public AuditCkDayo.Models.PnlExpenseSection PnlSection { get; set; } = AuditCkDayo.Models.PnlExpenseSection.Other;
+        public string PnlCategoryName { get; set; } = "Other";
     }
 
     public class OcrResult

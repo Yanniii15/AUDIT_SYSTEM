@@ -40,6 +40,98 @@ namespace AuditCkDayo.ViewModels
         [Range(0, double.MaxValue)]
         public decimal OtherPaymentAmount { get; set; }
 
+        [Range(0, double.MaxValue)]
+        public decimal ClosingGrossSales { get; set; }
+
+        [Range(0, double.MaxValue)]
+        public decimal FoodSales { get; set; }
+
+        [Range(0, double.MaxValue)]
+        public decimal BeerSales { get; set; }
+
+        [Range(0, double.MaxValue)]
+        public decimal BeverageSales { get; set; }
+
+        [Range(0, double.MaxValue)]
+        public decimal OtherSales { get; set; }
+
+        [Range(0, double.MaxValue)]
+        public decimal CashSales { get; set; }
+
+        [Range(0, double.MaxValue)]
+        public decimal SeniorDiscount { get; set; }
+
+        [Range(0, double.MaxValue)]
+        public decimal PwdDiscount { get; set; }
+
+        [Range(0, double.MaxValue)]
+        public decimal LoyaltyCardDiscount { get; set; }
+
+        [Range(0, double.MaxValue)]
+        public decimal GiftVoucherDiscount { get; set; }
+
+        [Range(0, double.MaxValue)]
+        public decimal EmployeeTenPercentDiscount { get; set; }
+
+        [Range(0, double.MaxValue)]
+        public decimal EmployeeFivePercentDiscount { get; set; }
+
+        [Range(0, double.MaxValue)]
+        public decimal EaglesDiscount { get; set; }
+
+        [Range(0, double.MaxValue)]
+        public decimal SalesShortageAmount { get; set; }
+
+        [StringLength(255)]
+        public string? SalesShortageReason { get; set; }
+
+        [Range(0, double.MaxValue)]
+        public decimal SalesOverageAmount { get; set; }
+
+        [StringLength(255)]
+        public string? SalesOverageReason { get; set; }
+
+        [Range(0, double.MaxValue)]
+        public decimal RestoPcf { get; set; }
+
+        [Range(0, double.MaxValue)]
+        public decimal PcfFromSales { get; set; }
+
+        [Range(0, double.MaxValue)]
+        public decimal ChangeAmount { get; set; }
+
+        public List<SalesReportLineViewModel> GCashLines { get; set; } = new();
+        public List<SalesReportLineViewModel> BankTransferLines { get; set; } = new();
+        public List<SalesReportLineViewModel> CardLines { get; set; } = new();
+        public List<SalesReportLineViewModel> CreditLines { get; set; } = new();
+        public List<SalesReportLineViewModel> RunawayCustomerLines { get; set; } = new();
+        public List<SalesReportLineViewModel> ExpenseFromSalesLines { get; set; } = new();
+
+        public decimal TotalGCash => GCashLines.Any() ? GCashLines.Sum(l => l.Amount) : GCashAmount;
+        public decimal TotalBankTransfer => BankTransferLines.Sum(l => l.Amount);
+        public decimal TotalCard => CardLines.Sum(l => l.Amount);
+        public decimal TotalCredit => CreditLines.Any() ? CreditLines.Sum(l => l.Amount) : CreditAmount;
+        public decimal TotalRunawayCustomer => RunawayCustomerLines.Sum(l => l.Amount);
+        public decimal TotalExpensesFromSales => ExpenseFromSalesLines.Sum(l => l.Amount);
+        
+        public decimal TotalDiscounts => SeniorDiscount + PwdDiscount + LoyaltyCardDiscount + GiftVoucherDiscount + EmployeeTenPercentDiscount + EmployeeFivePercentDiscount + EaglesDiscount;
+
+        public decimal ExpectedCashToHandover
+        {
+            get
+            {
+                decimal nonCash = TotalGCash + TotalCredit;
+                decimal otherPayments = TotalBankTransfer + TotalCard + TotalRunawayCustomer;
+                if (otherPayments == 0m)
+                {
+                    otherPayments = OtherPaymentAmount;
+                }
+                return GrossSales - nonCash - otherPayments;
+            }
+        }
+        public decimal ShortOverAmount => ConfirmedCashToHandover - ExpectedCashToHandover;
+        public string ShortOverLabel => ShortOverAmount < 0 ? "Short" : ShortOverAmount > 0 ? "Over" : "Balanced";
+
         [StringLength(50)]
         public string? ReceiptNumberStart { get; set; }
         [StringLength(50)]
@@ -76,4 +168,15 @@ namespace AuditCkDayo.ViewModels
         public int Quantity { get; set; }
         public decimal Total { get; set; }
     }
+
+    public class SalesReportLineViewModel
+    {
+        public int Id { get; set; }
+        public SalesReportLineType LineType { get; set; }
+        public decimal Amount { get; set; }
+        [StringLength(100)]
+        public string? Label { get; set; }
+        public int SortOrder { get; set; }
+    }
+
 }

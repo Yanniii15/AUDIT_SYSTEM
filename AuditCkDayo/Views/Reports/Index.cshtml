@@ -2,6 +2,21 @@
 @{
     ViewData["Title"] = "Reports";
 }
+
+<div id="pageVoiceSummary" class="sr-only">
+    Reports summary. Monthly profit and loss report.
+    Total Sales: ₱@Model.PnlReport.TotalSales.ToString("N2").
+    Cost of goods sold: ₱@Model.PnlReport.CogsTotal.ToString("N2").
+    Gross Profit: ₱@Model.PnlReport.GrossProfit.ToString("N2").
+    Operating expenses: ₱@Model.PnlReport.OpexTotal.ToString("N2").
+    Fixed Cost: ₱@Model.PnlReport.MonthlyFixedCostTotal.ToString("N2").
+    Net Profit: ₱@Model.PnlReport.NetProfit.ToString("N2") or @Model.PnlReport.NetProfitPercentage.ToString("N2") percent.
+    Branch comparisons:
+    @foreach (var branch in Model.PnlReport.Branches)
+    {
+        <text> @branch.BranchName: Sales ₱@branch.Sales.ToString("N2"), Net Profit ₱@branch.NetProfit.ToString("N2") or @branch.NetProfitPercentage.ToString("N2") percent. </text>
+    }
+</div>
 <style>
     /* Force custom thin scrollbars to show on elements styled with max-height on the reports page */
     [style*="max-height"]::-webkit-scrollbar {
@@ -76,6 +91,128 @@
         </button>
         <a asp-controller="Reports" asp-action="Index" class="h-11 min-w-[84px] bg-surface-container text-on-surface-variant border border-surface-border px-space-5 rounded-lg font-label-caps uppercase text-[11px] tracking-wider hover:bg-surface-container-high transition-all decoration-none inline-flex items-center justify-center whitespace-nowrap">Clear</a>
     </form>
+
+    <section class="bg-surface-container-lowest border border-surface-border rounded-xl shadow-sm overflow-hidden">
+        <div class="px-space-6 py-space-4 border-b border-surface-border flex flex-col lg:flex-row lg:items-center lg:justify-between gap-space-3 bg-surface-container-low">
+            <div>
+                <div class="flex items-center gap-space-2 text-primary mb-space-1">
+                    <span class="material-symbols-outlined text-[20px]">finance_mode</span>
+                    <span class="font-label-caps uppercase tracking-widest text-on-surface-variant">Profit and Loss</span>
+                </div>
+                <h2 class="font-headline-sm text-on-surface">Monthly P&L Report</h2>
+                <p class="text-xs text-on-surface-variant">Confirmed Daily Sales revenue less categorized PCF expense lines from @(Model.PnlReport.StartDate.ToString("MMMM dd, yyyy")) to @(Model.PnlReport.EndDate.ToString("MMMM dd, yyyy")).</p>
+            </div>
+            <span class="px-space-3 py-1 bg-primary/10 text-primary border border-primary/20 rounded-full text-[10px] font-label-caps uppercase">@Model.PnlReport.BranchName</span>
+        </div>
+
+        <div class="grid grid-cols-2 lg:grid-cols-6 gap-space-3 p-space-6 border-b border-surface-border bg-surface-container-lowest">
+            <div class="bg-surface-container-low rounded-xl p-space-4 border border-surface-border">
+                <span class="block font-label-caps uppercase text-[9px] text-on-surface-variant">Sales</span>
+                <span class="block font-data-mono text-primary font-bold mt-1">₱@Model.PnlReport.TotalSales.ToString("N2")</span>
+            </div>
+            <div class="bg-surface-container-low rounded-xl p-space-4 border border-surface-border">
+                <span class="block font-label-caps uppercase text-[9px] text-on-surface-variant">COGS</span>
+                <span class="block font-data-mono text-audit-error font-bold mt-1">₱@Model.PnlReport.CogsTotal.ToString("N2")</span>
+            </div>
+            <div class="bg-surface-container-low rounded-xl p-space-4 border border-surface-border">
+                <span class="block font-label-caps uppercase text-[9px] text-on-surface-variant">Gross Profit</span>
+                <span class="block font-data-mono text-audit-success font-bold mt-1">₱@Model.PnlReport.GrossProfit.ToString("N2")</span>
+            </div>
+            <div class="bg-surface-container-low rounded-xl p-space-4 border border-surface-border">
+                <span class="block font-label-caps uppercase text-[9px] text-on-surface-variant">OPEX</span>
+                <span class="block font-data-mono text-audit-error font-bold mt-1">₱@Model.PnlReport.OpexTotal.ToString("N2")</span>
+            </div>
+            <div class="bg-surface-container-low rounded-xl p-space-4 border border-surface-border">
+                <span class="block font-label-caps uppercase text-[9px] text-on-surface-variant">Fixed Cost</span>
+                <span class="block font-data-mono text-audit-error font-bold mt-1">₱@Model.PnlReport.MonthlyFixedCostTotal.ToString("N2")</span>
+            </div>
+            <div class="bg-primary text-on-primary rounded-xl p-space-4 shadow-sm">
+                <span class="block font-label-caps uppercase text-[9px] text-primary-fixed-dim">Net Profit</span>
+                <span class="block font-data-mono font-bold mt-1">₱@Model.PnlReport.NetProfit.ToString("N2")</span>
+                <span class="block text-[10px] mt-1">@Model.PnlReport.NetProfitPercentage.ToString("N2")%</span>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-space-6 p-space-6">
+            <div class="border border-surface-border rounded-xl overflow-hidden">
+                <div class="px-space-4 py-space-3 bg-surface-container-low border-b border-surface-border">
+                    <h3 class="font-label-caps uppercase text-[11px] text-on-surface">P&L Category Breakdown</h3>
+                </div>
+                <div style="max-height: 440px; overflow-y: auto; overflow-x: auto;">
+                    <table class="w-full text-left text-sm border-collapse">
+                        <thead>
+                            <tr class="bg-surface-container-low border-b border-surface-border text-xs uppercase text-on-surface-variant sticky top-0 z-10">
+                                <th class="px-4 py-2.5 bg-surface-container-low">Section</th>
+                                <th class="px-4 py-2.5 bg-surface-container-low">Category</th>
+                                <th class="px-4 py-2.5 text-right bg-surface-container-low">Amount</th>
+                                <th class="px-4 py-2.5 text-right bg-surface-container-low">% Sales</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-surface-border font-data-mono">
+                            @foreach (var category in Model.PnlReport.Categories)
+                            {
+                                <tr>
+                                    <td class="px-4 py-3 font-body-md text-on-surface">@category.Section</td>
+                                    <td class="px-4 py-3 font-body-md text-on-surface">
+                                        <div>@category.CategoryName</div>
+                                        @if (category.Items.Any())
+                                        {
+                                            <div class="text-[10px] text-on-surface-variant">@string.Join(", ", category.Items.Take(3).Select(item => $"{item.ItemName} ₱{item.Amount:N2}"))</div>
+                                        }
+                                    </td>
+                                    <td class="px-4 py-3 text-right">₱@category.Amount.ToString("N2")</td>
+                                    <td class="px-4 py-3 text-right">@category.PercentageOfSales(Model.PnlReport.TotalSales).ToString("N2")%</td>
+                                </tr>
+                            }
+                            @if (!Model.PnlReport.Categories.Any())
+                            {
+                                <tr>
+                                    <td colspan="4" class="px-4 py-6 text-center font-body-md text-on-surface-variant">No categorized P&L expense lines found. Add them from Daily Sales Review.</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="border border-surface-border rounded-xl overflow-hidden">
+                <div class="px-space-4 py-space-3 bg-surface-container-low border-b border-surface-border">
+                    <h3 class="font-label-caps uppercase text-[11px] text-on-surface">Branch P&L Comparison</h3>
+                </div>
+                <div style="max-height: 440px; overflow-y: auto; overflow-x: auto;">
+                    <table class="w-full text-left text-sm border-collapse">
+                        <thead>
+                            <tr class="bg-surface-container-low border-b border-surface-border text-xs uppercase text-on-surface-variant sticky top-0 z-10">
+                                <th class="px-4 py-2.5 bg-surface-container-low">Branch</th>
+                                <th class="px-4 py-2.5 text-right bg-surface-container-low">Sales</th>
+                                <th class="px-4 py-2.5 text-right bg-surface-container-low">Gross Profit</th>
+                                <th class="px-4 py-2.5 text-right bg-surface-container-low">Net Profit</th>
+                                <th class="px-4 py-2.5 text-right bg-surface-container-low">%</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-surface-border font-data-mono">
+                            @foreach (var branch in Model.PnlReport.Branches)
+                            {
+                                <tr>
+                                    <td class="px-4 py-3 font-body-md text-on-surface">@branch.BranchName</td>
+                                    <td class="px-4 py-3 text-right">₱@branch.Sales.ToString("N2")</td>
+                                    <td class="px-4 py-3 text-right">₱@branch.GrossProfit.ToString("N2")</td>
+                                    <td class="px-4 py-3 text-right font-bold @(branch.NetProfit < 0 ? "text-audit-error" : "text-audit-success")">₱@branch.NetProfit.ToString("N2")</td>
+                                    <td class="px-4 py-3 text-right">@branch.NetProfitPercentage.ToString("N2")%</td>
+                                </tr>
+                            }
+                            @if (!Model.PnlReport.Branches.Any())
+                            {
+                                <tr>
+                                    <td colspan="5" class="px-4 py-6 text-center font-body-md text-on-surface-variant">No confirmed Daily Sales records found for this report scope.</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </section>
 
     <div class="grid grid-cols-1 xl:grid-cols-3 gap-space-6">
         <section class="xl:col-span-2 bg-surface-container-lowest border border-surface-border rounded-xl shadow-sm overflow-hidden">

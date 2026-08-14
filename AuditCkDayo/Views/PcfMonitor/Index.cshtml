@@ -3,6 +3,11 @@
     ViewData["Title"] = "PCF Monitor";
 }
 
+<div id="pageVoiceSummary" class="sr-only">
+    Petty cash fund monitor. Monitored balance count: @Model.Users.Count accounts.
+    Total active PCF: ₱@Model.Users.Sum(u => u.PcfBalance).ToString("N2").
+</div>
+
 <section class="space-y-space-6">
     <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-space-4">
         <div class="space-y-space-2 max-w-3xl">

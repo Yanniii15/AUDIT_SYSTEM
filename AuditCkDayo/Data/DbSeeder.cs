@@ -42,6 +42,19 @@ namespace AuditCkDayo.Data
                 db.SaveChanges();
             }
 
+            if (!db.PnlCategories.Any())
+            {
+                db.PnlCategories.AddRange(
+                    new PnlCategory { Name = "Food Ingredients", Section = PnlExpenseSection.COGS },
+                    new PnlCategory { Name = "Beverages", Section = PnlExpenseSection.COGS },
+                    new PnlCategory { Name = "Packaging", Section = PnlExpenseSection.COGS },
+                    new PnlCategory { Name = "Utilities", Section = PnlExpenseSection.OPEX },
+                    new PnlCategory { Name = "Repairs and Maintenance", Section = PnlExpenseSection.OPEX },
+                    new PnlCategory { Name = "Rent", Section = PnlExpenseSection.MonthlyFixedCost },
+                    new PnlCategory { Name = "Miscellaneous", Section = PnlExpenseSection.Other });
+                db.SaveChanges();
+            }
+
             var defaultPasswordHash = BCrypt.Net.BCrypt.HashPassword("Password123!");
 
             User EnsureUser(string email, Func<User> createUser)
@@ -158,8 +171,10 @@ namespace AuditCkDayo.Data
                 ManagerId = managerTwo.Id
             });
 
+            var dayo = db.Establishments.FirstOrDefault(e => e.Name == "Dayo");
             var ckrMain = db.Establishments.FirstOrDefault(e => e.Name == "CKR Main");
             var ckrBranchTwo = db.Establishments.FirstOrDefault(e => e.Name == "CKR Branch 2");
+            var ckrBranchFour = db.Establishments.FirstOrDefault(e => e.Name == "CKR Branch 4");
 
             if (ckrMain != null)
             {
@@ -171,7 +186,8 @@ namespace AuditCkDayo.Data
                     Role = UserRole.BranchStaff,
                     PcfBalance = 0m,
                     DailyStartingFloat = 0m,
-                    EstablishmentId = ckrMain.Id
+                    EstablishmentId = ckrMain.Id,
+                    ManagerId = managerOne.Id
                 });
             }
 
@@ -185,26 +201,58 @@ namespace AuditCkDayo.Data
                     Role = UserRole.BranchStaff,
                     PcfBalance = 0m,
                     DailyStartingFloat = 0m,
-                    EstablishmentId = ckrBranchTwo.Id
+                    EstablishmentId = ckrBranchTwo.Id,
+                    ManagerId = managerTwo.Id
                 });
             }
 
-            SeedWeeklyDemoData(db);
+            if (dayo != null)
+            {
+                EnsureUser("staff-dayo@test.com", () => new User
+                {
+                    Name = "Dayo Branch Staff",
+                    Email = "staff-dayo@test.com",
+                    PasswordHash = defaultPasswordHash,
+                    Role = UserRole.BranchStaff,
+                    PcfBalance = 0m,
+                    DailyStartingFloat = 0m,
+                    EstablishmentId = dayo.Id,
+                    ManagerId = managerOne.Id
+                });
+            }
+
+            if (ckrBranchFour != null)
+            {
+                EnsureUser("staff4@test.com", () => new User
+                {
+                    Name = "Branch Staff Four",
+                    Email = "staff4@test.com",
+                    PasswordHash = defaultPasswordHash,
+                    Role = UserRole.BranchStaff,
+                    PcfBalance = 0m,
+                    DailyStartingFloat = 0m,
+                    EstablishmentId = ckrBranchFour.Id,
+                    ManagerId = managerTwo.Id
+                });
+            }
+
+            SeedThirtyDayQaData(db);
         }
 
-        private static void SeedWeeklyDemoData(AuditDbContext db)
+        private static void SeedThirtyDayQaData(AuditDbContext db)
         {
-            const string marker = "[seed:weekly-demo]";
-            var existingDemoAuditCount = db.AuditItems.Count(a => a.Notes != null && a.Notes.Contains(marker));
-            var existingDemoDocumentCount = db.DocumentRecords.Count(d => d.ImageUrl.Contains("/seed/week/"));
-            if (existingDemoAuditCount >= 44 && existingDemoDocumentCount >= 14)
+            const string marker = "[seed:thirty-day-qa]";
+            var existingSalesReportCount = db.SalesReports.Count(r => r.Notes != null && r.Notes.Contains(marker));
+            var existingCashFlowCount = db.TreasuryCashFlows.Count(f => f.Entries.Any(e => e.Notes != null && e.Notes.Contains(marker)));
+            var existingAuditCount = db.AuditItems.Count(a => a.Notes != null && a.Notes.Contains(marker));
+            if (existingSalesReportCount >= 120 && existingCashFlowCount >= 30 && existingAuditCount >= 120)
             {
                 return;
             }
 
-            if (existingDemoAuditCount > 0 || existingDemoDocumentCount > 0)
+            if (existingSalesReportCount > 0 || existingCashFlowCount > 0 || existingAuditCount > 0)
             {
-                RemoveWeeklyDemoData(db, marker);
+                RemoveThirtyDayQaData(db, marker);
             }
 
             var admin = db.Users.First(u => u.Email == "admin@test.com");
@@ -213,285 +261,300 @@ namespace AuditCkDayo.Data
             var managerTwo = db.Users.First(u => u.Email == "manager2@test.com");
             var buyerOne = db.Users.First(u => u.Email == "buyer1@test.com");
             var buyerTwo = db.Users.First(u => u.Email == "buyer2@test.com");
-            var staffOne = db.Users.First(u => u.Email == "staff1@test.com");
-            var staffTwo = db.Users.First(u => u.Email == "staff2@test.com");
-            var ckrMain = db.Establishments.First(e => e.Name == "CKR Main");
-            var ckrBranchTwo = db.Establishments.First(e => e.Name == "CKR Branch 2");
-            var cater = db.CostCenters.First(c => c.Name == "Cater");
-            var utilities = db.CostCenters.First(c => c.Name == "Utilities");
-            var startDate = DateTime.Today.AddDays(-6);
+            var branches = db.Establishments
+                .Where(e => e.IsOperatingBranch && e.IsActive && !e.IsMiscellaneous)
+                .OrderBy(e => e.Id)
+                .ToList();
+            if (branches.Count == 0)
+            {
+                return;
+            }
 
-            for (var day = 0; day < 7; day++)
+            var staffByBranch = db.Users
+                .Where(u => u.Role == UserRole.BranchStaff && u.EstablishmentId.HasValue && !u.IsDeleted)
+                .ToList()
+                .GroupBy(u => u.EstablishmentId!.Value)
+                .ToDictionary(group => group.Key, group => group.OrderBy(u => u.Id).First());
+            var utilities = db.CostCenters.First(c => c.Name == "Utilities");
+            var payroll = db.CostCenters.First(c => c.Name == "Payroll");
+            var categories = db.PnlCategories.ToList();
+            var foodCategory = categories.FirstOrDefault(c => c.Name == "Food Ingredients");
+            var beverageCategory = categories.FirstOrDefault(c => c.Name == "Beverages");
+            var packagingCategory = categories.FirstOrDefault(c => c.Name == "Packaging");
+            var utilitiesCategory = categories.FirstOrDefault(c => c.Name == "Utilities");
+            var repairsCategory = categories.FirstOrDefault(c => c.Name == "Repairs and Maintenance");
+            var rentCategory = categories.FirstOrDefault(c => c.Name == "Rent");
+            var startDate = DateTime.Today.AddDays(-29);
+            var runningBalance = 50000m;
+            var pcfReleases = new List<PcfRelease>();
+            var audits = new List<AuditItem>();
+            var settlements = new List<AuditSettlement>();
+            var surrenderRequests = new List<SurrenderRequest>();
+            var ledgers = new List<PettyCashLedger>();
+
+            for (var day = 0; day < 30; day++)
             {
                 var businessDate = startDate.AddDays(day);
-                var establishment = day % 2 == 0 ? ckrMain : ckrBranchTwo;
-                var staff = establishment.Id == ckrMain.Id ? staffOne : staffTwo;
-                var grossSales = 18500m + (day * 725m);
-                var cashOut = 1200m + (day * 65m);
-                var cashToHandover = grossSales - cashOut - 4200m - 1800m - 350m;
-
-                var salesDocument = new DocumentRecord
-                {
-                    DocumentType = DocumentType.DailySalesReport,
-                    UploadedByUserId = staff.Id,
-                    UploadedAt = businessDate.AddHours(20),
-                    ImageUrl = $"/seed/week/daily-sales-{businessDate:yyyyMMdd}.png",
-                    OcrRawJson = """{"seed":"weekly-demo","type":"daily-sales"}""",
-                    OcrStatus = OcrStatus.Parsed,
-                    ReviewStatus = DocumentReviewStatus.Confirmed,
-                    ConfirmedByUserId = managerOne.Id,
-                    ConfirmedAt = businessDate.AddHours(21)
-                };
-
-                var salesReport = new SalesReport
-                {
-                    DocumentRecord = salesDocument,
-                    EstablishmentId = establishment.Id,
-                    CashierUserId = staff.Id,
-                    CashierName = staff.Name,
-                    BusinessDate = businessDate,
-                    HandoverDate = businessDate.AddHours(20),
-                    GrossSales = grossSales,
-                    CashOut = cashOut,
-                    ConfirmedCashToHandover = cashToHandover,
-                    GCashAmount = 4200m,
-                    CreditAmount = 1800m,
-                    OtherPaymentAmount = 350m,
-                    ReceiptNumberStart = $"W{day + 1:00}0001",
-                    ReceiptNumberEnd = $"W{day + 1:00}0180",
-                    WitnessName = day % 2 == 0 ? "Maria Santos" : "Jose Reyes",
-                    Notes = $"{marker} Confirmed sales report for {businessDate:yyyy-MM-dd}.",
-                    Status = SalesReportStatus.Confirmed,
-                    ConfirmedByUserId = managerOne.Id,
-                    ConfirmedAt = businessDate.AddHours(21),
-                    ImageUrlsJson = System.Text.Json.JsonSerializer.Serialize(new List<string> { salesDocument.ImageUrl })
-                };
-
                 var flow = new TreasuryCashFlow
                 {
                     TreasuryUserId = owner.Id,
                     CashFlowDate = businessDate,
-                    StartingBalance = 50000m + (day * 1500m),
-                    Status = day == 6 ? TreasuryCashFlowStatus.Open : TreasuryCashFlowStatus.Closed
+                    StartingBalance = runningBalance,
+                    Status = day == 29 ? TreasuryCashFlowStatus.Open : TreasuryCashFlowStatus.Closed
                 };
-                flow.Entries.Add(new CashFlowEntry
-                {
-                    Direction = CashFlowDirection.In,
-                    Category = CashFlowCategory.Sales,
-                    EstablishmentId = establishment.Id,
-                    RelatedUserId = staff.Id,
-                    SourceDocument = salesDocument,
-                    Amount = cashToHandover,
-                    Notes = $"{marker} Sales cash-in for {establishment.Name}.",
-                    CreatedByUserId = staff.Id,
-                    ConfirmedByUserId = managerOne.Id
-                });
 
-                if (day == 2)
+                for (var branchIndex = 0; branchIndex < branches.Count; branchIndex++)
                 {
+                    var branch = branches[branchIndex];
+                    var staff = staffByBranch.TryGetValue(branch.Id, out var assignedStaff) ? assignedStaff : owner;
+                    var grossSales = 12000m + (branchIndex * 1750m) + (day * 210m);
+                    var cashOut = 650m + (branchIndex * 90m) + (day % 5 * 35m);
+                    var gcash = 1800m + (branchIndex * 120m);
+                    var credit = 700m + (day % 4 * 80m);
+                    var otherPayment = 250m + (branchIndex * 45m);
+                    var confirmedCash = grossSales - gcash - credit - otherPayment;
+
+                    var salesDocument = new DocumentRecord
+                    {
+                        DocumentType = DocumentType.DailySalesReport,
+                        UploadedByUserId = staff.Id,
+                        UploadedAt = businessDate.AddHours(20).AddMinutes(branchIndex),
+                        ImageUrl = $"/seed/thirty-day/daily-sales-{businessDate:yyyyMMdd}-{branch.Id}.png",
+                        OcrRawJson = $$"""{"seed":"thirty-day-qa","type":"daily-sales","branch":"{{branch.Name}}"}""",
+                        OcrStatus = OcrStatus.Parsed,
+                        ReviewStatus = DocumentReviewStatus.Confirmed,
+                        ConfirmedByUserId = day % 2 == 0 ? managerOne.Id : managerTwo.Id,
+                        ConfirmedAt = businessDate.AddHours(21).AddMinutes(branchIndex)
+                    };
+
+                    var salesReport = new SalesReport
+                    {
+                        DocumentRecord = salesDocument,
+                        EstablishmentId = branch.Id,
+                        CashierUserId = staff.Id,
+                        CashierName = staff.Name,
+                        BusinessDate = businessDate,
+                        HandoverDate = businessDate,
+                        GrossSales = grossSales,
+                        CashOut = cashOut,
+                        ConfirmedCashToHandover = confirmedCash,
+                        GCashAmount = gcash,
+                        CreditAmount = credit,
+                        OtherPaymentAmount = otherPayment,
+                        ReceiptNumberStart = $"QA{day + 1:00}{branchIndex + 1:00}001",
+                        ReceiptNumberEnd = $"QA{day + 1:00}{branchIndex + 1:00}240",
+                        WitnessName = day % 2 == 0 ? "Maria Santos" : "Jose Reyes",
+                        Notes = $"{marker} Confirmed daily sales for {branch.Name} on {businessDate:yyyy-MM-dd}.",
+                        Status = SalesReportStatus.Confirmed,
+                        ConfirmedByUserId = day % 2 == 0 ? managerOne.Id : managerTwo.Id,
+                        ConfirmedAt = businessDate.AddHours(21).AddMinutes(branchIndex),
+                        ImageUrlsJson = System.Text.Json.JsonSerializer.Serialize(new List<string> { salesDocument.ImageUrl })
+                    };
+
+                    flow.Entries.Add(new CashFlowEntry
+                    {
+                        Direction = CashFlowDirection.In,
+                        Category = CashFlowCategory.Sales,
+                        Establishment = branch,
+                        RelatedUser = staff,
+                        SourceDocument = salesDocument,
+                        Amount = confirmedCash,
+                        Notes = $"{marker} Sales cash-in for {branch.Name}.",
+                        CreatedByUserId = staff.Id,
+                        ConfirmedByUserId = salesReport.ConfirmedByUserId
+                    });
+
+                    db.DocumentRecords.Add(salesDocument);
+                    db.SalesReports.Add(salesReport);
+
+                    var buyer = (day + branchIndex) % 2 == 0 ? buyerOne : buyerTwo;
+                    var reviewer = buyer.ManagerId == managerOne.Id ? managerOne : managerTwo;
+                    var auditStatus = (day + branchIndex) % 5 == 0 ? AuditStatus.Rejected : AuditStatus.Approved;
+                    var detailStatus = auditStatus == AuditStatus.Rejected ? BranchVerificationStatus.Rejected : BranchVerificationStatus.Verified;
+                    var auditAmount = 520m + (day * 18m) + (branchIndex * 75m);
+                    var audit = CreateAudit(
+                        buyer.Id,
+                        branch.Id,
+                        auditAmount,
+                        auditStatus == AuditStatus.Approved ? $"Approved QA deliverable {day + 1:00}-{branchIndex + 1:00}" : $"Rejected QA deliverable {day + 1:00}-{branchIndex + 1:00}",
+                        businessDate.AddHours(11 + branchIndex),
+                        auditStatus,
+                        marker,
+                        auditStatus == AuditStatus.Approved ? reviewer.Id : staff.Id,
+                        new[]
+                        {
+                            CreateDetail("Food stock", 2 + branchIndex, 110m + day, branch.Id, null, detailStatus, foodCategory),
+                            CreateDetail("Packaging supplies", 1 + (day % 3), 85m + branchIndex, branch.Id, null, detailStatus, packagingCategory),
+                            CreateDetail("Branch utilities", 1, 95m + (day % 7), branch.Id, utilities.Id, detailStatus, utilitiesCategory)
+                        });
+                    audit.AssignedReviewerId = reviewer.Id;
+                    audits.Add(audit);
+
+                    ledgers.Add(new PettyCashLedger
+                    {
+                        UserId = buyer.Id,
+                        TransactionType = auditStatus == AuditStatus.Approved ? LedgerTransactionType.ExpenseDeduction : LedgerTransactionType.ReversalRefund,
+                        Amount = auditStatus == AuditStatus.Approved ? -auditAmount : auditAmount,
+                        ResultingBalance = buyer.PcfBalance,
+                        Timestamp = businessDate.AddHours(12 + branchIndex),
+                        Notes = $"{marker} {auditStatus} audit ledger row for {branch.Name}."
+                    });
+                }
+
+                if (day % 3 == 0)
+                {
+                    var receiver = day % 2 == 0 ? buyerOne : buyerTwo;
+                    var releaseAmount = 4500m + (day * 40m);
+                    var release = new PcfRelease
+                    {
+                        ReleasedByTreasuryUserId = owner.Id,
+                        ReceiverUserId = receiver.Id,
+                        ReceiverName = receiver.Name,
+                        EstablishmentId = branches[day % branches.Count].Id,
+                        Amount = releaseAmount,
+                        ReleaseDate = businessDate,
+                        Purpose = $"{marker} Operating PCF release for {receiver.Name}.",
+                        Status = day % 6 == 0 ? PcfReleaseStatus.Settled : PcfReleaseStatus.PartiallyAudited
+                    };
+                    pcfReleases.Add(release);
                     flow.Entries.Add(new CashFlowEntry
                     {
                         Direction = CashFlowDirection.Out,
-                        Category = CashFlowCategory.Utilities,
-                        EstablishmentId = ckrMain.Id,
-                        CostCenterId = utilities.Id,
-                        Amount = 2750m,
-                        Notes = $"{marker} Utility cash-out.",
+                        Category = CashFlowCategory.PcfRelease,
+                        EstablishmentId = release.EstablishmentId,
+                        RelatedUserId = receiver.Id,
+                        Amount = releaseAmount,
+                        Notes = $"{marker} PCF release to {receiver.Name}.",
                         CreatedByUserId = owner.Id,
-                        ConfirmedByUserId = managerOne.Id
+                        ConfirmedByUserId = owner.Id
+                    });
+                    ledgers.Add(new PettyCashLedger
+                    {
+                        UserId = receiver.Id,
+                        TransactionType = LedgerTransactionType.VaultFunding,
+                        Amount = releaseAmount,
+                        ResultingBalance = receiver.PcfBalance + releaseAmount,
+                        Timestamp = businessDate.AddHours(9),
+                        Notes = $"{marker} PCF released for daily operations."
+                    });
+                }
+
+                var manualCashOutAmount = 1400m + (day % 6 * 125m);
+                flow.Entries.Add(new CashFlowEntry
+                {
+                    Direction = CashFlowDirection.Out,
+                    Category = day % 2 == 0 ? CashFlowCategory.Utilities : CashFlowCategory.Payroll,
+                    EstablishmentId = day % 2 == 0 ? branches[day % branches.Count].Id : null,
+                    CostCenterId = day % 2 == 0 ? utilities.Id : payroll.Id,
+                    Amount = manualCashOutAmount,
+                    Notes = $"{marker} Manual cash-out for {(day % 2 == 0 ? "utilities" : "payroll")}.",
+                    CreatedByUserId = owner.Id,
+                    ConfirmedByUserId = owner.Id
+                });
+
+                if (day % 4 == 0)
+                {
+                    flow.Entries.Add(new CashFlowEntry
+                    {
+                        Direction = CashFlowDirection.In,
+                        Category = CashFlowCategory.OwnerFunding,
+                        Amount = 2500m + (day * 25m),
+                        Notes = $"{marker} Manual owner cash-in.",
+                        CreatedByUserId = owner.Id,
+                        ConfirmedByUserId = owner.Id
+                    });
+                }
+
+                if (day % 5 == 0)
+                {
+                    var buyer = day % 10 == 0 ? buyerOne : buyerTwo;
+                    var amount = 700m + (day * 12m);
+                    surrenderRequests.Add(new SurrenderRequest
+                    {
+                        BuyerId = buyer.Id,
+                        DeclaredAmount = amount,
+                        ConfirmedAmount = amount,
+                        Status = SurrenderStatus.Confirmed,
+                        RequestDate = businessDate.AddHours(15),
+                        ActionDate = businessDate.AddHours(16),
+                        ActionByUserId = buyer.ManagerId ?? owner.Id,
+                        BuyerNotes = $"{marker} Confirmed cash surrender.",
+                        ActionNotes = "Count matched declared cash."
+                    });
+                    flow.Entries.Add(new CashFlowEntry
+                    {
+                        Direction = CashFlowDirection.In,
+                        Category = CashFlowCategory.ChangePcf,
+                        RelatedUserId = buyer.Id,
+                        Amount = amount,
+                        Notes = $"{marker} Confirmed PCF change surrender by {buyer.Name}.",
+                        CreatedByUserId = buyer.ManagerId ?? owner.Id,
+                        ConfirmedByUserId = buyer.ManagerId ?? owner.Id
+                    });
+                    ledgers.Add(new PettyCashLedger
+                    {
+                        UserId = buyer.Id,
+                        TransactionType = LedgerTransactionType.CashSurrender,
+                        Amount = -amount,
+                        ResultingBalance = buyer.PcfBalance - amount,
+                        Timestamp = businessDate.AddHours(16),
+                        Notes = $"{marker} Confirmed cash surrender ledger."
                     });
                 }
 
                 flow.RecomputeTotals();
-                db.DocumentRecords.Add(salesDocument);
-                db.SalesReports.Add(salesReport);
+                runningBalance = flow.ClosingBalance;
                 db.TreasuryCashFlows.Add(flow);
             }
 
-            var receiptDocuments = Enumerable.Range(0, 7)
-                .Select(index => new DocumentRecord
+            var rentAudit = CreateAudit(
+                buyerOne.Id,
+                branches[0].Id,
+                15000m,
+                "Approved monthly fixed rent",
+                startDate.AddDays(14),
+                AuditStatus.Approved,
+                marker,
+                managerOne.Id,
+                new[]
                 {
-                    DocumentType = DocumentType.ExpenseReceipt,
-                    UploadedByUserId = index % 2 == 0 ? buyerOne.Id : buyerTwo.Id,
-                    UploadedAt = startDate.AddDays(index).AddHours(12),
-                    ImageUrl = $"/seed/week/receipt-{startDate.AddDays(index):yyyyMMdd}.png",
-                    OcrRawJson = """{"seed":"weekly-demo","type":"expense-receipt"}""",
-                    OcrStatus = OcrStatus.Parsed,
-                    ReviewStatus = DocumentReviewStatus.Confirmed
-                })
-                .ToList();
-            db.DocumentRecords.AddRange(receiptDocuments);
+                    CreateDetail("Monthly rent", 1, 15000m, branches[0].Id, null, BranchVerificationStatus.Verified, rentCategory),
+                    CreateDetail("Minor repairs", 1, 1850m, branches[0].Id, null, BranchVerificationStatus.Verified, repairsCategory),
+                    CreateDetail("Beverage stock", 10, 120m, branches[0].Id, null, BranchVerificationStatus.Verified, beverageCategory)
+                });
+            rentAudit.Amount = rentAudit.Details.Sum(detail => detail.Total);
+            rentAudit.AssignedReviewerId = managerOne.Id;
+            audits.Add(rentAudit);
 
-            var audits = new List<AuditItem>
-            {
-                CreateAudit(buyerOne.Id, ckrMain.Id, 850m, "Approved catering supplies", startDate, AuditStatus.Approved, marker, managerOne.Id, new[]
-                {
-                    CreateDetail("Paper plates", 5, 70m, ckrMain.Id, cater.Id, BranchVerificationStatus.Verified),
-                    CreateDetail("Packed meal trays", 10, 50m, ckrMain.Id, cater.Id, BranchVerificationStatus.Verified)
-                }),
-                CreateAudit(buyerOne.Id, ckrMain.Id, 640m, "Pending split branch receipt", startDate.AddDays(1), AuditStatus.AwaitingBranchVerification, marker, null, new[]
-                {
-                    CreateDetail("CKR Main cleaning supplies", 2, 160m, ckrMain.Id, null, BranchVerificationStatus.Pending),
-                    CreateDetail("Branch 2 paper bags", 4, 80m, ckrBranchTwo.Id, null, BranchVerificationStatus.Pending)
-                }),
-                CreateAudit(buyerTwo.Id, ckrBranchTwo.Id, 1120m, "Awaiting manager approval", startDate.AddDays(2), AuditStatus.AwaitingManagerApproval, marker, staffTwo.Id, new[]
-                {
-                    CreateDetail("Branch stock replenishment", 8, 140m, ckrBranchTwo.Id, null, BranchVerificationStatus.Verified)
-                }),
-                CreateAudit(buyerOne.Id, ckrMain.Id, 430m, "Rejected duplicate claim", startDate.AddDays(3), AuditStatus.Rejected, marker, staffOne.Id, new[]
-                {
-                    CreateDetail("Duplicate receipt line", 1, 430m, ckrMain.Id, null, BranchVerificationStatus.Rejected)
-                }),
-                CreateAudit(buyerTwo.Id, ckrBranchTwo.Id, 980m, "Approved utilities reimbursement", startDate.AddDays(4), AuditStatus.Approved, marker, managerTwo.Id, new[]
-                {
-                    CreateDetail("Water delivery", 2, 240m, ckrBranchTwo.Id, utilities.Id, BranchVerificationStatus.Verified),
-                    CreateDetail("Light bulbs", 5, 100m, ckrBranchTwo.Id, utilities.Id, BranchVerificationStatus.Verified)
-                }),
-                CreateAudit(buyerOne.Id, ckrMain.Id, 350m, "Pending manager receipt check", startDate.AddDays(5), AuditStatus.AwaitingManagerApproval, marker, staffOne.Id, new[]
-                {
-                    CreateDetail("Emergency grocery run", 1, 350m, ckrMain.Id, null, BranchVerificationStatus.Verified)
-                }),
-                CreateAudit(buyerTwo.Id, ckrBranchTwo.Id, 720m, "Approved branch supplies", startDate.AddDays(6), AuditStatus.Approved, marker, managerTwo.Id, new[]
-                {
-                    CreateDetail("Receipt rolls", 6, 120m, ckrBranchTwo.Id, null, BranchVerificationStatus.Verified)
-                }),
-                CreateAudit(buyerOne.Id, ckrMain.Id, 560m, "Current pending delivery", DateTime.Today, AuditStatus.AwaitingBranchVerification, marker, null, new[]
-                {
-                    CreateDetail("Delivery for CKR Main", 2, 280m, ckrMain.Id, null, BranchVerificationStatus.Pending)
-                })
-            };
-
-            for (var index = 0; index < 15; index++)
-            {
-                var buyer = index % 2 == 0 ? buyerOne : buyerTwo;
-                var establishment = index % 2 == 0 ? ckrMain : ckrBranchTwo;
-                var manager = index % 2 == 0 ? managerOne : managerTwo;
-                var date = startDate.AddDays(index % 7).AddHours(index);
-                var amount = 420m + (index * 35m);
-                audits.Add(CreateAudit(buyer.Id, establishment.Id, amount, $"Approved audit sample {index + 1:00}", date, AuditStatus.Approved, marker, manager.Id, new[]
-                {
-                    CreateDetail($"Approved delivered item {index + 1:00}", 2 + (index % 3), amount / (2 + (index % 3)), establishment.Id, index % 3 == 0 ? cater.Id : null, BranchVerificationStatus.Verified)
-                }));
-            }
-
-            for (var index = 0; index < 10; index++)
-            {
-                var buyer = index % 2 == 0 ? buyerOne : buyerTwo;
-                var establishment = index % 2 == 0 ? ckrMain : ckrBranchTwo;
-                var staff = index % 2 == 0 ? staffOne : staffTwo;
-                var date = startDate.AddDays(index % 7).AddHours(9 + index);
-                var amount = 510m + (index * 40m);
-                audits.Add(CreateAudit(buyer.Id, establishment.Id, amount, $"Manager approval queue sample {index + 1:00}", date, AuditStatus.AwaitingManagerApproval, marker, staff.Id, new[]
-                {
-                    CreateDetail($"Branch verified item {index + 1:00}", 1 + (index % 4), amount / (1 + (index % 4)), establishment.Id, null, BranchVerificationStatus.Verified)
-                }));
-            }
-
-            for (var index = 0; index < 10; index++)
-            {
-                var buyer = index % 2 == 0 ? buyerOne : buyerTwo;
-                var primaryBranch = index % 2 == 0 ? ckrMain : ckrBranchTwo;
-                var secondaryBranch = index % 2 == 0 ? ckrBranchTwo : ckrMain;
-                var date = startDate.AddDays(index % 7).AddHours(13 + index);
-                var amount = 360m + (index * 45m);
-                audits.Add(CreateAudit(buyer.Id, primaryBranch.Id, amount, $"Delivery verification queue sample {index + 1:00}", date, AuditStatus.AwaitingBranchVerification, marker, null, new[]
-                {
-                    CreateDetail($"Pending primary branch item {index + 1:00}", 2, amount / 2m, primaryBranch.Id, null, BranchVerificationStatus.Pending),
-                    CreateDetail($"Pending split branch item {index + 1:00}", 1, 125m + index, secondaryBranch.Id, null, BranchVerificationStatus.Pending)
-                }));
-            }
-
-            audits.Add(CreateAudit(buyerTwo.Id, ckrBranchTwo.Id, 455m, "Rejected audit sample 02", DateTime.Today.AddHours(8), AuditStatus.Rejected, marker, staffTwo.Id, new[]
-            {
-                CreateDetail("Rejected damaged delivery", 1, 455m, ckrBranchTwo.Id, null, BranchVerificationStatus.Rejected)
-            }));
             db.AuditItems.AddRange(audits);
+            db.PcfReleases.AddRange(pcfReleases);
+            db.SurrenderRequests.AddRange(surrenderRequests);
 
-            var pcfReleaseOne = new PcfRelease
+            foreach (var release in pcfReleases.Where(release => release.Status == PcfReleaseStatus.Settled).Take(3))
             {
-                ReleasedByTreasuryUserId = owner.Id,
-                ReceiverUserId = buyerOne.Id,
-                ReceiverName = buyerOne.Name,
-                EstablishmentId = ckrMain.Id,
-                Amount = 10000m,
-                ReleaseDate = startDate,
-                Purpose = $"{marker} Weekly operating PCF for Buyer One.",
-                Status = PcfReleaseStatus.PartiallyAudited
-            };
-            var pcfReleaseTwo = new PcfRelease
-            {
-                ReleasedByTreasuryUserId = owner.Id,
-                ReceiverUserId = buyerTwo.Id,
-                ReceiverName = buyerTwo.Name,
-                EstablishmentId = ckrBranchTwo.Id,
-                Amount = 8000m,
-                ReleaseDate = startDate.AddDays(2),
-                Purpose = $"{marker} Weekly operating PCF for Buyer Two.",
-                Status = PcfReleaseStatus.Released
-            };
-            db.PcfReleases.AddRange(pcfReleaseOne, pcfReleaseTwo);
-
-            db.SurrenderRequests.AddRange(
-                new SurrenderRequest
+                var totalAcceptedExpenses = 2500m + (release.Id * 0m);
+                var settlement = new AuditSettlement
                 {
-                    BuyerId = buyerOne.Id,
-                    DeclaredAmount = 1200m,
-                    ConfirmedAmount = 1200m,
-                    Status = SurrenderStatus.Confirmed,
-                    RequestDate = startDate.AddDays(5),
-                    ActionDate = startDate.AddDays(5).AddHours(2),
-                    ActionByUserId = managerOne.Id,
-                    BuyerNotes = $"{marker} Buyer One confirmed weekly cash surrender.",
-                    ActionNotes = "Count matched declared cash."
-                },
-                new SurrenderRequest
-                {
-                    BuyerId = buyerTwo.Id,
-                    DeclaredAmount = 900m,
-                    Status = SurrenderStatus.Pending,
-                    RequestDate = DateTime.Today,
-                    BuyerNotes = $"{marker} Buyer Two pending cash surrender."
-                });
+                    PcfRelease = release,
+                    ReceiverUserId = release.ReceiverUserId,
+                    ReceiverName = $"{marker} {release.ReceiverName}",
+                    ResponsibleManagerId = release.ReceiverUserId == buyerTwo.Id ? managerTwo.Id : managerOne.Id,
+                    ProcessedByUserId = admin.Id,
+                    TotalPCReleased = release.Amount,
+                    TotalAcceptedExpenses = totalAcceptedExpenses,
+                    ActualChangeReturned = release.Amount - totalAcceptedExpenses,
+                    Status = AuditSettlementStatus.Confirmed
+                };
+                settlement.Recompute();
+                settlements.Add(settlement);
+            }
 
-            var settlement = new AuditSettlement
-            {
-                PcfRelease = pcfReleaseOne,
-                ReceiverUserId = buyerOne.Id,
-                ReceiverName = $"{marker} {buyerOne.Name}",
-                ResponsibleManagerId = managerOne.Id,
-                ProcessedByUserId = admin.Id,
-                TotalPCReleased = 10000m,
-                TotalAcceptedExpenses = 2180m,
-                ActualChangeReturned = 1200m,
-                Status = AuditSettlementStatus.Draft
-            };
-            settlement.Recompute();
-            db.AuditSettlements.Add(settlement);
-
-            db.PettyCashLedgers.AddRange(
-                new PettyCashLedger
-                {
-                    UserId = buyerOne.Id,
-                    TransactionType = LedgerTransactionType.ManagerFunding,
-                    Amount = 10000m,
-                    ResultingBalance = buyerOne.PcfBalance + 10000m,
-                    Timestamp = startDate,
-                    Notes = $"{marker} Seed PCF funding."
-                },
-                new PettyCashLedger
-                {
-                    UserId = buyerOne.Id,
-                    TransactionType = LedgerTransactionType.ExpenseDeduction,
-                    Amount = -850m,
-                    ResultingBalance = buyerOne.PcfBalance + 9150m,
-                    Timestamp = startDate.AddHours(12),
-                    Notes = $"{marker} Seed approved audit expense."
-                });
-
+            db.AuditSettlements.AddRange(settlements);
+            db.PettyCashLedgers.AddRange(ledgers);
             db.SaveChanges();
         }
 
-        private static void RemoveWeeklyDemoData(AuditDbContext db, string marker)
+        private static void RemoveThirtyDayQaData(AuditDbContext db, string marker)
         {
             var demoSettlements = db.AuditSettlements
                 .Where(s => s.ReceiverName != null && s.ReceiverName.Contains(marker))
@@ -533,7 +596,7 @@ namespace AuditCkDayo.Data
             db.TreasuryCashFlows.RemoveRange(demoCashFlows);
 
             var demoDocuments = db.DocumentRecords
-                .Where(d => d.ImageUrl.Contains("/seed/week/"))
+                .Where(d => d.ImageUrl.Contains("/seed/thirty-day/"))
                 .ToList();
             db.DocumentRecords.RemoveRange(demoDocuments);
 
@@ -549,18 +612,20 @@ namespace AuditCkDayo.Data
                 Amount = amount,
                 Description = description,
                 EntryDate = entryDate,
-                SubmittedAt = entryDate.AddHours(10),
+                SubmittedAt = entryDate.AddHours(1),
                 Status = status,
                 Notes = $"{marker} {description}.",
-                ReceiptImageUrl = $"/seed/week/audit-{entryDate:yyyyMMdd}-{Math.Abs(description.GetHashCode()):X}.png",
+                ReceiptImageUrl = $"/seed/thirty-day/audit-{entryDate:yyyyMMdd}-{Math.Abs(description.GetHashCode()):X}.png",
                 VerifiedById = verifiedById,
-                VerificationDate = verifiedById.HasValue ? entryDate.AddHours(16) : null,
+                VerificationDate = verifiedById.HasValue ? entryDate.AddHours(2) : null,
                 Details = details.ToList()
             };
         }
 
-        private static AuditItemDetail CreateDetail(string itemName, int quantity, decimal price, int? assignedEstablishmentId, int? costCenterId, BranchVerificationStatus branchVerificationStatus)
+        private static AuditItemDetail CreateDetail(string itemName, int quantity, decimal price, int? assignedEstablishmentId, int? costCenterId, BranchVerificationStatus branchVerificationStatus, PnlCategory? pnlCategory = null)
         {
+            var section = pnlCategory?.Section ?? PnlExpenseSection.Other;
+            var categoryName = pnlCategory?.Name ?? "Other";
             return new AuditItemDetail
             {
                 ItemName = itemName,
@@ -571,7 +636,11 @@ namespace AuditCkDayo.Data
                 CostCenterId = costCenterId,
                 ReceiptStatus = ReceiptLineStatus.HasReceipt,
                 BranchVerificationStatus = branchVerificationStatus,
-                AllocationNotes = "[seed:weekly-demo]"
+                AllocationNotes = "[seed:thirty-day-qa]",
+                PnlCategoryId = pnlCategory?.Id,
+                PnlCategory = pnlCategory,
+                PnlSection = section,
+                PnlCategoryName = categoryName
             };
         }
     }

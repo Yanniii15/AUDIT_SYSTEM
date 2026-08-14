@@ -23,6 +23,9 @@ namespace AuditCkDayo.Controllers
         public IActionResult Index(DateTime? date = null)
         {
             var selectedDate = date?.Date ?? DateTime.Today;
+            var currentUserIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            int currentUserId = int.TryParse(currentUserIdValue, out var id) ? id : 0;
+
             var flow = _context.TreasuryCashFlows
                 .AsNoTracking()
                 .Include(f => f.Entries)
@@ -33,12 +36,18 @@ namespace AuditCkDayo.Controllers
                     .ThenInclude(e => e.RelatedUser)
                 .Include(f => f.Entries)
                     .ThenInclude(e => e.SourceDocument)
-                .FirstOrDefault(f => f.CashFlowDate == selectedDate);
+                .FirstOrDefault(f => f.CashFlowDate == selectedDate && f.TreasuryUserId == currentUserId);
 
             if (flow == null)
             {
+                var yesterday = selectedDate.AddDays(-1);
+                var yesterdayFlow = _context.TreasuryCashFlows
+                    .AsNoTracking()
+                    .FirstOrDefault(f => f.CashFlowDate == yesterday && f.TreasuryUserId == currentUserId);
+                var startingBalance = yesterdayFlow?.ClosingBalance ?? 0m;
+
                 PopulateManualCashFlowLookups();
-                return View(new TreasuryCashFlowViewModel { SelectedDate = selectedDate });
+                return View(new TreasuryCashFlowViewModel { SelectedDate = selectedDate, StartingBalance = startingBalance });
             }
 
             flow.RecomputeTotals();
@@ -157,15 +166,21 @@ namespace AuditCkDayo.Controllers
 
             var flow = await _context.TreasuryCashFlows
                 .Include(f => f.Entries)
-                .FirstOrDefaultAsync(f => f.CashFlowDate == model.ReleaseDate);
+                .FirstOrDefaultAsync(f => f.CashFlowDate == model.ReleaseDate && f.TreasuryUserId == currentUserId);
 
             if (flow == null)
             {
+                var yesterday = model.ReleaseDate.AddDays(-1);
+                var yesterdayFlow = await _context.TreasuryCashFlows
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(f => f.CashFlowDate == yesterday && f.TreasuryUserId == currentUserId);
+                var startingBalance = yesterdayFlow?.ClosingBalance ?? 0m;
+
                 flow = new TreasuryCashFlow
                 {
                     TreasuryUserId = currentUserId,
                     CashFlowDate = model.ReleaseDate,
-                    StartingBalance = 0m,
+                    StartingBalance = startingBalance,
                     Status = TreasuryCashFlowStatus.Open
                 };
 
@@ -409,54 +424,20 @@ namespace AuditCkDayo.Controllers
                 ModelState.AddModelError(nameof(ManualCashOutViewModel.Purpose), "Purpose must be 255 characters or fewer.");
             }
 
-            if (model.SplitAcrossEstablishments)
+            if (model.Amount <= 0m)
             {
-                model.SplitRows = model.SplitRows
-                    .Where(row => row.Amount > 0m)
-                    .ToList();
-
-                if (!model.SplitRows.Any())
-                {
-                    ModelState.AddModelError(nameof(ManualCashOutViewModel.SplitRows), "Add at least one split row with an amount.");
-                }
-
-                foreach (var row in model.SplitRows)
-                {
-                    if (row.Amount <= 0m)
-                    {
-                        ModelState.AddModelError(nameof(ManualCashOutSplitViewModel.Amount), "Each split amount must be greater than zero.");
-                    }
-
-                    if (row.EstablishmentId.HasValue)
-                    {
-                        var establishmentExists = await _context.Establishments
-                            .AsNoTracking()
-                            .AnyAsync(e => e.Id == row.EstablishmentId.Value && e.IsActive);
-
-                        if (!establishmentExists)
-                        {
-                            ModelState.AddModelError(nameof(ManualCashOutSplitViewModel.EstablishmentId), "Select a valid active establishment.");
-                        }
-                    }
-                }
+                ModelState.AddModelError(nameof(ManualCashOutViewModel.Amount), "Amount must be greater than zero.");
             }
-            else
+
+            if (!model.AppliesAcrossEstablishments && model.EstablishmentId.HasValue)
             {
-                if (model.Amount <= 0m)
-                {
-                    ModelState.AddModelError(nameof(ManualCashOutViewModel.Amount), "Amount must be greater than zero.");
-                }
+                var establishmentExists = await _context.Establishments
+                    .AsNoTracking()
+                    .AnyAsync(e => e.Id == model.EstablishmentId.Value && e.IsActive);
 
-                if (model.EstablishmentId.HasValue)
+                if (!establishmentExists)
                 {
-                    var establishmentExists = await _context.Establishments
-                        .AsNoTracking()
-                        .AnyAsync(e => e.Id == model.EstablishmentId.Value && e.IsActive);
-
-                    if (!establishmentExists)
-                    {
-                        ModelState.AddModelError(nameof(ManualCashOutViewModel.EstablishmentId), "Select a valid active establishment.");
-                    }
+                    ModelState.AddModelError(nameof(ManualCashOutViewModel.EstablishmentId), "Select a valid active establishment.");
                 }
             }
 
@@ -468,37 +449,17 @@ namespace AuditCkDayo.Controllers
 
             var flow = await FindOrCreateCashFlowAsync(model.CashOutDate, currentUserId);
 
-            if (model.SplitAcrossEstablishments)
+            flow.Entries.Add(new CashFlowEntry
             {
-                foreach (var row in model.SplitRows)
-                {
-                    flow.Entries.Add(new CashFlowEntry
-                    {
-                        TreasuryCashFlow = flow,
-                        Direction = CashFlowDirection.Out,
-                        Category = model.Category,
-                        EstablishmentId = row.EstablishmentId,
-                        Amount = row.Amount,
-                        Notes = model.Purpose,
-                        CreatedByUserId = currentUserId,
-                        ConfirmedByUserId = currentUserId
-                    });
-                }
-            }
-            else
-            {
-                flow.Entries.Add(new CashFlowEntry
-                {
-                    TreasuryCashFlow = flow,
-                    Direction = CashFlowDirection.Out,
-                    Category = model.Category,
-                    EstablishmentId = model.EstablishmentId,
-                    Amount = model.Amount,
-                    Notes = model.Purpose,
-                    CreatedByUserId = currentUserId,
-                    ConfirmedByUserId = currentUserId
-                });
-            }
+                TreasuryCashFlow = flow,
+                Direction = CashFlowDirection.Out,
+                Category = model.Category,
+                EstablishmentId = model.AppliesAcrossEstablishments ? null : model.EstablishmentId,
+                Amount = model.Amount,
+                Notes = model.Purpose,
+                CreatedByUserId = currentUserId,
+                ConfirmedByUserId = currentUserId
+            });
 
             flow.RecomputeTotals();
             await _context.SaveChangesAsync();
@@ -511,7 +472,7 @@ namespace AuditCkDayo.Controllers
         {
             var flow = await _context.TreasuryCashFlows
                 .Include(f => f.Entries)
-                .FirstOrDefaultAsync(f => f.CashFlowDate == cashFlowDate);
+                .FirstOrDefaultAsync(f => f.CashFlowDate == cashFlowDate && f.TreasuryUserId == treasuryUserId);
 
             if (flow != null)
             {
@@ -521,8 +482,7 @@ namespace AuditCkDayo.Controllers
             var yesterday = cashFlowDate.AddDays(-1);
             var yesterdayFlow = await _context.TreasuryCashFlows
                 .AsNoTracking()
-                .FirstOrDefaultAsync(f => f.CashFlowDate == yesterday);
-
+                .FirstOrDefaultAsync(f => f.CashFlowDate == yesterday && f.TreasuryUserId == treasuryUserId);
             var startingBalance = yesterdayFlow?.ClosingBalance ?? 0m;
 
             flow = new TreasuryCashFlow

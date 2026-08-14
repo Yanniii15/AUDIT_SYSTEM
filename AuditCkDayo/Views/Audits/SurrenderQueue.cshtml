@@ -3,6 +3,15 @@
     ViewData["Title"] = "Surrender Approval Queue";
 }
 
+<div id="pageVoiceSummary" class="sr-only">
+    Cash surrender approvals queue. Pending requests: @Model.Count().
+    @if (Model.Any())
+    {
+        var first = Model.First();
+        <text>First request: Buyer @first.Buyer.Name, declared amount ₱@first.DeclaredAmount.ToString("N2").</text>
+    }
+</div>
+
 <!-- Header Section -->
 <div class="relative flex flex-col lg:flex-row gap-space-6 items-start justify-between mb-6">
     <div class="flex flex-col gap-space-2 max-w-2xl">

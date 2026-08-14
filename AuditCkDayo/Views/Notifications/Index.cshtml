@@ -4,6 +4,15 @@
     var unreadCount = Model.Count(n => n.ReadAt == null);
 }
 
+<div id="pageVoiceSummary" class="sr-only">
+    System notifications. Unread notifications: @Model.Count(n => n.ReadAt == null).
+    @if (Model.Any())
+    {
+        var first = Model.First();
+        <text>Newest notification: @first.Title, @first.Message.</text>
+    }
+</div>
+
 <div class="relative flex flex-col gap-space-6">
     <section class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-space-4">
         <div class="space-y-space-2 max-w-2xl">

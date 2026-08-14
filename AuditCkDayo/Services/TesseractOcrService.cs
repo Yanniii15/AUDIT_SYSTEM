@@ -12,7 +12,7 @@ namespace AuditCkDayo.Services
     public class TesseractOcrService : IOcrService
     {
         private static readonly Regex DateRegex = new Regex(@"\b(\d{4}[-/.]\d{1,2}[-/.]\d{1,2}|\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})\b");
-        private static readonly Regex DecimalRegex = new Regex(@"(?:₱|\b)?\s*\d{1,3}(?:,\d{3})*(?:\.\d{2})?|\b\d{1,6}\.\d{2}\b");
+        private static readonly Regex DecimalRegex = new Regex(@"-?\s*(?:₱|\b)?\s*\d{1,3}(?:,\d{3})*(?:\.\d+)?|\b-?\s*\d{1,6}\.\d+\b");
         private static readonly Regex ItemLineRegex = new Regex(@"^\s*(.*?)\s+(\d+)\s+(?:₱?\s*)?([\d,]+\.?\d*)\s+(?:₱?\s*)?([\d,]+\.?\d*)\s*$");
 
         public Task<OcrResult> ParseReceiptAsync(List<Stream> imageStreams)
@@ -142,8 +142,8 @@ namespace AuditCkDayo.Services
 
         private static decimal ParseMoney(string value)
         {
-            var cleaned = value.Replace("₱", "").Trim();
-            return decimal.TryParse(cleaned, NumberStyles.AllowDecimalPoint | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var parsed)
+            var cleaned = value.Replace("₱", "").Replace(" ", "").Trim();
+            return decimal.TryParse(cleaned, NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out var parsed)
                 ? parsed
                 : 0m;
         }
@@ -187,97 +187,7 @@ namespace AuditCkDayo.Services
                 if (!string.IsNullOrEmpty(text))
                 {
                     result.RawJson = System.Text.Json.JsonSerializer.Serialize(receiptResult);
-                    
-                    var lines = text.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-                    foreach (var line in lines)
-                    {
-                        var trimmed = line.Trim();
-                        var lower = trimmed.ToLower();
-
-                        // Match cashier name pattern
-                        if (lower.Contains("cashier") || lower.Contains("shift") || lower.Contains("name"))
-                        {
-                            var match = Regex.Match(trimmed, @"(?:cashier|name|shift)\s*[:=-]?\s*(.*)", RegexOptions.IgnoreCase);
-                            if (match.Success && !string.IsNullOrWhiteSpace(match.Groups[1].Value))
-                            {
-                                result.CashierName = match.Groups[1].Value.Trim();
-                            }
-                        }
-
-                        // Match cash out pattern
-                        if (lower.Contains("cash out") || lower.Contains("cashout") || lower.Contains("paid out") || lower.Contains("expenses"))
-                        {
-                            var match = DecimalRegex.Match(trimmed);
-                            if (match.Success && decimal.TryParse(match.Value, out var val))
-                            {
-                                result.CashOut = val;
-                            }
-                        }
-
-                        // Match GCash pattern
-                        if (lower.Contains("gcash") || lower.Contains("g-cash"))
-                        {
-                            var match = DecimalRegex.Match(trimmed);
-                            if (match.Success && decimal.TryParse(match.Value, out var val))
-                            {
-                                result.GCashAmount = val;
-                            }
-                        }
-
-                        // Match credit pattern
-                        if (lower.Contains("credit") || lower.Contains("receivable") || lower.Contains("charge"))
-                        {
-                            var match = DecimalRegex.Match(trimmed);
-                            if (match.Success && decimal.TryParse(match.Value, out var val))
-                            {
-                                result.CreditAmount = val;
-                            }
-                        }
-
-                        // Match BDO or card or other payments
-                        if (lower.Contains("bdo") || lower.Contains("bank") || lower.Contains("card") || lower.Contains("other"))
-                        {
-                            var match = DecimalRegex.Match(trimmed);
-                            if (match.Success && decimal.TryParse(match.Value, out var val))
-                            {
-                                result.OtherPaymentAmount = val;
-                            }
-                        }
-
-                        // Match receipt sequence numbers
-                        if (lower.Contains("receipt") || lower.Contains("inv") || lower.Contains("seq"))
-                        {
-                            var matches = Regex.Matches(trimmed, @"\b\d{3,10}\b");
-                            if (matches.Count >= 2)
-                            {
-                                result.ReceiptNumberStart = matches[0].Value;
-                                result.ReceiptNumberEnd = matches[^1].Value;
-                            }
-                        }
-
-                        // Match witness name
-                        if (lower.Contains("witness") || lower.Contains("verified by") || lower.Contains("checked by"))
-                        {
-                            var match = Regex.Match(trimmed, @"(?:witness|verified|checked)\s*[:=-]?\s*(.*)", RegexOptions.IgnoreCase);
-                            if (match.Success && !string.IsNullOrWhiteSpace(match.Groups[1].Value))
-                            {
-                                result.WitnessName = match.Groups[1].Value.Trim();
-                            }
-                        }
-
-                        // Match cash breakdown lines (e.g. 1000x5 or 1000 * 5)
-                        var denomMatch = Regex.Match(trimmed, @"\b(1000|500|200|100|50|20|10|5|1)\s*[xX*]\s*(\d+)\b");
-                        if (denomMatch.Success)
-                        {
-                            var denom = decimal.Parse(denomMatch.Groups[1].Value);
-                            var qty = int.Parse(denomMatch.Groups[2].Value);
-                            result.Denominations.Add(new DenominationOcrResult
-                            {
-                                Denomination = denom,
-                                Quantity = qty
-                            });
-                        }
-                    }
+                    ApplySalesReportText(result, text);
                 }
             }
             catch (Exception ex)
@@ -286,6 +196,142 @@ namespace AuditCkDayo.Services
             }
 
             return result;
+        }
+
+        private static void ApplySalesReportText(SalesReportOcrResult result, string text)
+        {
+            var lines = text
+                .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                .Select(line => line.Trim())
+                .Where(line => !string.IsNullOrWhiteSpace(line))
+                .ToList();
+            string? activeGroup = null;
+
+            foreach (var line in lines)
+            {
+                var normalized = line.Trim().TrimStart('•', '-', '*').Trim();
+                var lower = normalized.ToLowerInvariant();
+
+                if (result.BusinessDate == null)
+                {
+                    var dateMatch = DateRegex.Match(normalized);
+                    if (dateMatch.Success && DateTime.TryParse(dateMatch.Value, out var parsedDate))
+                    {
+                        result.BusinessDate = parsedDate;
+                    }
+                    else if (DateTime.TryParse(normalized, CultureInfo.InvariantCulture, DateTimeStyles.None, out parsedDate))
+                    {
+                        result.BusinessDate = parsedDate;
+                    }
+                }
+
+                if (lower.Contains("cashier"))
+                {
+                    var match = Regex.Match(normalized, @"cashier\s*name\s*[:=-]?\s*(.*)", RegexOptions.IgnoreCase);
+                    if (match.Success && !string.IsNullOrWhiteSpace(match.Groups[1].Value))
+                    {
+                        result.CashierName = match.Groups[1].Value.Trim();
+                    }
+                }
+
+                if (lower.Contains("daily gross sales"))
+                {
+                    result.GrossSales = FirstMoney(normalized);
+                    activeGroup = null;
+                    continue;
+                }
+
+                if (lower.Contains("cash sales") && !lower.Contains("g-cash") && !lower.Contains("gcash"))
+                {
+                    result.ConfirmedCashToHandover = FirstMoney(normalized);
+                    activeGroup = null;
+                    continue;
+                }
+
+                if (lower.Contains("pcf expenses") || lower.Contains("expenses from sales"))
+                {
+                    result.CashOut = FirstMoney(normalized);
+                    activeGroup = "expenses";
+                    continue;
+                }
+
+                if (lower.Contains("g-cash") || lower.Contains("gcash"))
+                {
+                    result.GCashAmount = FirstMoney(normalized);
+                    activeGroup = "gcash";
+                    continue;
+                }
+
+                if (lower.Contains("bank transfer") || lower.Contains("card") || lower.Contains("run-away"))
+                {
+                    result.OtherPaymentAmount += FirstMoney(normalized);
+                    activeGroup = "other";
+                    continue;
+                }
+
+                if (lower.Contains("credit"))
+                {
+                    result.CreditAmount = FirstMoney(normalized);
+                    activeGroup = "credit";
+                    continue;
+                }
+
+                if (IsSalesSectionHeader(lower))
+                {
+                    activeGroup = null;
+                    continue;
+                }
+
+                if (activeGroup == "gcash")
+                {
+                    result.GCashAmount += FirstMoney(normalized);
+                }
+                else if (activeGroup == "other")
+                {
+                    result.OtherPaymentAmount += FirstMoney(normalized);
+                }
+                else if (activeGroup == "credit")
+                {
+                    result.CreditAmount += Math.Abs(FirstMoney(normalized));
+                }
+
+                var denomMatch = Regex.Match(normalized, @"\b(1000|500|200|100|50|20|10|5|1)\s*[xX*]\s*(\d+)\b");
+                if (denomMatch.Success)
+                {
+                    result.Denominations.Add(new DenominationOcrResult
+                    {
+                        Denomination = decimal.Parse(denomMatch.Groups[1].Value, CultureInfo.InvariantCulture),
+                        Quantity = int.Parse(denomMatch.Groups[2].Value, CultureInfo.InvariantCulture)
+                    });
+                }
+            }
+        }
+
+        private static bool IsSalesSectionHeader(string lower)
+        {
+            return lower.Contains("closing gross sales")
+                || lower.Contains("food sales")
+                || lower.Contains("beer sales")
+                || lower.Contains("beverages sales")
+                || lower.Contains("hard sales")
+                || lower.Contains("other sales")
+                || lower.Contains("senior")
+                || lower.Contains("pwd")
+                || lower.Contains("loyalty card")
+                || lower.Contains("gift voucher")
+                || lower.Contains("employee")
+                || lower.Contains("eagles")
+                || lower.Contains("sales shortage")
+                || lower.Contains("sales overage")
+                || lower.Contains("resto pcf")
+                || lower.Contains("pcf from sales")
+                || lower == "change:";
+        }
+
+        private static decimal FirstMoney(string value)
+        {
+            var match = DecimalRegex.Match(value);
+            return match.Success ? Math.Abs(ParseMoney(match.Value)) : 0m;
         }
 
         private string GetTessdataPath()

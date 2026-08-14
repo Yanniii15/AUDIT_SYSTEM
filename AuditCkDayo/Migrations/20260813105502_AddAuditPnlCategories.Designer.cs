@@ -4,6 +4,7 @@ using AuditCkDayo.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace AuditCkDayo.Migrations
 {
     [DbContext(typeof(AuditDbContext))]
-    partial class AuditDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260813105502_AddAuditPnlCategories")]
+    partial class AddAuditPnlCategories
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -158,6 +161,37 @@ namespace AuditCkDayo.Migrations
                     b.HasIndex("PnlCategoryId");
 
                     b.ToTable("AuditItemDetails");
+                });
+
+            modelBuilder.Entity("AuditCkDayo.Models.PnlCategory", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Section")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Section", "Name")
+                        .IsUnique();
+
+                    b.ToTable("PnlCategories");
                 });
 
             modelBuilder.Entity("AuditCkDayo.Models.AuditItemImage", b =>
@@ -656,37 +690,6 @@ namespace AuditCkDayo.Migrations
                     b.ToTable("PettyCashLedgers");
                 });
 
-            modelBuilder.Entity("AuditCkDayo.Models.PnlCategory", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<bool>("IsActive")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("tinyint(1)")
-                        .HasDefaultValue(true);
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<string>("Section")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Section", "Name")
-                        .IsUnique();
-
-                    b.ToTable("PnlCategories");
-                });
-
             modelBuilder.Entity("AuditCkDayo.Models.SalesReport", b =>
                 {
                     b.Property<int>("Id")
@@ -695,19 +698,10 @@ namespace AuditCkDayo.Migrations
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<decimal>("BeerSales")
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<decimal>("BeverageSales")
-                        .HasColumnType("decimal(12,2)");
-
                     b.Property<DateTime>("BusinessDate")
                         .HasColumnType("datetime(6)");
 
                     b.Property<decimal>("CashOut")
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<decimal>("CashSales")
                         .HasColumnType("decimal(12,2)");
 
                     b.Property<string>("CashierName")
@@ -716,12 +710,6 @@ namespace AuditCkDayo.Migrations
 
                     b.Property<int?>("CashierUserId")
                         .HasColumnType("int");
-
-                    b.Property<decimal>("ChangeAmount")
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<decimal>("ClosingGrossSales")
-                        .HasColumnType("decimal(12,2)");
 
                     b.Property<DateTime?>("ConfirmedAt")
                         .HasColumnType("datetime(6)");
@@ -738,25 +726,10 @@ namespace AuditCkDayo.Migrations
                     b.Property<int>("DocumentRecordId")
                         .HasColumnType("int");
 
-                    b.Property<decimal>("EaglesDiscount")
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<decimal>("EmployeeFivePercentDiscount")
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<decimal>("EmployeeTenPercentDiscount")
-                        .HasColumnType("decimal(12,2)");
-
                     b.Property<int>("EstablishmentId")
                         .HasColumnType("int");
 
-                    b.Property<decimal>("FoodSales")
-                        .HasColumnType("decimal(12,2)");
-
                     b.Property<decimal>("GCashAmount")
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<decimal>("GiftVoucherDiscount")
                         .HasColumnType("decimal(12,2)");
 
                     b.Property<decimal>("GrossSales")
@@ -768,23 +741,11 @@ namespace AuditCkDayo.Migrations
                     b.Property<string>("ImageUrlsJson")
                         .HasColumnType("longtext");
 
-                    b.Property<decimal>("LoyaltyCardDiscount")
-                        .HasColumnType("decimal(12,2)");
-
                     b.Property<string>("Notes")
                         .HasMaxLength(255)
                         .HasColumnType("varchar(255)");
 
                     b.Property<decimal>("OtherPaymentAmount")
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<decimal>("OtherSales")
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<decimal>("PcfFromSales")
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<decimal>("PwdDiscount")
                         .HasColumnType("decimal(12,2)");
 
                     b.Property<string>("ReceiptNumberEnd")
@@ -794,26 +755,6 @@ namespace AuditCkDayo.Migrations
                     b.Property<string>("ReceiptNumberStart")
                         .HasMaxLength(50)
                         .HasColumnType("varchar(50)");
-
-                    b.Property<decimal>("RestoPcf")
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<decimal>("SalesOverageAmount")
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<string>("SalesOverageReason")
-                        .HasMaxLength(255)
-                        .HasColumnType("varchar(255)");
-
-                    b.Property<decimal>("SalesShortageAmount")
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<string>("SalesShortageReason")
-                        .HasMaxLength(255)
-                        .HasColumnType("varchar(255)");
-
-                    b.Property<decimal>("SeniorDiscount")
-                        .HasColumnType("decimal(12,2)");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -835,39 +776,6 @@ namespace AuditCkDayo.Migrations
                     b.HasIndex("EstablishmentId");
 
                     b.ToTable("SalesReports");
-                });
-
-            modelBuilder.Entity("AuditCkDayo.Models.SalesReportLine", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<decimal>("Amount")
-                        .HasColumnType("decimal(12,2)");
-
-                    b.Property<string>("Label")
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.Property<string>("LineType")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("varchar(50)");
-
-                    b.Property<int>("SalesReportId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("SortOrder")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SalesReportId");
-
-                    b.ToTable("SalesReportLines");
                 });
 
             modelBuilder.Entity("AuditCkDayo.Models.SurrenderRequest", b =>
@@ -1092,6 +1000,7 @@ namespace AuditCkDayo.Migrations
 
                     b.Navigation("PnlCategory");
                 });
+
 
             modelBuilder.Entity("AuditCkDayo.Models.AuditItemImage", b =>
                 {
@@ -1338,17 +1247,6 @@ namespace AuditCkDayo.Migrations
                     b.Navigation("Establishment");
                 });
 
-            modelBuilder.Entity("AuditCkDayo.Models.SalesReportLine", b =>
-                {
-                    b.HasOne("AuditCkDayo.Models.SalesReport", "SalesReport")
-                        .WithMany("Lines")
-                        .HasForeignKey("SalesReportId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("SalesReport");
-                });
-
             modelBuilder.Entity("AuditCkDayo.Models.SurrenderRequest", b =>
                 {
                     b.HasOne("AuditCkDayo.Models.User", "ActionByUser")
@@ -1417,8 +1315,6 @@ namespace AuditCkDayo.Migrations
             modelBuilder.Entity("AuditCkDayo.Models.SalesReport", b =>
                 {
                     b.Navigation("CashBreakdownLines");
-
-                    b.Navigation("Lines");
                 });
 
             modelBuilder.Entity("AuditCkDayo.Models.TreasuryCashFlow", b =>

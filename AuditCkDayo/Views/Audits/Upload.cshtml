@@ -1,3 +1,4 @@
+@model List<AuditCkDayo.ViewModels.AuditSubmissionViewModel>
 @{
     ViewData["Title"] = "Upload Receipts";
 }
@@ -12,7 +13,7 @@
         <h1 class="font-headline-lg text-headline-lg text-on-surface">Upload Receipts</h1>
         <p class="font-body-md text-on-surface-variant leading-relaxed">
             Submit a new expense to the auditing system. Upload up to 5 clear photographs or receipt images.
-            The AI engine will automatically scan and extract the items and totals.
+            Any queued audits below belong only to your current login.
         </p>
     </div>
 </div>
@@ -54,6 +55,52 @@
         </form>
     </div>
 </div>
+
+@if (Model != null && Model.Any())
+{
+    var pendingTotal = Model.Sum(a => a.Amount);
+    <section class="overflow-hidden rounded-xl border border-surface-border bg-surface-container-lowest shadow-sm my-space-6">
+        <div class="px-space-6 py-space-4 border-b border-surface-border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-space-2">
+            <div>
+                <h2 class="font-headline-sm text-headline-sm text-on-surface">Queued audits for this account</h2>
+                <p class="text-on-surface-variant text-[13px] mt-1">These processed receipts are waiting for you to submit as a batch.</p>
+            </div>
+            <span class="font-data-mono text-data-mono text-primary">@Model.Count audit(s) · ₱@pendingTotal.ToString("N2")</span>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead>
+                    <tr class="border-b border-surface-border bg-surface-container-low/50">
+                        <th class="px-space-6 py-space-3 text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant font-label-caps w-[60px]">#</th>
+                        <th class="px-space-6 py-space-3 text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant font-label-caps">Description</th>
+                        <th class="px-space-6 py-space-3 text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant font-label-caps text-center w-[120px]">Receipt files</th>
+                        <th class="px-space-6 py-space-3 text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant font-label-caps text-right w-[140px]">Amount</th>
+                        <th class="px-space-6 py-space-3 text-[11px] font-semibold uppercase tracking-wider text-on-surface-variant font-label-caps text-center w-[130px]">Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (var i = 0; i < Model.Count; i++)
+                    {
+                        <tr class="border-b border-surface-border/60">
+                            <td class="px-space-6 py-space-4 text-[13px] font-data-mono text-on-surface-variant">@(i + 1)</td>
+                            <td class="px-space-6 py-space-4 text-[14px] text-on-surface font-semibold">@Model[i].Description</td>
+                            <td class="px-space-6 py-space-4 text-center">
+                                <span class="inline-flex items-center justify-center bg-surface-container rounded-full px-2.5 py-0.5 text-[12px] font-data-mono text-on-surface-variant font-semibold min-w-[28px]">@(Model[i].ReceiptImageUrls?.Count ?? 0)</span>
+                            </td>
+                            <td class="px-space-6 py-space-4 text-right text-[14px] font-data-mono text-primary font-bold">₱@Model[i].Amount.ToString("N2")</td>
+                            <td class="px-space-6 py-space-4 text-center text-[13px] font-data-mono text-on-surface-variant">@Model[i].EntryDate.ToString("yyyy-MM-dd")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="px-space-6 py-space-4 border-t border-surface-border flex justify-end">
+            <a asp-action="BatchReview" class="rounded-lg bg-primary px-space-6 py-space-3 text-[12px] font-label-caps uppercase tracking-widest text-on-primary hover:brightness-110 transition-all">Review queued audits</a>
+        </div>
+    </section>
+}
 
 <script>
     const dropZone = document.getElementById('drop-zone');

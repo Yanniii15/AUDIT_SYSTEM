@@ -9,7 +9,7 @@ using AuditCkDayo.ViewModels;
 
 namespace AuditCkDayo.Controllers;
 
-[Authorize]
+[Authorize(Roles = "Owner,Manager")]
 public class ReportsController : Controller
 {
     private readonly AuditDbContext _context;
@@ -77,6 +77,13 @@ public class ReportsController : Controller
             .Take(20)
             .ToListAsync();
 
+        var pnlAudits = await auditQuery
+            .Include(a => a.Details)
+            .ThenInclude(detail => detail.AssignedEstablishment)
+            .Include(a => a.Establishment)
+            .ToListAsync();
+        var pnlSalesReports = await salesReportQuery.ToListAsync();
+
         var model = new ReportsViewModel
         {
             Filter = filter,
@@ -111,7 +118,13 @@ public class ReportsController : Controller
                 treasuryCashFlows,
                 filter.TreasuryHandlerId,
                 filter.StartDate ?? treasuryCashFlows.Select(flow => flow.CashFlowDate.Date).DefaultIfEmpty(DateTime.Today).Min(),
-                filter.EndDate ?? treasuryCashFlows.Select(flow => flow.CashFlowDate.Date).DefaultIfEmpty(DateTime.Today).Max())
+                filter.EndDate ?? treasuryCashFlows.Select(flow => flow.CashFlowDate.Date).DefaultIfEmpty(DateTime.Today).Max()),
+            PnlReport = PnlReportViewModel.Build(
+                pnlAudits,
+                pnlSalesReports,
+                filter.StartDate ?? new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1),
+                filter.EndDate ?? DateTime.Today,
+                filter.EstablishmentId)
         };
 
         model.StatusSummaries = allAuditsForSummary

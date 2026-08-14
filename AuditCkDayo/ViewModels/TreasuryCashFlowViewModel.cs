@@ -54,16 +54,7 @@ namespace AuditCkDayo.ViewModels
         [MaxLength(255)]
         public string? Purpose { get; set; }
 
-        public bool SplitAcrossEstablishments { get; set; }
-
-        public List<ManualCashOutSplitViewModel> SplitRows { get; set; } = new();
+        public bool AppliesAcrossEstablishments { get; set; }
     }
 
-    public class ManualCashOutSplitViewModel
-    {
-        public int? EstablishmentId { get; set; }
-
-        [Range(0.01, double.MaxValue, ErrorMessage = "Amount must be greater than zero.")]
-        public decimal Amount { get; set; }
-    }
 }

@@ -33,12 +33,26 @@ namespace AuditCkDayo.Controllers
                 return RedirectToAction(nameof(Upload));
             }
 
-            var pendingReports = await _context.SalesReports
+            var query = _context.SalesReports
                 .AsNoTracking()
                 .Include(r => r.DocumentRecord)
                 .Include(r => r.Establishment)
                 .Where(r => r.Status == SalesReportStatus.PendingManagerVerification
-                    || r.DocumentRecord.ReviewStatus == DocumentReviewStatus.PendingManagerVerification)
+                    || r.DocumentRecord.ReviewStatus == DocumentReviewStatus.PendingManagerVerification);
+
+            var currentRole = User.FindFirstValue(ClaimTypes.Role);
+            var currentUserId = GetCurrentUserId();
+
+            if (string.Equals(currentRole, UserRole.Manager.ToString(), StringComparison.OrdinalIgnoreCase) && currentUserId.HasValue)
+            {
+                query = query.Where(r => _context.Users
+                    .Any(u => !u.IsDeleted
+                        && u.Role == UserRole.BranchStaff
+                        && u.ManagerId == currentUserId.Value
+                        && u.EstablishmentId == r.EstablishmentId));
+            }
+
+            var pendingReports = await query
                 .OrderBy(r => r.HandoverDate)
                 .ThenBy(r => r.Establishment.Name)
                 .ThenBy(r => r.Id)
@@ -66,7 +80,7 @@ namespace AuditCkDayo.Controllers
 
             await PopulateEstablishments(establishmentId);
 
-            if (await CurrentBranchStaffCannotAccessAsync(establishmentId))
+            if (await CurrentUserCannotAccessAsync(establishmentId))
             {
                 return Forbid();
             }
@@ -214,6 +228,7 @@ namespace AuditCkDayo.Controllers
                 .AsNoTracking()
                 .Include(r => r.DocumentRecord)
                 .Include(r => r.CashBreakdownLines)
+                .Include(r => r.Lines)
                 .FirstOrDefaultAsync(r => r.Id == id);
 
             if (report == null)
@@ -221,7 +236,7 @@ namespace AuditCkDayo.Controllers
                 return NotFound();
             }
 
-            if (await CurrentBranchStaffCannotAccessAsync(report.EstablishmentId))
+            if (await CurrentUserCannotAccessAsync(report.EstablishmentId))
             {
                 return Forbid();
             }
@@ -242,6 +257,7 @@ namespace AuditCkDayo.Controllers
             var report = await _context.SalesReports
                 .Include(r => r.DocumentRecord)
                 .Include(r => r.CashBreakdownLines)
+                .Include(r => r.Lines)
                 .FirstOrDefaultAsync(r => r.Id == model.SalesReportId.Value && r.DocumentRecordId == model.DocumentRecordId);
 
             if (report == null)
@@ -249,7 +265,7 @@ namespace AuditCkDayo.Controllers
                 return NotFound();
             }
 
-            if (await CurrentBranchStaffCannotAccessAsync(report.EstablishmentId) || await CurrentBranchStaffCannotAccessAsync(model.EstablishmentId))
+            if (await CurrentUserCannotAccessAsync(report.EstablishmentId) || await CurrentUserCannotAccessAsync(model.EstablishmentId))
             {
                 return Forbid();
             }
@@ -298,6 +314,113 @@ namespace AuditCkDayo.Controllers
                 }
             }
 
+            _context.SalesReportLines.RemoveRange(report.Lines);
+            report.Lines.Clear();
+
+            int sortOrder = 0;
+            if (model.GCashLines != null)
+            {
+                foreach (var line in model.GCashLines)
+                {
+                    if (line.Amount > 0m || !string.IsNullOrWhiteSpace(line.Label))
+                    {
+                        report.Lines.Add(new SalesReportLine
+                        {
+                            LineType = SalesReportLineType.GCash,
+                            Amount = line.Amount,
+                            Label = line.Label,
+                            SortOrder = sortOrder++
+                        });
+                    }
+                }
+            }
+
+            if (model.BankTransferLines != null)
+            {
+                foreach (var line in model.BankTransferLines)
+                {
+                    if (line.Amount > 0m || !string.IsNullOrWhiteSpace(line.Label))
+                    {
+                        report.Lines.Add(new SalesReportLine
+                        {
+                            LineType = SalesReportLineType.BankTransfer,
+                            Amount = line.Amount,
+                            Label = line.Label,
+                            SortOrder = sortOrder++
+                        });
+                    }
+                }
+            }
+
+            if (model.CardLines != null)
+            {
+                foreach (var line in model.CardLines)
+                {
+                    if (line.Amount > 0m || !string.IsNullOrWhiteSpace(line.Label))
+                    {
+                        report.Lines.Add(new SalesReportLine
+                        {
+                            LineType = SalesReportLineType.Card,
+                            Amount = line.Amount,
+                            Label = line.Label,
+                            SortOrder = sortOrder++
+                        });
+                    }
+                }
+            }
+
+            if (model.CreditLines != null)
+            {
+                foreach (var line in model.CreditLines)
+                {
+                    if (line.Amount > 0m || !string.IsNullOrWhiteSpace(line.Label))
+                    {
+                        report.Lines.Add(new SalesReportLine
+                        {
+                            LineType = SalesReportLineType.Credit,
+                            Amount = line.Amount,
+                            Label = line.Label,
+                            SortOrder = sortOrder++
+                        });
+                    }
+                }
+            }
+
+            if (model.RunawayCustomerLines != null)
+            {
+                foreach (var line in model.RunawayCustomerLines)
+                {
+                    if (line.Amount > 0m || !string.IsNullOrWhiteSpace(line.Label))
+                    {
+                        report.Lines.Add(new SalesReportLine
+                        {
+                            LineType = SalesReportLineType.RunawayCustomer,
+                            Amount = line.Amount,
+                            Label = line.Label,
+                            SortOrder = sortOrder++
+                        });
+                    }
+                }
+            }
+
+            if (model.ExpenseFromSalesLines != null)
+            {
+                foreach (var line in model.ExpenseFromSalesLines)
+                {
+                    if (line.Amount > 0m || !string.IsNullOrWhiteSpace(line.Label))
+                    {
+                        report.Lines.Add(new SalesReportLine
+                        {
+                            LineType = SalesReportLineType.ExpenseFromSales,
+                            Amount = line.Amount,
+                            Label = line.Label,
+                            SortOrder = sortOrder++
+                        });
+                    }
+                }
+            }
+
+
             if (isConfirmAction)
             {
                 var currentUserId = GetCurrentUserId();
@@ -314,6 +437,7 @@ namespace AuditCkDayo.Controllers
                 report.DocumentRecord.ConfirmedAt = DateTime.UtcNow;
 
                 await PostConfirmedSalesReportToTreasuryAsync(report, currentUserId.Value);
+                await NotifyUploaderOfShortOverAsync(report);
 
                 TempData["Message"] = "Sales report confirmed and posted to treasury cash-in.";
             }
@@ -368,7 +492,7 @@ namespace AuditCkDayo.Controllers
                 return NotFound();
             }
 
-            if (CurrentBranchStaffCannotAccess(report.EstablishmentId))
+            if (CurrentUserCannotAccess(report.EstablishmentId))
             {
                 return Forbid();
             }
@@ -387,15 +511,21 @@ namespace AuditCkDayo.Controllers
             var handoverDate = report.HandoverDate.Date;
             var flow = await _context.TreasuryCashFlows
                 .Include(f => f.Entries)
-                .FirstOrDefaultAsync(f => f.CashFlowDate == handoverDate);
+                .FirstOrDefaultAsync(f => f.CashFlowDate == handoverDate && f.TreasuryUserId == currentUserId);
 
             if (flow == null)
             {
+                var yesterday = handoverDate.AddDays(-1);
+                var yesterdayFlow = await _context.TreasuryCashFlows
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(f => f.CashFlowDate == yesterday && f.TreasuryUserId == currentUserId);
+                var startingBalance = yesterdayFlow?.ClosingBalance ?? 0m;
+
                 flow = new TreasuryCashFlow
                 {
                     TreasuryUserId = currentUserId,
                     CashFlowDate = handoverDate,
-                    StartingBalance = 0m,
+                    StartingBalance = startingBalance,
                     Status = TreasuryCashFlowStatus.Open
                 };
 
@@ -446,9 +576,51 @@ namespace AuditCkDayo.Controllers
             flow.RecomputeTotals();
         }
 
+        private async Task NotifyUploaderOfShortOverAsync(SalesReport report)
+        {
+            var expectedCashToHandover = report.GrossSales - report.GCashAmount - report.CreditAmount - report.OtherPaymentAmount;
+            var shortOverAmount = report.ConfirmedCashToHandover - expectedCashToHandover;
+            if (shortOverAmount == 0m)
+            {
+                return;
+            }
+
+            var recipientIds = await _context.Users
+                .AsNoTracking()
+                .Where(u => !u.IsDeleted
+                    && u.Role == UserRole.BranchStaff
+                    && u.EstablishmentId == report.EstablishmentId)
+                .Select(u => u.Id)
+                .ToListAsync();
+            if (recipientIds.Count == 0)
+            {
+                recipientIds.Add(report.DocumentRecord.UploadedByUserId);
+            }
+            var branchName = await _context.Establishments
+                .AsNoTracking()
+                .Where(e => e.Id == report.EstablishmentId)
+                .Select(e => e.Name)
+                .FirstOrDefaultAsync() ?? "the branch";
+            var varianceLabel = shortOverAmount < 0m ? "SHORT" : "OVER";
+            var varianceAmount = Math.Abs(shortOverAmount);
+
+            foreach (var recipientId in recipientIds.Distinct())
+            {
+                _context.Notifications.Add(new Notification
+                {
+                    UserId = recipientId,
+                    Title = "Daily Sales Short/Over Notice",
+                    Message = $"{branchName} daily sales for {report.BusinessDate:yyyy-MM-dd} was confirmed with {varianceLabel} ₱{varianceAmount:N2}. Expected cash: ₱{expectedCashToHandover:N2}; counted cash: ₱{report.ConfirmedCashToHandover:N2}.",
+                    Category = "SalesReportShortOver",
+                    LinkUrl = Url?.Action("Review", "SalesReports", new { id = report.Id }) ?? $"/SalesReports/Review/{report.Id}",
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
+        }
+
         private static SalesReportReviewViewModel ToReviewModel(SalesReport report)
         {
-            return new SalesReportReviewViewModel
+            var model = new SalesReportReviewViewModel
             {
                 SalesReportId = report.Id,
                 DocumentRecordId = report.DocumentRecordId,
@@ -462,6 +634,28 @@ namespace AuditCkDayo.Controllers
                 GCashAmount = report.GCashAmount,
                 CreditAmount = report.CreditAmount,
                 OtherPaymentAmount = report.OtherPaymentAmount,
+
+                ClosingGrossSales = report.ClosingGrossSales,
+                FoodSales = report.FoodSales,
+                BeerSales = report.BeerSales,
+                BeverageSales = report.BeverageSales,
+                OtherSales = report.OtherSales,
+                CashSales = report.CashSales,
+                SeniorDiscount = report.SeniorDiscount,
+                PwdDiscount = report.PwdDiscount,
+                LoyaltyCardDiscount = report.LoyaltyCardDiscount,
+                GiftVoucherDiscount = report.GiftVoucherDiscount,
+                EmployeeTenPercentDiscount = report.EmployeeTenPercentDiscount,
+                EmployeeFivePercentDiscount = report.EmployeeFivePercentDiscount,
+                EaglesDiscount = report.EaglesDiscount,
+                SalesShortageAmount = report.SalesShortageAmount,
+                SalesShortageReason = report.SalesShortageReason,
+                SalesOverageAmount = report.SalesOverageAmount,
+                SalesOverageReason = report.SalesOverageReason,
+                RestoPcf = report.RestoPcf,
+                PcfFromSales = report.PcfFromSales,
+                ChangeAmount = report.ChangeAmount,
+
                 ReceiptNumberStart = report.ReceiptNumberStart,
                 ReceiptNumberEnd = report.ReceiptNumberEnd,
                 WitnessName = report.WitnessName,
@@ -469,8 +663,47 @@ namespace AuditCkDayo.Controllers
                 ImageUrl = report.DocumentRecord?.ImageUrl ?? string.Empty,
                 ImageUrls = report.ImageUrls,
                 Status = report.Status,
-                ReviewStatus = report.DocumentRecord?.ReviewStatus ?? DocumentReviewStatus.Draft
+                ReviewStatus = report.DocumentRecord?.ReviewStatus ?? DocumentReviewStatus.Draft,
             };
+
+            if (report.Lines != null)
+            {
+                foreach (var line in report.Lines)
+                {
+                    var lineVm = new SalesReportLineViewModel
+                    {
+                        Id = line.Id,
+                        LineType = line.LineType,
+                        Amount = line.Amount,
+                        Label = line.Label,
+                        SortOrder = line.SortOrder
+                    };
+
+                    switch (line.LineType)
+                    {
+                        case SalesReportLineType.GCash:
+                            model.GCashLines.Add(lineVm);
+                            break;
+                        case SalesReportLineType.BankTransfer:
+                            model.BankTransferLines.Add(lineVm);
+                            break;
+                        case SalesReportLineType.Card:
+                            model.CardLines.Add(lineVm);
+                            break;
+                        case SalesReportLineType.Credit:
+                            model.CreditLines.Add(lineVm);
+                            break;
+                        case SalesReportLineType.RunawayCustomer:
+                            model.RunawayCustomerLines.Add(lineVm);
+                            break;
+                        case SalesReportLineType.ExpenseFromSales:
+                            model.ExpenseFromSalesLines.Add(lineVm);
+                            break;
+                    }
+                }
+            }
+
+            return model;
         }
 
         private SalesReportReviewViewModel BuildReviewModel(SalesReport report)
@@ -496,11 +729,37 @@ namespace AuditCkDayo.Controllers
             report.BusinessDate = model.BusinessDate.Date;
             report.HandoverDate = model.HandoverDate.Date;
             report.GrossSales = model.GrossSales;
-            report.CashOut = model.CashOut;
+
+            report.ClosingGrossSales = model.ClosingGrossSales;
+            report.FoodSales = model.FoodSales;
+            report.BeerSales = model.BeerSales;
+            report.BeverageSales = model.BeverageSales;
+            report.OtherSales = model.OtherSales;
+            report.CashSales = model.CashSales;
+            report.SeniorDiscount = model.SeniorDiscount;
+            report.PwdDiscount = model.PwdDiscount;
+            report.LoyaltyCardDiscount = model.LoyaltyCardDiscount;
+            report.GiftVoucherDiscount = model.GiftVoucherDiscount;
+            report.EmployeeTenPercentDiscount = model.EmployeeTenPercentDiscount;
+            report.EmployeeFivePercentDiscount = model.EmployeeFivePercentDiscount;
+            report.EaglesDiscount = model.EaglesDiscount;
+            report.SalesShortageAmount = model.SalesShortageAmount;
+            report.SalesShortageReason = model.SalesShortageReason;
+            report.SalesOverageAmount = model.SalesOverageAmount;
+            report.SalesOverageReason = model.SalesOverageReason;
+            report.RestoPcf = model.RestoPcf;
+            report.PcfFromSales = model.PcfFromSales;
+            report.ChangeAmount = model.ChangeAmount;
+
+            report.GCashAmount = model.TotalGCash;
+            report.CreditAmount = model.TotalCredit;
+
+            decimal otherPayments = model.TotalBankTransfer + model.TotalCard + model.TotalRunawayCustomer + model.OtherSales;
+            report.OtherPaymentAmount = otherPayments > 0m ? otherPayments : model.OtherPaymentAmount;
+
+            report.CashOut = model.TotalExpensesFromSales > 0m ? model.TotalExpensesFromSales : model.CashOut;
+
             report.ConfirmedCashToHandover = model.ConfirmedCashToHandover;
-            report.GCashAmount = model.GCashAmount;
-            report.CreditAmount = model.CreditAmount;
-            report.OtherPaymentAmount = model.OtherPaymentAmount;
             report.ReceiptNumberStart = model.ReceiptNumberStart;
             report.ReceiptNumberEnd = model.ReceiptNumberEnd;
             report.WitnessName = model.WitnessName;
@@ -603,6 +862,74 @@ namespace AuditCkDayo.Controllers
                 .ToListAsync();
 
             ViewBag.Establishments = new SelectList(establishments, "Id", "Name", selectedId);
+        }
+
+        private async Task<bool> CurrentUserCannotAccessAsync(int establishmentId)
+        {
+            if (await CurrentBranchStaffCannotAccessAsync(establishmentId))
+            {
+                return true;
+            }
+            if (await CurrentManagerCannotAccessAsync(establishmentId))
+            {
+                return true;
+            }
+            return false;
+        }
+
+        private bool CurrentUserCannotAccess(int establishmentId)
+        {
+            if (CurrentBranchStaffCannotAccess(establishmentId))
+            {
+                return true;
+            }
+            if (CurrentManagerCannotAccess(establishmentId))
+            {
+                return true;
+            }
+            return false;
+        }
+
+        private async Task<bool> CurrentManagerCannotAccessAsync(int establishmentId)
+        {
+            var currentRole = User.FindFirstValue(ClaimTypes.Role);
+            if (!string.Equals(currentRole, UserRole.Manager.ToString(), StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            var currentUserId = GetCurrentUserId();
+            if (!currentUserId.HasValue)
+            {
+                return true;
+            }
+
+            return !await _context.Users
+                .AnyAsync(u => !u.IsDeleted
+                    && u.Role == UserRole.BranchStaff
+                    && u.EstablishmentId == establishmentId
+                    && (u.ManagerId == currentUserId.Value || u.ManagerId == null));
+        }
+
+        private bool CurrentManagerCannotAccess(int establishmentId)
+        {
+            var currentRole = User.FindFirstValue(ClaimTypes.Role);
+            if (!string.Equals(currentRole, UserRole.Manager.ToString(), StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            var currentUserId = GetCurrentUserId();
+            if (!currentUserId.HasValue)
+            {
+                return true;
+            }
+
+            return !_context.Users
+                .Any(u => !u.IsDeleted
+                    && u.Role == UserRole.BranchStaff
+                    && u.EstablishmentId == establishmentId
+                    && (u.ManagerId == currentUserId.Value || u.ManagerId == null));
         }
 
         private static string GetUploadsFolder()

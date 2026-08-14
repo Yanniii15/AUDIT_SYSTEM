@@ -35,7 +35,7 @@ namespace AuditCkDayo.Controllers
         [Authorize(Roles = "Buyer,Owner,Manager,BranchStaff,Admin")]
         public IActionResult Upload()
         {
-            return View();
+            return View(GetPendingAuditDrafts());
         }
 
         [HttpPost]
@@ -287,6 +287,9 @@ namespace AuditCkDayo.Controllers
                             }
                         }
 
+                        var pnlCategory = User.IsInRole("BranchStaff")
+                            ? await ResolvePnlCategoryAsync(item.PnlCategoryId)
+                            : null;
                         var detail = new AuditItemDetail
                         {
                             ItemName = itemName,
@@ -296,7 +299,10 @@ namespace AuditCkDayo.Controllers
                             AssignedEstablishmentId = assignedBranchId,
                             CostCenterId = costCenterId,
                             BranchVerificationStatus = routesDirectlyToManager ? BranchVerificationStatus.Verified : BranchVerificationStatus.Pending,
-                            AllocationNotes = item.AllocationNotes
+                            AllocationNotes = item.AllocationNotes,
+                            PnlCategoryId = pnlCategory?.Id,
+                            PnlSection = pnlCategory?.Section ?? ResolveFallbackPnlSection(item),
+                            PnlCategoryName = pnlCategory?.Name ?? NormalizePnlFallbackName(ResolveFallbackPnlSection(item))
                         };
                         auditItem.Details.Add(detail);
                     }
@@ -430,6 +436,70 @@ namespace AuditCkDayo.Controllers
         [HttpPost]
         [Authorize(Roles = "Buyer,Owner,Manager,BranchStaff,Admin")]
         [ValidateAntiForgeryToken]
+        public IActionResult UpdateAuditDraft(int index, string description, decimal amount, string entryDate, string? notes)
+        {
+            var drafts = GetPendingAuditDrafts();
+            if (index < 0 || index >= drafts.Count)
+            {
+                return Json(new { success = false, message = "Invalid draft index." });
+            }
+
+            drafts[index].Description = description ?? drafts[index].Description;
+            drafts[index].Amount = amount;
+            if (DateTime.TryParse(entryDate, out var parsedDate))
+            {
+                drafts[index].EntryDate = parsedDate;
+            }
+            drafts[index].Notes = notes;
+
+            // Recalculate amount from items if items exist
+            if (drafts[index].Items != null && drafts[index].Items.Count > 0)
+            {
+                drafts[index].Amount = drafts[index].Items.Sum(item => item.Quantity * item.Price);
+            }
+
+            SavePendingAuditDrafts(drafts);
+            return Json(new { success = true, newAmount = drafts[index].Amount });
+        }
+
+        [HttpPost]
+        [Authorize(Roles = "Buyer,Owner,Manager,BranchStaff,Admin")]
+        [ValidateAntiForgeryToken]
+        public IActionResult UpdateAuditDraftItems(int index, [FromBody] List<AuditCkDayo.Services.OcrItemResult> items)
+        {
+            var drafts = GetPendingAuditDrafts();
+            if (index < 0 || index >= drafts.Count)
+            {
+                return Json(new { success = false, message = "Invalid draft index." });
+            }
+
+            drafts[index].Items = items ?? new List<AuditCkDayo.Services.OcrItemResult>();
+            drafts[index].Amount = drafts[index].Items.Sum(item => item.Quantity * item.Price);
+
+            SavePendingAuditDrafts(drafts);
+            return Json(new { success = true, newAmount = drafts[index].Amount });
+        }
+
+        [HttpPost]
+        [Authorize(Roles = "Buyer,Owner,Manager,BranchStaff,Admin")]
+        [ValidateAntiForgeryToken]
+        public IActionResult RemoveAuditDraft(int index)
+        {
+            var drafts = GetPendingAuditDrafts();
+            if (index < 0 || index >= drafts.Count)
+            {
+                TempData["Error"] = "Invalid draft to remove.";
+                return RedirectToAction(nameof(BatchReview));
+            }
+
+            drafts.RemoveAt(index);
+            SavePendingAuditDrafts(drafts);
+            return RedirectToAction(nameof(BatchReview));
+        }
+
+        [HttpPost]
+        [Authorize(Roles = "Buyer,Owner,Manager,BranchStaff,Admin")]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> SubmitAuditBatch()
         {
             var buyerIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -502,6 +572,9 @@ namespace AuditCkDayo.Controllers
                             ? int.Parse(item.CombinedDestinationId.Replace("branch-", ""))
                             : (int?)null;
 
+                        var pnlCategory = User.IsInRole("BranchStaff")
+                            ? await ResolvePnlCategoryAsync(item.PnlCategoryId)
+                            : null;
                         auditItem.Details.Add(new AuditItemDetail
                         {
                             ItemName = string.IsNullOrWhiteSpace(item.Name) ? "Unknown Item" : item.Name,
@@ -510,7 +583,10 @@ namespace AuditCkDayo.Controllers
                             Total = item.Total,
                             AssignedEstablishmentId = assignedBranchId,
                             BranchVerificationStatus = routesDirectlyToManager ? BranchVerificationStatus.Verified : BranchVerificationStatus.Pending,
-                            AllocationNotes = item.AllocationNotes
+                            AllocationNotes = item.AllocationNotes,
+                            PnlCategoryId = pnlCategory?.Id,
+                            PnlSection = pnlCategory?.Section ?? ResolveFallbackPnlSection(item),
+                            PnlCategoryName = pnlCategory?.Name ?? NormalizePnlFallbackName(ResolveFallbackPnlSection(item))
                         });
                     }
 
@@ -563,7 +639,7 @@ namespace AuditCkDayo.Controllers
                 throw;
             }
 
-            HttpContext.Session.Remove(PendingAuditDraftsSessionKey);
+            HttpContext.Session.Remove(GetPendingAuditDraftsSessionKey());
             ClearCurrentUploadSession();
             return RedirectToAction("Index", "Home");
         }
@@ -890,6 +966,7 @@ namespace AuditCkDayo.Controllers
                 .Include(a => a.Establishment)
                 .Include(a => a.Images)
                 .Include(a => a.Details)
+                .ThenInclude(d => d.PnlCategory)
                 .FirstOrDefaultAsync(a => a.Id == id);
 
             if (audit == null)
@@ -946,7 +1023,10 @@ namespace AuditCkDayo.Controllers
                     CostCenterId = d.CostCenterId,
                     CombinedDestinationId = d.AssignedEstablishmentId.HasValue ? $"branch-{d.AssignedEstablishmentId.Value}" :
                         (d.CostCenterId.HasValue ? $"cc-{d.CostCenterId.Value}" : null),
-                    AllocationNotes = d.AllocationNotes
+                    AllocationNotes = d.AllocationNotes,
+                    PnlCategoryId = d.PnlCategoryId ?? (d.PnlSection == PnlExpenseSection.COGS ? -1 : -2),
+                    PnlSection = d.PnlCategory?.Section ?? d.PnlSection,
+                    PnlCategoryName = d.PnlCategory?.Name ?? d.PnlCategoryName
                 }).ToList()
             };
 
@@ -1046,7 +1126,7 @@ namespace AuditCkDayo.Controllers
                 var existingDetails = audit.Details.ToList();
                 _context.AuditItemDetails.RemoveRange(existingDetails);
                 audit.Details.Clear();
-                AddAuditDetailsFromModel(audit, model);
+                await AddAuditDetailsFromModelAsync(audit, model);
 
                 var existingImages = audit.Images.ToList();
                 _context.AuditItemImages.RemoveRange(existingImages);
@@ -1199,6 +1279,20 @@ namespace AuditCkDayo.Controllers
                         return File(fileBytes, GetMimeType(filePath));
                     }
                 }
+
+                // Also check current user's pending audit drafts stored in session (for BatchReview page)
+                var pendingDrafts = GetPendingAuditDrafts();
+                if (pendingDrafts.Any(d =>
+                    (!string.IsNullOrEmpty(d.ReceiptImageUrl) && d.ReceiptImageUrl.Contains(safeFilename)) ||
+                    (d.ReceiptImageUrls != null && d.ReceiptImageUrls.Any(u => u.Contains(safeFilename)))))
+                {
+                    if (currentUserRole is "Owner" or "Buyer" or "Manager" or "BranchStaff" or "Admin")
+                    {
+                        var fileBytes = await System.IO.File.ReadAllBytesAsync(filePath);
+                        return File(fileBytes, GetMimeType(filePath));
+                    }
+                }
+
                 return Forbid();
             }
 
@@ -1278,7 +1372,7 @@ namespace AuditCkDayo.Controllers
         [HttpPost]
         [Authorize(Roles = "Buyer,Owner,Manager,BranchStaff,Admin")]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> SubmitSurrender(decimal amount, string notes, int? assignedReceiverId = null)
+        public async Task<IActionResult> SubmitSurrender(decimal amount, string? notes, int? assignedReceiverId = null)
         {
             var buyerIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (string.IsNullOrEmpty(buyerIdString) || !int.TryParse(buyerIdString, out var buyerId))
@@ -1292,6 +1386,9 @@ namespace AuditCkDayo.Controllers
                 return NotFound("Buyer not found.");
             }
 
+            ModelState.Remove(nameof(notes));
+            ModelState.Remove(nameof(SurrenderRequest.BuyerNotes));
+
             var selectedReceiverId = await ResolvePrivilegedReviewerIdAsync(assignedReceiverId, buyer.Role, "assignedReceiverId");
 
             var reserved = await _context.SurrenderRequests
@@ -1300,9 +1397,14 @@ namespace AuditCkDayo.Controllers
 
             var availableBalance = Math.Max(buyer.PcfBalance - reserved, 0m);
 
-            if (amount <= 0 || amount > availableBalance || !ModelState.IsValid)
+            var invalidAmount = amount <= 0 || amount > availableBalance;
+            if (invalidAmount)
             {
                 ModelState.AddModelError("", "Invalid surrender amount. Amount must be greater than zero and cannot exceed available balance.");
+            }
+
+            if (invalidAmount || !ModelState.IsValid)
+            {
                 await PopulateSurrenderLookupsAsync(buyer.PcfBalance, reserved, availableBalance);
 
                 var requests = await _context.SurrenderRequests
@@ -1559,9 +1661,17 @@ namespace AuditCkDayo.Controllers
             return RedirectToAction(nameof(Surrender));
         }
 
+        private string GetPendingAuditDraftsSessionKey()
+        {
+            var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            return string.IsNullOrWhiteSpace(userId)
+                ? PendingAuditDraftsSessionKey
+                : $"{PendingAuditDraftsSessionKey}:{userId}";
+        }
+
         private List<AuditSubmissionViewModel> GetPendingAuditDrafts()
         {
-            var json = HttpContext.Session.GetString(PendingAuditDraftsSessionKey);
+            var json = HttpContext.Session.GetString(GetPendingAuditDraftsSessionKey());
             return string.IsNullOrEmpty(json)
                 ? new List<AuditSubmissionViewModel>()
                 : System.Text.Json.JsonSerializer.Deserialize<List<AuditSubmissionViewModel>>(json) ?? new List<AuditSubmissionViewModel>();
@@ -1569,7 +1679,7 @@ namespace AuditCkDayo.Controllers
 
         private void SavePendingAuditDrafts(List<AuditSubmissionViewModel> drafts)
         {
-            HttpContext.Session.SetString(PendingAuditDraftsSessionKey, System.Text.Json.JsonSerializer.Serialize(drafts));
+            HttpContext.Session.SetString(GetPendingAuditDraftsSessionKey(), System.Text.Json.JsonSerializer.Serialize(drafts));
         }
 
         private void ClearCurrentUploadSession()
@@ -1627,7 +1737,7 @@ namespace AuditCkDayo.Controllers
                 || role == "Admin";
         }
 
-        private static void AddAuditDetailsFromModel(AuditItem audit, AuditSubmissionViewModel model)
+        private async Task AddAuditDetailsFromModelAsync(AuditItem audit, AuditSubmissionViewModel model)
         {
             if (model.Items == null)
             {
@@ -1652,6 +1762,9 @@ namespace AuditCkDayo.Controllers
                     }
                 }
 
+                var pnlCategory = User.IsInRole("BranchStaff")
+                    ? await ResolvePnlCategoryAsync(item.PnlCategoryId)
+                    : null;
                 audit.Details.Add(new AuditItemDetail
                 {
                     ItemName = itemName,
@@ -1660,7 +1773,10 @@ namespace AuditCkDayo.Controllers
                     Total = item.Total,
                     AssignedEstablishmentId = assignedBranchId,
                     CostCenterId = costCenterId,
-                    AllocationNotes = item.AllocationNotes
+                    AllocationNotes = item.AllocationNotes,
+                    PnlCategoryId = pnlCategory?.Id,
+                    PnlSection = pnlCategory?.Section ?? ResolveFallbackPnlSection(item),
+                    PnlCategoryName = pnlCategory?.Name ?? NormalizePnlFallbackName(ResolveFallbackPnlSection(item))
                 });
             }
         }
@@ -1731,6 +1847,24 @@ namespace AuditCkDayo.Controllers
 
             ViewBag.ReviewerUsers = new SelectList(reviewers, "Id", "Name");
         }
+
+        private async Task<PnlCategory?> ResolvePnlCategoryAsync(int? categoryId)
+        {
+            return categoryId.HasValue && categoryId.Value > 0
+                ? await _context.PnlCategories.FirstOrDefaultAsync(category => category.Id == categoryId.Value && category.IsActive)
+                : null;
+        }
+
+        private static PnlExpenseSection ResolveFallbackPnlSection(OcrItemResult item)
+        {
+            return item.PnlCategoryId == -1 ? PnlExpenseSection.COGS : PnlExpenseSection.OPEX;
+        }
+
+        private static string NormalizePnlFallbackName(PnlExpenseSection section)
+        {
+            return section == PnlExpenseSection.COGS ? "Other - COGS" : "Other - OPEX";
+        }
+
         private async Task PopulateReviewLookupsAsync()
         {
             var establishments = await _context.Establishments.ToListAsync();
@@ -1754,6 +1888,25 @@ namespace AuditCkDayo.Controllers
             });
 
             ViewBag.CombinedDestinations = combinedList;
+            ViewBag.LineDestinations = combinedList
+                .Where(item => item.Value.StartsWith("branch-"))
+                .ToList();
+
+            var pnlCategories = await _context.PnlCategories
+                .AsNoTracking()
+                .Where(category => category.IsActive && (category.Section == PnlExpenseSection.COGS || category.Section == PnlExpenseSection.OPEX))
+                .OrderBy(category => category.Section)
+                .ThenBy(category => category.Name)
+                .Select(category => new SelectListItem
+                {
+                    Value = category.Id.ToString(),
+                    Text = $"{category.Name} ({category.Section})"
+                })
+                .ToListAsync();
+            pnlCategories.Insert(0, new SelectListItem { Value = "", Text = "-- Select P&L Category --" });
+            pnlCategories.Add(new SelectListItem { Value = "-1", Text = "Other - COGS" });
+            pnlCategories.Add(new SelectListItem { Value = "-2", Text = "Other - OPEX" });
+            ViewBag.PnlCategories = pnlCategories;
 
             var reviewers = await _context.Users
                 .AsNoTracking()

@@ -2,6 +2,7 @@
 @{
     ViewData["Title"] = Model.AuditId.HasValue ? "Edit Pending Audit" : "Review Extracted Invoice";
     var formAction = Model.AuditId.HasValue ? "Edit" : "SubmitAudit";
+    var isBranchStaff = User.IsInRole("BranchStaff");
 }
 
 <!-- Header Section -->
@@ -154,7 +155,7 @@
                                     <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-20">Qty</th>
                                     <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-28 text-right">Price (₱)</th>
                                     <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-28 text-right">Total (₱)</th>
-                                    <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-64">Split Destination</th>
+                                    <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-64">@(isBranchStaff ? "P&L Category" : "Split Destination")</th>
                                     <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-12 text-center">Action</th>
                                 </tr>
                             </thead>
@@ -179,38 +180,16 @@
                                             <input asp-for="Items[i].Total" class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none text-right total-input" type="number" step="0.01" min="0.00" readonly />
                                         </td>
                                         <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2">
-                                            <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Split Destination</label>
-                                            @{
-                                                var val = "";
-                                                if (Model.Items[i].AssignedEstablishmentId.HasValue)
-                                                {
-                                                    val = $"branch-{Model.Items[i].AssignedEstablishmentId.Value}";
-                                                }
-                                                else if (Model.Items[i].CostCenterId.HasValue)
-                                                {
-                                                    val = $"cc-{Model.Items[i].CostCenterId.Value}";
-                                                }
-                                                else if (!string.IsNullOrEmpty(Model.Items[i].CombinedDestinationId))
-                                                {
-                                                    val = Model.Items[i].CombinedDestinationId;
-                                                }
+                                            @if (isBranchStaff)
+                                            {
+                                                <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">P&L Category</label>
+                                                <select asp-for="Items[i].PnlCategoryId" asp-items="ViewBag.PnlCategories" class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none pnl-category-select" required></select>
                                             }
-                                            <div class="flex flex-col gap-1">
-                                                <select name="Items[@i].CombinedDestinationId" id="Items_@(i)__CombinedDestinationId" class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none destination-select">
-                                                    @foreach (var opt in (List<SelectListItem>)ViewBag.CombinedDestinations)
-                                                    {
-                                                        if (opt.Value == val)
-                                                        {
-                                                            <option value="@opt.Value" selected>@opt.Text</option>
-                                                        }
-                                                        else
-                                                        {
-                                                            <option value="@opt.Value">@opt.Text</option>
-                                                        }
-                                                    }
-                                                </select>
-                                                <input asp-for="Items[i].AllocationNotes" class="hidden w-full bg-surface-container-low border border-surface-border rounded-lg px-2 py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none remarks-input transition-all duration-300" placeholder="Specify other destination details..." />
-                                            </div>
+                                            else
+                                            {
+                                                <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Split Destination</label>
+                                                <select asp-for="Items[i].CombinedDestinationId" asp-items="ViewBag.LineDestinations" class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none line-destination-select" data-follows-main-allocation="true"></select>
+                                            }
                                         </td>
                                         <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2 text-center flex items-center justify-end lg:justify-center">
                                             <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Action</label>
@@ -294,19 +273,18 @@
                 totalInput.id = `Items_${idx}__Total`;
             }
 
-            // Update destination select
-            const destSelect = row.querySelector('.destination-select');
-            if (destSelect) {
-                destSelect.name = `Items[${idx}].CombinedDestinationId`;
-                destSelect.id = `Items_${idx}__CombinedDestinationId`;
+            const pnlCategorySelect = row.querySelector('.pnl-category-select');
+            if (pnlCategorySelect) {
+                pnlCategorySelect.name = `Items[${idx}].PnlCategoryId`;
+                pnlCategorySelect.id = `Items_${idx}__PnlCategoryId`;
             }
 
-            // Update remarks input
-            const remarksInput = row.querySelector('.remarks-input');
-            if (remarksInput) {
-                remarksInput.name = `Items[${idx}].AllocationNotes`;
-                remarksInput.id = `Items_${idx}__AllocationNotes`;
+            const lineDestinationSelect = row.querySelector('.line-destination-select');
+            if (lineDestinationSelect) {
+                lineDestinationSelect.name = `Items[${idx}].CombinedDestinationId`;
+                lineDestinationSelect.id = `Items_${idx}__CombinedDestinationId`;
             }
+
         });
     }
 
@@ -338,8 +316,6 @@
         const newRow = document.createElement('tr');
         newRow.className = 'hover:bg-surface-container-low/30 transition-colors line-item-row block lg:table-row grid grid-cols-2 gap-x-space-4 gap-y-space-3 p-space-4 border border-surface-border lg:border-0 rounded-xl bg-surface-container-lowest lg:bg-transparent shadow-sm lg:shadow-none';
         
-        const destinationOptions = document.getElementById('destination-select-template').innerHTML;
-        
         newRow.innerHTML = `
             <td class="col-span-2 lg:col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2">
                 <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Item Description</label>
@@ -358,13 +334,20 @@
                 <input class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none text-right total-input" type="number" step="0.01" min="0.00" value="0.00" readonly />
             </td>
             <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2">
-                <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Split Destination</label>
-                <div class="flex flex-col gap-1">
-                    <select class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none destination-select">
-                        ${destinationOptions}
+                @if (isBranchStaff)
+                {
+                    <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">P&L Category</label>
+                    <select class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none pnl-category-select" required>
+                        ${document.getElementById('pnl-category-select-template').innerHTML}
                     </select>
-                    <input class="hidden w-full bg-surface-container-low border border-surface-border rounded-lg px-2 py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none remarks-input transition-all duration-300" placeholder="Specify other destination details..." />
-                </div>
+                }
+                else
+                {
+                    <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Split Destination</label>
+                    <select class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none line-destination-select" data-follows-main-allocation="true">
+                        ${document.getElementById('line-destination-select-template').innerHTML}
+                    </select>
+                }
             </td>
             <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2 text-center flex items-center justify-end lg:justify-center">
                 <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Action</label>
@@ -380,16 +363,18 @@
         const priceInput = newRow.querySelector('.price-input');
         qtyInput.addEventListener('input', () => calculateRowTotal(newRow));
         priceInput.addEventListener('input', () => calculateRowTotal(newRow));
-        const mainVal = document.getElementById('CombinedDestinationId').value;
-        const destSelect = newRow.querySelector('.destination-select');
-        if (destSelect) {
-            destSelect.value = mainVal;
-            destSelect.addEventListener('change', () => updateRemarksVisibility(newRow));
+        const lineDestinationSelect = newRow.querySelector('.line-destination-select');
+        if (lineDestinationSelect) {
+            lineDestinationSelect.addEventListener('change', () => {
+                lineDestinationSelect.dataset.followsMainAllocation = 'false';
+            });
         }
+
 
         reindexRows();
         calculateRowTotal(newRow);
         updateRemarksVisibility(newRow);
+        syncLineDestinationsWithMain();
     }
 
     function removeRow(btn) {
@@ -431,23 +416,28 @@
         }
     }
 
+    function syncLineDestinationsWithMain() {
+        const mainDestSelect = document.getElementById('CombinedDestinationId');
+        if (!mainDestSelect) return;
+        const mainValue = mainDestSelect.value;
+        if (!mainValue || !mainValue.startsWith('branch-')) return;
+
+        document.querySelectorAll('.line-destination-select').forEach(select => {
+            if (select.dataset.followsMainAllocation !== 'false') {
+                select.value = mainValue;
+            }
+        });
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
         const mainDestSelect = document.getElementById('CombinedDestinationId');
         if (mainDestSelect) {
             mainDestSelect.addEventListener('change', () => {
                 updateMainRemarksVisibility();
-                syncDestinations();
+                syncLineDestinationsWithMain();
             });
             updateMainRemarksVisibility();
-            syncDestinations();
-        }
-
-        function syncDestinations() {
-            const mainVal = document.getElementById('CombinedDestinationId').value;
-            document.querySelectorAll('#line-items-body .destination-select').forEach(select => {
-                select.value = mainVal;
-                select.dispatchEvent(new Event('change'));
-            });
+            syncLineDestinationsWithMain();
         }
 
         // Bind event listeners to existing rows
@@ -456,12 +446,12 @@
             const priceInput = row.querySelector('.price-input');
             qtyInput.addEventListener('input', () => calculateRowTotal(row));
             priceInput.addEventListener('input', () => calculateRowTotal(row));
-
-            const destSelect = row.querySelector('.destination-select');
-            if (destSelect) {
-                destSelect.addEventListener('change', () => updateRemarksVisibility(row));
+            const lineDestinationSelect = row.querySelector('.line-destination-select');
+            if (lineDestinationSelect) {
+                lineDestinationSelect.addEventListener('change', () => {
+                    lineDestinationSelect.dataset.followsMainAllocation = 'false';
+                });
             }
-            updateRemarksVisibility(row);
         });
 
         // Lightbox Modal Handlers
@@ -516,6 +506,8 @@
 </div>
 
 <div class="hidden">
-    <select id="destination-select-template" asp-items="ViewBag.CombinedDestinations">
+    <select id="pnl-category-select-template" asp-items="ViewBag.PnlCategories">
+    </select>
+    <select id="line-destination-select-template" asp-items="ViewBag.LineDestinations">
     </select>
 </div>

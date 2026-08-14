@@ -3,6 +3,14 @@
     ViewData["Title"] = "Treasury Cash Flow";
 }
 
+<div id="pageVoiceSummary" class="sr-only">
+    Treasury cash flow summary for @Model.CashFlowDate.ToString("MMMM dd, yyyy").
+    Starting balance: ₱@Model.StartingBalance.ToString("N2").
+    Total cash in: ₱@Model.TotalCashIn.ToString("N2").
+    Total cash out: ₱@Model.TotalCashOut.ToString("N2").
+    Closing balance: ₱@Model.ClosingBalance.ToString("N2").
+</div>
+
 <div class="space-y-6">
     <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
@@ -121,26 +129,19 @@
                     <select asp-for="ManualCashOut.EstablishmentId" asp-items="ViewBag.CashFlowEstablishments" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2 text-on-surface">
                         <option value="">— none —</option>
                     </select>
+                    <p class="mt-1 text-xs text-on-surface-variant">Leave as none for personal, treasury-wide, or non-branch cash-outs.</p>
                 </div>
                 <div id="manual-cashout-purpose-wrap" class="md:col-span-2">
                     <label asp-for="ManualCashOut.Purpose" class="block text-sm font-medium text-on-surface">Purpose / remarks</label>
                     <input asp-for="ManualCashOut.Purpose" id="manual-cashout-purpose" maxlength="255" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2 text-on-surface" placeholder="Example: KEITH GAS AUG. 5" />
                 </div>
-                <label class="md:col-span-2 inline-flex items-center gap-2 text-sm font-medium text-on-surface">
-                    <input asp-for="ManualCashOut.SplitAcrossEstablishments" id="manual-cashout-split" type="checkbox" class="rounded border-outline text-primary focus:ring-primary" />
-                    Split across establishments
+                <label class="md:col-span-2 flex flex-col gap-1 text-sm font-medium text-on-surface">
+                    <span class="inline-flex items-center gap-2">
+                        <input asp-for="ManualCashOut.AppliesAcrossEstablishments" id="manual-cashout-across-establishments" type="checkbox" class="rounded border-outline text-primary focus:ring-primary" />
+                        Applies across establishments
+                    </span>
+                    <span class="text-xs font-normal text-on-surface-variant">This one amount applies across establishments and is not split.</span>
                 </label>
-                <div id="manual-cashout-split-rows" class="hidden md:col-span-2 space-y-3 rounded-lg border border-outline-variant bg-surface p-3">
-                    @for (var rowIndex = 0; rowIndex < 4; rowIndex++)
-                    {
-                        <div class="grid gap-3 grid-cols-[1fr_120px]">
-                            <select name="ManualCashOut.SplitRows[@rowIndex].EstablishmentId" asp-items="ViewBag.CashFlowEstablishments" class="rounded-lg border border-outline bg-surface px-3 py-2 text-on-surface">
-                                <option value="">— select establishment —</option>
-                            </select>
-                            <input name="ManualCashOut.SplitRows[@rowIndex].Amount" type="number" min="0.01" step="0.01" class="rounded-lg border border-outline bg-surface px-3 py-2 text-on-surface" placeholder="Amount" />
-                        </div>
-                    }
-                </div>
                 <div class="md:col-span-2">
                     <button type="submit" class="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary shadow-sm hover:bg-primary/90">
                         Save cash out
@@ -299,34 +300,29 @@
         const category = document.getElementById('manual-cashout-category');
         const purposeWrap = document.getElementById('manual-cashout-purpose-wrap');
         const purpose = document.getElementById('manual-cashout-purpose');
-        const split = document.getElementById('manual-cashout-split');
-        const splitRows = document.getElementById('manual-cashout-split-rows');
-        const amountWrap = document.getElementById('manual-cashout-amount-wrap');
-        const amount = document.getElementById('manual-cashout-amount');
+        const acrossEstablishments = document.getElementById('manual-cashout-across-establishments');
         const syncPurpose = () => {
             const isOthers = category?.value === '@CashFlowCategory.Others';
-            const isSplit = split?.checked === true;
+            const appliesAcrossEstablishments = acrossEstablishments?.checked === true;
             const estWrap = document.getElementById('manual-cashout-establishment-wrap');
+            const establishment = document.getElementById('ManualCashOut_EstablishmentId');
             purposeWrap?.classList.toggle('hidden', !isOthers);
-            splitRows?.classList.toggle('hidden', !isSplit);
-            amountWrap?.classList.toggle('hidden', isSplit);
-            estWrap?.classList.toggle('hidden', isSplit);
+            estWrap?.classList.toggle('opacity-50', appliesAcrossEstablishments);
+            if (establishment) {
+                establishment.disabled = appliesAcrossEstablishments;
+                if (appliesAcrossEstablishments) {
+                    establishment.value = '';
+                }
+            }
             if (purpose) {
                 purpose.required = isOthers;
                 if (!isOthers) {
                     purpose.value = '';
                 }
             }
-            if (amount) {
-                amount.disabled = isSplit;
-                amount.required = !isSplit;
-                if (isSplit) {
-                    amount.value = '';
-                }
-            }
         };
         category?.addEventListener('change', syncPurpose);
-        split?.addEventListener('change', syncPurpose);
+        acrossEstablishments?.addEventListener('change', syncPurpose);
         syncPurpose();
     })();
 </script>

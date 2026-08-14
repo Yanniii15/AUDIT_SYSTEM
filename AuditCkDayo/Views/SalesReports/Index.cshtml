@@ -3,6 +3,15 @@
     ViewData["Title"] = "Pending Sales Verification";
 }
 
+<div id="pageVoiceSummary" class="sr-only">
+    Sales verification queue. Pending verification count: @Model.Count() reports.
+    @if (Model.Any())
+    {
+        var first = Model.First();
+        <text>First report: Branch @first.Establishment.Name, Business Date @first.BusinessDate.ToString("MMM d, yyyy"), Cash to handover ₱@first.ConfirmedCashToHandover.ToString("N2").</text>
+    }
+</div>
+
 <div class="space-y-6">
     <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-space-4">
         <div class="flex flex-col gap-space-2 max-w-3xl">
@@ -21,10 +30,13 @@
         </a>
     </div>
 
-    <section class="bg-surface-container-lowest rounded-xl shadow-sm border border-surface-border/50 overflow-hidden">
+    <section class="bg-surface-container-lowest rounded-2xl shadow-md border border-surface-border/60 overflow-hidden">
         <div class="bg-primary px-space-6 py-space-4 flex justify-between items-center">
-            <span class="text-on-primary font-label-caps uppercase tracking-tighter text-[11px]">Awaiting Manager Verification</span>
-            <span class="text-on-primary/70 text-[11px] font-data-mono">@Model.Count() pending</span>
+            <div class="flex items-center gap-space-2 text-on-primary">
+                <span class="material-symbols-outlined text-[18px]">hourglass_empty</span>
+                <span class="font-label-caps uppercase tracking-widest text-[11px] font-semibold">Awaiting Manager Verification</span>
+            </div>
+            <span class="bg-on-primary/10 text-on-primary text-[10px] font-data-mono px-space-3 py-1 rounded-full border border-on-primary/10">@Model.Count() pending</span>
         </div>
 
         @if (!Model.Any())
@@ -38,36 +50,59 @@
         else
         {
             <div class="max-h-[520px] overflow-y-auto overflow-x-auto">
-                <table class="w-full text-left text-sm">
-                    <thead class="sticky top-0 z-10 bg-surface-container-low text-on-surface-variant font-label-caps uppercase text-[11px] tracking-wider">
+                <table class="w-full text-left text-sm" style="min-width: 1050px;">
+                    <thead class="sticky top-0 z-10 bg-surface-container/80 text-on-surface-variant font-label-caps uppercase text-[10px] tracking-wider border-b border-surface-border">
                         <tr>
-                            <th class="px-space-5 py-space-3">Branch</th>
-                            <th class="px-space-5 py-space-3">Business Date</th>
-                            <th class="px-space-5 py-space-3">Handover Date</th>
-                            <th class="px-space-5 py-space-3">Cashier</th>
-                            <th class="px-space-5 py-space-3 text-right">Cash to Handover</th>
-                            <th class="px-space-5 py-space-3">Status</th>
-                            <th class="px-space-5 py-space-3 text-right">Action</th>
+                            <th class="px-space-5 py-space-4">Branch</th>
+                            <th class="px-space-5 py-space-4">Business Date</th>
+                            <th class="px-space-5 py-space-4">Handover Date</th>
+                            <th class="px-space-5 py-space-4">Cashier</th>
+                            <th class="px-space-5 py-space-4 text-right" style="width: 170px;">Cash to Handover</th>
+                            <th class="px-space-5 py-space-4" style="width: 220px;">Status</th>
+                            <th class="px-space-5 py-space-4 text-right" style="width: 200px;">Action</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-surface-border">
+                    <tbody class="divide-y divide-surface-border bg-surface-container-lowest">
                         @foreach (var report in Model)
                         {
-                            <tr class="hover:bg-surface-container-low/60 transition-colors">
-                                <td class="px-space-5 py-space-4 font-semibold text-on-surface">@report.Establishment.Name</td>
-                                <td class="px-space-5 py-space-4 text-on-surface-variant">@report.BusinessDate.ToString("MMM d, yyyy")</td>
-                                <td class="px-space-5 py-space-4 text-on-surface-variant">@report.HandoverDate.ToString("MMM d, yyyy")</td>
-                                <td class="px-space-5 py-space-4 text-on-surface-variant">@(string.IsNullOrWhiteSpace(report.CashierName) ? "—" : report.CashierName)</td>
-                                <td class="px-space-5 py-space-4 text-right font-data-mono text-on-surface">₱@report.ConfirmedCashToHandover.ToString("N2")</td>
+                            <tr class="hover:bg-primary/5 transition-colors duration-150">
+                                <td class="px-space-5 py-space-4 font-semibold text-on-surface">
+                                    <div class="flex items-center gap-space-2">
+                                        <span class="material-symbols-outlined text-primary/75 text-[18px]">location_on</span>
+                                        <span>@report.Establishment.Name</span>
+                                    </div>
+                                </td>
+                                <td class="px-space-5 py-space-4 text-on-surface-variant">
+                                    <div class="flex items-center gap-space-2">
+                                        <span class="material-symbols-outlined text-on-surface-variant/70 text-[16px]">calendar_month</span>
+                                        <span>@report.BusinessDate.ToString("MMM d, yyyy")</span>
+                                    </div>
+                                </td>
+                                <td class="px-space-5 py-space-4 text-on-surface-variant">
+                                    <div class="flex items-center gap-space-2">
+                                        <span class="material-symbols-outlined text-on-surface-variant/70 text-[16px]">calendar_today</span>
+                                        <span>@report.HandoverDate.ToString("MMM d, yyyy")</span>
+                                    </div>
+                                </td>
+                                <td class="px-space-5 py-space-4 text-on-surface-variant">
+                                    <div class="flex items-center gap-space-2">
+                                        <span class="material-symbols-outlined text-on-surface-variant/70 text-[16px]">person</span>
+                                        <span>@(string.IsNullOrWhiteSpace(report.CashierName) ? "—" : report.CashierName)</span>
+                                    </div>
+                                </td>
+                                <td class="px-space-5 py-space-4 text-right font-data-mono text-primary font-bold text-[14px]">
+                                    ₱@report.ConfirmedCashToHandover.ToString("N2")
+                                </td>
                                 <td class="px-space-5 py-space-4">
-                                    <span class="rounded-full border border-audit-pending/30 bg-audit-pending/10 px-space-3 py-space-1 text-[11px] font-label-caps uppercase tracking-wider text-audit-pending">
-                                        Pending Manager Verification
+                                    <span class="inline-flex items-center gap-1.5 rounded-full border border-audit-pending/35 bg-audit-pending/8 px-3 py-1 text-[10px] font-label-caps uppercase tracking-wider text-audit-pending font-semibold shadow-sm">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-audit-pending animate-pulse"></span>
+                                        Pending Verification
                                     </span>
                                 </td>
                                 <td class="px-space-5 py-space-4 text-right">
-                                    <a asp-action="Review" asp-route-id="@report.Id" class="inline-flex items-center justify-center gap-space-2 rounded-lg bg-primary px-space-4 py-space-2 text-on-primary font-label-caps uppercase tracking-widest text-[11px] hover:bg-primary/95 transition-all">
-                                        <span class="material-symbols-outlined text-[16px]">check_circle</span>
-                                        Confirm to Treasury
+                                    <a asp-action="Review" asp-route-id="@report.Id" class="inline-flex items-center justify-center gap-space-2 rounded-lg bg-primary hover:bg-primary/90 text-on-primary px-space-4 py-2.5 font-label-caps uppercase tracking-wider text-[11px] shadow-sm hover:shadow transition-all duration-150">
+                                        <span class="material-symbols-outlined text-[15px]">fact_check</span>
+                                        Review & Confirm
                                     </a>
                                 </td>
                             </tr>

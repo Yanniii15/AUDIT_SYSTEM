@@ -3,6 +3,7 @@
 @{
     ViewData["Title"] = "Review Daily Sales Report";
     var establishments = ViewBag.Establishments as SelectList ?? new SelectList(Enumerable.Empty<SelectListItem>());
+    var metadataGridColumns = Model.CanConfirmToTreasury ? "md:grid-cols-3" : "md:grid-cols-2";
 }
 
 <div class="space-y-6">
@@ -90,7 +91,7 @@
                     }
 
                     <!-- Metadata summary -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-space-4 my-space-4">
+                    <div class="grid grid-cols-1 @metadataGridColumns gap-space-4 my-space-4">
                         <div class="bg-surface-container-low rounded-lg p-space-3 border border-surface-border">
                             <div class="text-[9px] uppercase font-bold text-on-surface-variant tracking-wider mb-1">Status</div>
                             <div class="flex items-center gap-1.5 text-body-md font-body-md text-on-surface">
@@ -106,153 +107,428 @@
                                 <span class="text-on-surface-variant text-[10px] font-label-caps uppercase ml-2">PHP</span>
                             </div>
                         </div>
+                        @if (Model.CanConfirmToTreasury)
+                        {
+                        <div class="bg-surface-container-low rounded-xl p-space-4 border-l-4 @(Model.ShortOverAmount == 0m ? "border-audit-success" : "border-audit-error") shadow-sm flex flex-col justify-center" id="short-over-card">
+                            <span class="font-label-caps text-on-surface-variant uppercase text-[9px] tracking-wider">Short / Over Notice</span>
+                            <div class="flex items-baseline gap-space-1 mt-1 font-body-md">
+                                <span class="font-data-mono font-bold text-[22px] @(Model.ShortOverAmount == 0m ? "text-audit-success" : "text-audit-error")" id="short-over-label">@Model.ShortOverLabel</span>
+                                <span class="font-data-mono font-bold text-[22px] @(Model.ShortOverAmount == 0m ? "text-audit-success" : "text-audit-error")" id="short-over-amount">₱@Math.Abs(Model.ShortOverAmount).ToString("N2")</span>
+                            </div>
+                            <p class="text-[11px] text-on-surface-variant mt-1">Expected: ₱<span id="expected-cash-display">@Model.ExpectedCashToHandover.ToString("N2")</span></p>
+                        </div>
+                        }
                     </div>
 
-                    <!-- Establishment and Cashier -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-space-6">
-                        <div class="flex flex-col gap-space-2 md:col-span-2">
-                            <label asp-for="EstablishmentId" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Operating Branch</label>
-                            <select asp-for="EstablishmentId" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface appearance-none cursor-pointer" asp-items="establishments" required>
-                                <option value="">Select branch...</option>
-                            </select>
-                            <span asp-validation-for="EstablishmentId" class="text-audit-error text-[11px]"></span>
+                    <!-- 1. Operating Branch & Header Details -->
+                    <div class="rounded-xl border border-surface-border bg-surface-container-lowest p-space-4 space-y-space-4">
+                        <div class="flex items-center gap-space-2 mb-space-1">
+                            <span class="material-symbols-outlined text-primary text-[18px]">store</span>
+                            <h2 class="font-label-caps text-on-surface uppercase tracking-wider text-[11px]">Upload Daily Sales</h2>
                         </div>
-
-                        <div class="flex flex-col gap-space-2">
-                            <label asp-for="BusinessDate" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Business Date</label>
-                            <input asp-for="BusinessDate" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="date" required />
-                            <span asp-validation-for="BusinessDate" class="text-audit-error text-[11px]"></span>
-                        </div>
-
-                        <div class="flex flex-col gap-space-2">
-                            <label asp-for="HandoverDate" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Handover Date</label>
-                            <input asp-for="HandoverDate" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="date" required />
-                            <span asp-validation-for="HandoverDate" class="text-audit-error text-[11px]"></span>
-                        </div>
-
-                        <div class="flex flex-col gap-space-2 md:col-span-2">
-                            <label asp-for="CashierName" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Cashier Name</label>
-                            <input asp-for="CashierName" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" maxlength="100" />
-                            <span asp-validation-for="CashierName" class="text-audit-error text-[11px]"></span>
-                        </div>
-                    </div>
-
-                    <!-- Explicit Summary Values -->
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-space-4 pt-space-4 border-t border-surface-border">
-                        <div class="flex flex-col gap-space-2">
-                            <label asp-for="GrossSales" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Gross Sales (₱)</label>
-                            <input asp-for="GrossSales" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" min="0" step="0.01" required />
-                            <span asp-validation-for="GrossSales" class="text-audit-error text-[11px]"></span>
-                        </div>
-
-                        <div class="flex flex-col gap-space-2">
-                            <label asp-for="CashOut" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Cash Out (₱)</label>
-                            <input asp-for="CashOut" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" min="0" step="0.01" required />
-                            <span asp-validation-for="CashOut" class="text-audit-error text-[11px]"></span>
-                        </div>
-
-                        <div class="flex flex-col gap-space-2">
-                            <label asp-for="ConfirmedCashToHandover" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Cash to Handover (₱)</label>
-                            <input asp-for="ConfirmedCashToHandover" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" min="0" step="0.01" required id="confirmedCashToHandover" />
-                            <span asp-validation-for="ConfirmedCashToHandover" class="text-audit-error text-[11px]"></span>
-                        </div>
-
-                        <div class="flex flex-col gap-space-2">
-                            <label asp-for="GCashAmount" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">GCash Amount (₱)</label>
-                            <input asp-for="GCashAmount" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" min="0" step="0.01" required />
-                            <span asp-validation-for="GCashAmount" class="text-audit-error text-[11px]"></span>
-                        </div>
-
-                        <div class="flex flex-col gap-space-2">
-                            <label asp-for="CreditAmount" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Credit Amount (₱)</label>
-                            <input asp-for="CreditAmount" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" min="0" step="0.01" required />
-                            <span asp-validation-for="CreditAmount" class="text-audit-error text-[11px]"></span>
-                        </div>
-
-                        <div class="flex flex-col gap-space-2">
-                            <label asp-for="OtherPaymentAmount" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Other Payment (₱)</label>
-                            <input asp-for="OtherPaymentAmount" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" min="0" step="0.01" required />
-                            <span asp-validation-for="OtherPaymentAmount" class="text-audit-error text-[11px]"></span>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-space-4">
+                            <div class="flex flex-col gap-space-2 md:col-span-2">
+                                <label asp-for="EstablishmentId" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Operating Branch</label>
+                                <select asp-for="EstablishmentId" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface appearance-none cursor-pointer" asp-items="establishments" required>
+                                    <option value="">Select branch...</option>
+                                </select>
+                                <span asp-validation-for="EstablishmentId" class="text-audit-error text-[11px]"></span>
+                            </div>
+                            <div class="flex flex-col gap-space-2">
+                                <label asp-for="BusinessDate" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Business Date</label>
+                                <input asp-for="BusinessDate" id="BusinessDate" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="date" required />
+                                <span asp-validation-for="BusinessDate" class="text-audit-error text-[11px]"></span>
+                            </div>
+                            <div class="flex flex-col gap-space-2">
+                                <label asp-for="HandoverDate" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Handover Date</label>
+                                <input asp-for="HandoverDate" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="date" required />
+                                <span asp-validation-for="HandoverDate" class="text-audit-error text-[11px]"></span>
+                            </div>
+                            <div class="flex flex-col gap-space-2">
+                                <label asp-for="CashierName" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Cashier Name</label>
+                                <input asp-for="CashierName" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" placeholder="Cashier name" maxlength="100" />
+                                <span asp-validation-for="CashierName" class="text-audit-error text-[11px]"></span>
+                            </div>
+                            <div class="flex flex-col gap-space-2">
+                                <span class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Day of the Week</span>
+                                <div id="dayOfWeekDisplay" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md text-on-surface font-semibold">
+                                    @Model.BusinessDate.ToString("dddd")
+                                </div>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Receipt Ranges and Metadata -->
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-space-6">
-                        <div class="flex flex-col gap-space-2">
-                            <label asp-for="ReceiptNumberStart" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Receipt Number Start</label>
-                            <input asp-for="ReceiptNumberStart" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" />
-                            <span asp-validation-for="ReceiptNumberStart" class="text-audit-error text-[11px]"></span>
+                    <!-- 2. Sales Totals -->
+                    <div class="rounded-xl border border-surface-border bg-surface-container-lowest p-space-4 space-y-space-4">
+                        <div class="flex items-center gap-space-2 mb-space-1">
+                            <span class="material-symbols-outlined text-primary text-[18px]">payments</span>
+                            <h2 class="font-label-caps text-on-surface uppercase tracking-wider text-[11px]">Daily Sales Totals</h2>
                         </div>
-
-                        <div class="flex flex-col gap-space-2">
-                            <label asp-for="ReceiptNumberEnd" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Receipt Number End</label>
-                            <input asp-for="ReceiptNumberEnd" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" />
-                            <span asp-validation-for="ReceiptNumberEnd" class="text-audit-error text-[11px]"></span>
-                        </div>
-
-                        <div class="flex flex-col gap-space-2 md:col-span-2">
-                            <label asp-for="WitnessName" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Witness Name</label>
-                            <input asp-for="WitnessName" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" />
-                            <span asp-validation-for="WitnessName" class="text-audit-error text-[11px]"></span>
-                        </div>
-
-                        <div class="flex flex-col gap-space-2 md:col-span-2">
-                            <label asp-for="Notes" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Notes</label>
-                            <textarea asp-for="Notes" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface resize-none" rows="2"></textarea>
-                            <span asp-validation-for="Notes" class="text-audit-error text-[11px]"></span>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-space-4">
+                            <div class="flex flex-col gap-space-2">
+                                <label asp-for="GrossSales" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Gross Sales (Opening + Closing) (₱)</label>
+                                <input asp-for="GrossSales" id="GrossSales" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" min="0" step="0.01" required />
+                                <span asp-validation-for="GrossSales" class="text-audit-error text-[11px]"></span>
+                            </div>
+                            <div class="flex flex-col gap-space-2">
+                                <label asp-for="ClosingGrossSales" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Closing Gross Sales (₱)</label>
+                                <input asp-for="ClosingGrossSales" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" min="0" step="0.01" />
+                                <span asp-validation-for="ClosingGrossSales" class="text-audit-error text-[11px]"></span>
+                            </div>
+                            <div class="flex flex-col gap-space-2">
+                                <label asp-for="FoodSales" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Food Sales (₱)</label>
+                                <input asp-for="FoodSales" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" min="0" step="0.01" />
+                                <span asp-validation-for="FoodSales" class="text-audit-error text-[11px]"></span>
+                            </div>
+                            <div class="flex flex-col gap-space-2">
+                                <label asp-for="BeerSales" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Beer Sales (₱)</label>
+                                <input asp-for="BeerSales" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" min="0" step="0.01" />
+                                <span asp-validation-for="BeerSales" class="text-audit-error text-[11px]"></span>
+                            </div>
+                            <div class="flex flex-col gap-space-2">
+                                <label asp-for="BeverageSales" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Beverages Sales (₱)</label>
+                                <input asp-for="BeverageSales" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" min="0" step="0.01" />
+                                <span asp-validation-for="BeverageSales" class="text-audit-error text-[11px]"></span>
+                            </div>
+                            <div class="flex flex-col gap-space-2">
+                                <label asp-for="OtherSales" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Other Sales (₱)</label>
+                                <input asp-for="OtherSales" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" min="0" step="0.01" />
+                                <span asp-validation-for="OtherSales" class="text-audit-error text-[11px]"></span>
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Line Items / Cash Breakdown Grid -->
-                    <div class="pt-space-4 border-t border-surface-border">
-                        <h4 class="font-headline-sm text-headline-sm text-[16px] text-on-surface mb-space-4 flex items-center gap-space-2">
-                            <span class="material-symbols-outlined text-primary">list_alt</span>
-                            Cash Denomination Breakdown
-                        </h4>
-                        
-                        <div class="border border-surface-border rounded-xl max-h-[520px] overflow-y-auto overflow-x-auto">
-                            <table class="w-full text-left border-collapse block lg:table">
-                                <thead class="hidden lg:table-header-group lg:sticky lg:top-0 lg:z-10">
-                                    <tr class="bg-surface-container-low border-b border-surface-border">
-                                        <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px]">Denomination</th>
-                                        <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-28">Quantity</th>
-                                        <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-32 text-right">Total (₱)</th>
-                                        <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-12 text-center">Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="line-items-body" class="divide-y divide-surface-border block lg:table-row-group space-y-space-4 lg:space-y-0 p-space-4 lg:p-0">
-                                    @for (int i = 0; i < Model.Items.Count; i++)
+                    <!-- 3. Payment Collections (Lists) -->
+                    <div class="rounded-xl border border-surface-border bg-surface-container-lowest p-space-4 space-y-space-4">
+                        <div class="flex items-center gap-space-2 mb-space-1">
+                            <span class="material-symbols-outlined text-primary text-[18px]">credit_card</span>
+                            <h2 class="font-label-caps text-on-surface uppercase tracking-wider text-[11px]">Payment Collections</h2>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-space-4">
+                            <!-- Cash Sales -->
+                            <div class="flex flex-col gap-space-2 md:col-span-2 border-b border-surface-border pb-space-3">
+                                <label asp-for="CashSales" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Cash Sales (₱)</label>
+                                <input asp-for="CashSales" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" min="0" step="0.01" />
+                                <span asp-validation-for="CashSales" class="text-audit-error text-[11px]"></span>
+                            </div>
+
+                            <!-- GCash Lines -->
+                            <div class="flex flex-col gap-space-2 border border-surface-border rounded-lg p-space-3 bg-surface-container-low/20">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-label-caps text-on-surface-variant uppercase text-[10px] font-bold">GCash Sales</span>
+                                    <button type="button" class="text-primary hover:underline text-[11px] font-label-caps" onclick="addPaymentRow('gcash-container', 'GCashLines')">+ Add Line</button>
+                                </div>
+                                <div id="gcash-container" class="space-y-2">
+                                    @for (int i = 0; i < Model.GCashLines.Count; i++)
                                     {
-                                        <tr class="hover:bg-surface-container-low/30 transition-colors line-item-row block lg:table-row grid grid-cols-2 gap-x-space-4 gap-y-space-3 p-space-4 border border-surface-border lg:border-0 rounded-xl bg-surface-container-lowest lg:bg-transparent shadow-sm lg:shadow-none">
-                                            <td class="col-span-2 lg:col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2">
-                                                <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Denomination</label>
-                                                <input asp-for="Items[i].Denomination" class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-data-mono text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none denom-input" type="number" step="0.01" required />
-                                            </td>
-                                            <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2">
-                                                <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Quantity</label>
-                                                <input asp-for="Items[i].Quantity" class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none text-center qty-input" type="number" min="0" required />
-                                            </td>
-                                            <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2 text-right">
-                                                <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Total (₱)</label>
-                                                <input asp-for="Items[i].Total" class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none text-right total-input" type="number" step="0.01" readonly />
-                                            </td>
-                                            <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2 text-center flex items-center justify-end lg:justify-center">
-                                                <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Action</label>
-                                                <button type="button" class="text-audit-error hover:scale-110 transition-transform remove-row-btn" onclick="removeRow(this)">
-                                                    <span class="material-symbols-outlined text-[18px]">delete</span>
-                                                </button>
-                                            </td>
-                                        </tr>
+                                        <div class="flex items-center gap-2 payment-row">
+                                            <input type="hidden" name="GCashLines[@i].Id" value="@Model.GCashLines[i].Id" />
+                                            <input type="hidden" name="GCashLines[@i].LineType" value="GCash" />
+                                            <input type="number" step="0.01" name="GCashLines[@i].Amount" value="@Model.GCashLines[i].Amount" class="w-full bg-surface-container-low border border-surface-border rounded px-3 py-1 font-data-mono text-on-surface amount-input" placeholder="Amount (₱)" />
+                                            <button type="button" class="text-audit-error material-symbols-outlined text-[18px]" onclick="removePaymentRow(this)">delete</button>
+                                        </div>
                                     }
-                                </tbody>
-                            </table>
-                        </div>
-                        <div class="mt-space-3 flex justify-end">
-                            <button type="button" class="bg-surface-container text-on-surface border border-surface-border px-4 py-2 rounded-lg font-label-caps hover:bg-surface-container-high transition-all text-[11px] uppercase flex items-center gap-1 shadow-sm" onclick="addRow()">
-                                <span class="material-symbols-outlined text-[16px]">add</span> Add Line
-                            </button>
+                                </div>
+                            </div>
+
+                            <!-- Bank Transfer Lines -->
+                            <div class="flex flex-col gap-space-2 border border-surface-border rounded-lg p-space-3 bg-surface-container-low/20">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-label-caps text-on-surface-variant uppercase text-[10px] font-bold">Bank Transfers</span>
+                                    <button type="button" class="text-primary hover:underline text-[11px] font-label-caps" onclick="addPaymentRow('bank-container', 'BankTransferLines', true)">+ Add Line</button>
+                                </div>
+                                <div id="bank-container" class="space-y-2">
+                                    @for (int i = 0; i < Model.BankTransferLines.Count; i++)
+                                    {
+                                        <div class="flex items-center gap-2 payment-row">
+                                            <input type="hidden" name="BankTransferLines[@i].Id" value="@Model.BankTransferLines[i].Id" />
+                                            <input type="hidden" name="BankTransferLines[@i].LineType" value="BankTransfer" />
+                                            <input type="text" name="BankTransferLines[@i].Label" value="@Model.BankTransferLines[i].Label" class="w-1/2 bg-surface-container-low border border-surface-border rounded px-3 py-1 font-body-md text-on-surface" placeholder="e.g. BDO" />
+                                            <input type="number" step="0.01" name="BankTransferLines[@i].Amount" value="@Model.BankTransferLines[i].Amount" class="w-1/2 bg-surface-container-low border border-surface-border rounded px-3 py-1 font-data-mono text-on-surface amount-input" placeholder="Amount (₱)" />
+                                            <button type="button" class="text-audit-error material-symbols-outlined text-[18px]" onclick="removePaymentRow(this)">delete</button>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+
+                            <!-- Card Lines -->
+                            <div class="flex flex-col gap-space-2 border border-surface-border rounded-lg p-space-3 bg-surface-container-low/20">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-label-caps text-on-surface-variant uppercase text-[10px] font-bold">Cards</span>
+                                    <button type="button" class="text-primary hover:underline text-[11px] font-label-caps" onclick="addPaymentRow('card-container', 'CardLines')">+ Add Line</button>
+                                </div>
+                                <div id="card-container" class="space-y-2">
+                                    @for (int i = 0; i < Model.CardLines.Count; i++)
+                                    {
+                                        <div class="flex items-center gap-2 payment-row">
+                                            <input type="hidden" name="CardLines[@i].Id" value="@Model.CardLines[i].Id" />
+                                            <input type="hidden" name="CardLines[@i].LineType" value="Card" />
+                                            <input type="number" step="0.01" name="CardLines[@i].Amount" value="@Model.CardLines[i].Amount" class="w-full bg-surface-container-low border border-surface-border rounded px-3 py-1 font-data-mono text-on-surface amount-input" placeholder="Amount (₱)" />
+                                            <button type="button" class="text-audit-error material-symbols-outlined text-[18px]" onclick="removePaymentRow(this)">delete</button>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+
+                            <!-- Credit Lines -->
+                            <div class="flex flex-col gap-space-2 border border-surface-border rounded-lg p-space-3 bg-surface-container-low/20">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-label-caps text-on-surface-variant uppercase text-[10px] font-bold">Credit</span>
+                                    <button type="button" class="text-primary hover:underline text-[11px] font-label-caps" onclick="addPaymentRow('credit-container', 'CreditLines', true)">+ Add Line</button>
+                                </div>
+                                <div id="credit-container" class="space-y-2">
+                                    @for (int i = 0; i < Model.CreditLines.Count; i++)
+                                    {
+                                        <div class="flex items-center gap-2 payment-row">
+                                            <input type="hidden" name="CreditLines[@i].Id" value="@Model.CreditLines[i].Id" />
+                                            <input type="hidden" name="CreditLines[@i].LineType" value="Credit" />
+                                            <input type="text" name="CreditLines[@i].Label" value="@Model.CreditLines[i].Label" class="w-1/2 bg-surface-container-low border border-surface-border rounded px-3 py-1 font-body-md text-on-surface" placeholder="Reason/Note" />
+                                            <input type="number" step="0.01" name="CreditLines[@i].Amount" value="@Model.CreditLines[i].Amount" class="w-1/2 bg-surface-container-low border border-surface-border rounded px-3 py-1 font-data-mono text-on-surface amount-input" placeholder="Amount (₱)" />
+                                            <button type="button" class="text-audit-error material-symbols-outlined text-[18px]" onclick="removePaymentRow(this)">delete</button>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+
+                            <!-- Runaway Customer Lines -->
+                            <div class="flex flex-col gap-space-2 border border-surface-border rounded-lg p-space-3 bg-surface-container-low/20 md:col-span-2">
+                                <div class="flex justify-between items-center">
+                                    <span class="font-label-caps text-on-surface-variant uppercase text-[10px] font-bold">Run-away Customers</span>
+                                    <button type="button" class="text-primary hover:underline text-[11px] font-label-caps" onclick="addPaymentRow('runaway-container', 'RunawayCustomerLines', true)">+ Add Line</button>
+                                </div>
+                                <div id="runaway-container" class="space-y-2">
+                                    @for (int i = 0; i < Model.RunawayCustomerLines.Count; i++)
+                                    {
+                                        <div class="flex items-center gap-2 payment-row">
+                                            <input type="hidden" name="RunawayCustomerLines[@i].Id" value="@Model.RunawayCustomerLines[i].Id" />
+                                            <input type="hidden" name="RunawayCustomerLines[@i].LineType" value="RunawayCustomer" />
+                                            <input type="text" name="RunawayCustomerLines[@i].Label" value="@Model.RunawayCustomerLines[i].Label" class="w-1/2 bg-surface-container-low border border-surface-border rounded px-3 py-1 font-body-md text-on-surface" placeholder="Table / Description" />
+                                            <input type="number" step="0.01" name="RunawayCustomerLines[@i].Amount" value="@Model.RunawayCustomerLines[i].Amount" class="w-1/2 bg-surface-container-low border border-surface-border rounded px-3 py-1 font-data-mono text-on-surface amount-input" placeholder="Amount (₱)" />
+                                            <button type="button" class="text-audit-error material-symbols-outlined text-[18px]" onclick="removePaymentRow(this)">delete</button>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
                         </div>
                     </div>
+
+                    <!-- 4. Discounts Applied -->
+                    <div class="rounded-xl border border-surface-border bg-surface-container-lowest p-space-4 space-y-space-4">
+                        <div class="flex items-center gap-space-2 mb-space-1">
+                            <span class="material-symbols-outlined text-primary text-[18px]">percent</span>
+                            <h2 class="font-label-caps text-on-surface uppercase tracking-wider text-[11px]">Discounts Applied</h2>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-space-4">
+                            <div class="flex flex-col gap-space-2">
+                                <label asp-for="SeniorDiscount" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">SENIOR Discount (₱)</label>
+                                <input asp-for="SeniorDiscount" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" step="0.01" />
+                                <span asp-validation-for="SeniorDiscount" class="text-audit-error text-[11px]"></span>
+                            </div>
+                            <div class="flex flex-col gap-space-2">
+                                <label asp-for="PwdDiscount" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">PWD Discount (₱)</label>
+                                <input asp-for="PwdDiscount" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" step="0.01" />
+                                <span asp-validation-for="PwdDiscount" class="text-audit-error text-[11px]"></span>
+                            </div>
+                            <div class="flex flex-col gap-space-2">
+                                <label asp-for="LoyaltyCardDiscount" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">LOYALTY CARD Discount (₱)</label>
+                                <input asp-for="LoyaltyCardDiscount" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" step="0.01" />
+                                <span asp-validation-for="LoyaltyCardDiscount" class="text-audit-error text-[11px]"></span>
+                            </div>
+                            <div class="flex flex-col gap-space-2">
+                                <label asp-for="GiftVoucherDiscount" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">GIFT VOUCHER Discount (₱)</label>
+                                <input asp-for="GiftVoucherDiscount" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" step="0.01" />
+                                <span asp-validation-for="GiftVoucherDiscount" class="text-audit-error text-[11px]"></span>
+                            </div>
+                            <div class="flex flex-col gap-space-2">
+                                <label asp-for="EmployeeTenPercentDiscount" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">EMPLOYEE 10% Discount (₱)</label>
+                                <input asp-for="EmployeeTenPercentDiscount" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" step="0.01" />
+                                <span asp-validation-for="EmployeeTenPercentDiscount" class="text-audit-error text-[11px]"></span>
+                            </div>
+                            <div class="flex flex-col gap-space-2">
+                                <label asp-for="EmployeeFivePercentDiscount" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">EMPLOYEE 5% Discount (₱)</label>
+                                <input asp-for="EmployeeFivePercentDiscount" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" step="0.01" />
+                                <span asp-validation-for="EmployeeFivePercentDiscount" class="text-audit-error text-[11px]"></span>
+                            </div>
+                            <div class="flex flex-col gap-space-2">
+                                <label asp-for="EaglesDiscount" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Eagles 5% Discount (₱)</label>
+                                <input asp-for="EaglesDiscount" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" step="0.01" />
+                                <span asp-validation-for="EaglesDiscount" class="text-audit-error text-[11px]"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 5. Variances, PCF & Change -->
+                    <div class="rounded-xl border border-surface-border bg-surface-container-lowest p-space-4 space-y-space-4">
+                        <div class="flex items-center gap-space-2 mb-space-1">
+                            <span class="material-symbols-outlined text-primary text-[18px]">balance</span>
+                            <h2 class="font-label-caps text-on-surface uppercase tracking-wider text-[11px]">Variances, PCF & Change</h2>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-space-4">
+                            <div class="flex flex-col gap-space-2">
+                                <label asp-for="SalesShortageAmount" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Shortage Amount (₱)</label>
+                                <input asp-for="SalesShortageAmount" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" step="0.01" />
+                                <span asp-validation-for="SalesShortageAmount" class="text-audit-error text-[11px]"></span>
+                            </div>
+                            <div class="flex flex-col gap-space-2 sm:col-span-2">
+                                <label asp-for="SalesShortageReason" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Shortage Reason</label>
+                                <input asp-for="SalesShortageReason" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" placeholder="Reason for shortage" />
+                                <span asp-validation-for="SalesShortageReason" class="text-audit-error text-[11px]"></span>
+                            </div>
+                            <div class="flex flex-col gap-space-2">
+                                <label asp-for="SalesOverageAmount" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Overage Amount (₱)</label>
+                                <input asp-for="SalesOverageAmount" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" step="0.01" />
+                                <span asp-validation-for="SalesOverageAmount" class="text-audit-error text-[11px]"></span>
+                            </div>
+                            <div class="flex flex-col gap-space-2 sm:col-span-2">
+                                <label asp-for="SalesOverageReason" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Overage Reason</label>
+                                <input asp-for="SalesOverageReason" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" placeholder="Reason for overage" />
+                                <span asp-validation-for="SalesOverageReason" class="text-audit-error text-[11px]"></span>
+                            </div>
+                            <div class="flex flex-col gap-space-2">
+                                <label asp-for="RestoPcf" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Resto PCF (₱)</label>
+                                <input asp-for="RestoPcf" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" step="0.01" />
+                                <span asp-validation-for="RestoPcf" class="text-audit-error text-[11px]"></span>
+                            </div>
+                            <div class="flex flex-col gap-space-2">
+                                <label asp-for="PcfFromSales" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">PCF from Sales (₱)</label>
+                                <input asp-for="PcfFromSales" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" step="0.01" />
+                                <span asp-validation-for="PcfFromSales" class="text-audit-error text-[11px]"></span>
+                            </div>
+                            <div class="flex flex-col gap-space-2">
+                                <label asp-for="ChangeAmount" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Change Float (₱)</label>
+                                <input asp-for="ChangeAmount" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" step="0.01" />
+                                <span asp-validation-for="ChangeAmount" class="text-audit-error text-[11px]"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 6. Expenses from Sales -->
+                    <div class="rounded-xl border border-surface-border bg-surface-container-lowest p-space-4 space-y-space-4">
+                        <div class="flex justify-between items-center">
+                            <div class="flex items-center gap-space-2">
+                                <span class="material-symbols-outlined text-primary text-[18px]">shopping_cart</span>
+                                <h2 class="font-label-caps text-on-surface uppercase tracking-wider text-[11px]">Expenses Paid from Sales Box</h2>
+                            </div>
+                            <button type="button" class="text-primary hover:underline text-[11px] font-label-caps" onclick="addPaymentRow('expense-container', 'ExpenseFromSalesLines', true)">+ Add Expense</button>
+                        </div>
+                        <div id="expense-container" class="space-y-2">
+                            @for (int i = 0; i < Model.ExpenseFromSalesLines.Count; i++)
+                            {
+                                <div class="flex items-center gap-2 payment-row">
+                                    <input type="hidden" name="ExpenseFromSalesLines[@i].Id" value="@Model.ExpenseFromSalesLines[i].Id" />
+                                    <input type="hidden" name="ExpenseFromSalesLines[@i].LineType" value="ExpenseFromSales" />
+                                    <input type="text" name="ExpenseFromSalesLines[@i].Label" value="@Model.ExpenseFromSalesLines[i].Label" class="w-2/3 bg-surface-container-low border border-surface-border rounded px-3 py-1 font-body-md text-on-surface" placeholder="Expense description (e.g. rice)" />
+                                    <input type="number" step="0.01" name="ExpenseFromSalesLines[@i].Amount" value="@Model.ExpenseFromSalesLines[i].Amount" class="w-1/3 bg-surface-container-low border border-surface-border rounded px-3 py-1 font-data-mono text-on-surface amount-input" placeholder="Amount (₱)" />
+                                    <button type="button" class="text-audit-error material-symbols-outlined text-[18px]" onclick="removePaymentRow(this)">delete</button>
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    @if (User.IsInRole("BranchStaff"))
+                    {
+                        <input type="hidden" asp-for="ReceiptNumberStart" />
+                        <input type="hidden" asp-for="ReceiptNumberEnd" />
+                        <input type="hidden" asp-for="WitnessName" />
+                        <input type="hidden" asp-for="Notes" />
+
+                        @for (int i = 0; i < Model.Items.Count; i++)
+                        {
+                            <input type="hidden" name="Items[@i].Id" value="@Model.Items[i].Id" />
+                            <input type="hidden" name="Items[@i].Denomination" value="@Model.Items[i].Denomination" />
+                            <input type="hidden" name="Items[@i].Quantity" value="@Model.Items[i].Quantity" />
+                            <input type="hidden" name="Items[@i].Total" value="@Model.Items[i].Total" />
+                        }
+                    }
+                    else
+                    {
+                        <!-- 7. Receipt Ranges and Metadata -->
+                        <div class="rounded-xl border border-surface-border bg-surface-container-lowest p-space-4 space-y-space-4">
+                            <div class="flex items-center gap-space-2 mb-space-1">
+                                <span class="material-symbols-outlined text-primary text-[18px]">receipt</span>
+                                <h2 class="font-label-caps text-on-surface uppercase tracking-wider text-[11px]">Receipt Ranges & Notes</h2>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-space-4">
+                                <div class="flex flex-col gap-space-2">
+                                    <label asp-for="ReceiptNumberStart" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Receipt Number Start</label>
+                                    <input asp-for="ReceiptNumberStart" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" />
+                                    <span asp-validation-for="ReceiptNumberStart" class="text-audit-error text-[11px]"></span>
+                                </div>
+                                <div class="flex flex-col gap-space-2">
+                                    <label asp-for="ReceiptNumberEnd" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Receipt Number End</label>
+                                    <input asp-for="ReceiptNumberEnd" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" />
+                                    <span asp-validation-for="ReceiptNumberEnd" class="text-audit-error text-[11px]"></span>
+                                </div>
+                                <div class="flex flex-col gap-space-2 md:col-span-2">
+                                    <label asp-for="WitnessName" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Witness Name</label>
+                                    <input asp-for="WitnessName" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" />
+                                    <span asp-validation-for="WitnessName" class="text-audit-error text-[11px]"></span>
+                                </div>
+                                <div class="flex flex-col gap-space-2 md:col-span-2">
+                                    <label asp-for="Notes" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Notes</label>
+                                    <textarea asp-for="Notes" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface resize-none" rows="2"></textarea>
+                                    <span asp-validation-for="Notes" class="text-audit-error text-[11px]"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Line Items / Cash Breakdown Grid -->
+                        <div class="pt-space-4 border-t border-surface-border">
+                            <h4 class="font-headline-sm text-headline-sm text-[16px] text-on-surface mb-space-4 flex items-center gap-space-2">
+                                <span class="material-symbols-outlined text-primary">list_alt</span>
+                                Cash Denomination Breakdown
+                            </h4>
+                            
+                            <div class="border border-surface-border rounded-xl max-h-[520px] overflow-y-auto overflow-x-auto">
+                                <table class="w-full text-left border-collapse block lg:table">
+                                    <thead class="hidden lg:table-header-group lg:sticky lg:top-0 lg:z-10">
+                                        <tr class="bg-surface-container-low border-b border-surface-border">
+                                            <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px]">Denomination</th>
+                                            <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-28">Quantity</th>
+                                            <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-32 text-right">Total (₱)</th>
+                                            <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-12 text-center">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="line-items-body" class="divide-y divide-surface-border block lg:table-row-group space-y-space-4 lg:space-y-0 p-space-4 lg:p-0">
+                                        @for (int i = 0; i < Model.Items.Count; i++)
+                                        {
+                                            <tr class="hover:bg-surface-container-low/30 transition-colors line-item-row block lg:table-row grid grid-cols-2 gap-x-space-4 gap-y-space-3 p-space-4 border border-surface-border lg:border-0 rounded-xl bg-surface-container-lowest lg:bg-transparent shadow-sm lg:shadow-none">
+                                                <td class="col-span-2 lg:col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2">
+                                                    <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Denomination</label>
+                                                    <input asp-for="Items[i].Denomination" class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-data-mono text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none denom-input" type="number" step="0.01" required />
+                                                </td>
+                                                <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2">
+                                                    <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Quantity</label>
+                                                    <input asp-for="Items[i].Quantity" class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none text-center qty-input" type="number" min="0" required />
+                                                </td>
+                                                <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2 text-right">
+                                                    <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Total (₱)</label>
+                                                    <input asp-for="Items[i].Total" class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none text-right total-input" type="number" step="0.01" readonly />
+                                                </td>
+                                                <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2 text-center flex items-center justify-end lg:justify-center">
+                                                    <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Action</label>
+                                                    <button type="button" class="text-audit-error hover:scale-110 transition-transform remove-row-btn" onclick="removeRow(this)">
+                                                        <span class="material-symbols-outlined text-[18px]">delete</span>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="mt-space-3 flex justify-end">
+                                <button type="button" class="bg-surface-container text-on-surface border border-surface-border px-4 py-2 rounded-lg font-label-caps hover:bg-surface-container-high transition-all text-[11px] uppercase flex items-center gap-1 shadow-sm" onclick="addRow()">
+                                    <span class="material-symbols-outlined text-[16px]">add</span> Add Line
+                                </button>
+                            </div>
+                        </div>
+                    }
+                    <!-- Hidden compatibility fields to bind correctly on form post -->
+                    <input type="hidden" asp-for="GCashAmount" id="GCashAmount" />
+                    <input type="hidden" asp-for="CreditAmount" id="CreditAmount" />
+                    <input type="hidden" asp-for="OtherPaymentAmount" id="OtherPaymentAmount" />
+                    <input type="hidden" asp-for="CashOut" id="CashOut" />
+                    <input type="hidden" asp-for="ConfirmedCashToHandover" id="confirmedCashToHandover" />
 
                     <!-- Form Actions -->
                     <div class="flex flex-col sm:flex-row gap-space-3 pt-space-5 border-t border-surface-border">
@@ -322,7 +598,31 @@
         if (displayVal) {
             displayVal.innerText = sum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
+        updateShortOverNotice(sum);
     }
+
+    function updateShortOverNotice(countedCash) {
+        const grossSales = parseFloat(document.getElementById('GrossSales')?.value) || 0;
+        const cashOut = parseFloat(document.getElementById('CashOut')?.value) || 0;
+        const gcash = parseFloat(document.getElementById('GCashAmount')?.value) || 0;
+        const credit = parseFloat(document.getElementById('CreditAmount')?.value) || 0;
+        const other = parseFloat(document.getElementById('OtherPaymentAmount')?.value) || 0;
+        const expected = grossSales - gcash - credit - other;
+        const variance = countedCash - expected;
+        const label = document.getElementById('short-over-label');
+        const amount = document.getElementById('short-over-amount');
+        const expectedDisplay = document.getElementById('expected-cash-display');
+        if (label) {
+            label.innerText = variance < 0 ? 'Short' : variance > 0 ? 'Over' : 'Balanced';
+        }
+        if (amount) {
+            amount.innerText = `₱${Math.abs(variance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        }
+        if (expectedDisplay) {
+            expectedDisplay.innerText = expected.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+    }
+
 
     function removeRow(btn) {
         const row = btn.closest('.line-item-row');
@@ -370,6 +670,121 @@
         
         reindexRows();
     }
+    function reindexPaymentLines(containerId, propertyPrefix) {
+        const container = document.getElementById(containerId);
+        const rows = container.querySelectorAll('.payment-row');
+        rows.forEach((row, idx) => {
+            row.querySelectorAll('input').forEach(input => {
+                const name = input.name;
+                if (name.includes('.Id')) {
+                    input.name = `${propertyPrefix}[${idx}].Id`;
+                } else if (name.includes('.LineType')) {
+                    input.name = `${propertyPrefix}[${idx}].LineType`;
+                } else if (name.includes('.Amount')) {
+                    input.name = `${propertyPrefix}[${idx}].Amount`;
+                } else if (name.includes('.Label')) {
+                    input.name = `${propertyPrefix}[${idx}].Label`;
+                } else if (name.includes('.SortOrder')) {
+                    input.name = `${propertyPrefix}[${idx}].SortOrder`;
+                }
+            });
+        });
+        calculateCollectionTotals();
+    }
+
+    function addPaymentRow(containerId, propertyPrefix, hasLabel = false) {
+        const container = document.getElementById(containerId);
+        const idx = container.querySelectorAll('.payment-row').length;
+        
+        const row = document.createElement('div');
+        row.className = "flex items-center gap-2 payment-row";
+        
+        const lineType = propertyPrefix.replace('Lines', '');
+        
+        let html = `
+            <input type="hidden" name="${propertyPrefix}[${idx}].Id" value="0" />
+            <input type="hidden" name="${propertyPrefix}[${idx}].LineType" value="${lineType}" />
+        `;
+        
+        if (hasLabel) {
+            html += `
+                <input type="text" name="${propertyPrefix}[${idx}].Label" class="w-1/2 bg-surface-container-low border border-surface-border rounded px-3 py-1 font-body-md text-on-surface" placeholder="Label/Reason" />
+                <input type="number" step="0.01" name="${propertyPrefix}[${idx}].Amount" class="w-1/2 bg-surface-container-low border border-surface-border rounded px-3 py-1 font-data-mono text-on-surface amount-input" placeholder="Amount (₱)" />
+            `;
+        } else {
+            html += `
+                <input type="number" step="0.01" name="${propertyPrefix}[${idx}].Amount" class="w-full bg-surface-container-low border border-surface-border rounded px-3 py-1 font-data-mono text-on-surface amount-input" placeholder="Amount (₱)" />
+            `;
+        }
+        
+        html += `
+            <button type="button" class="text-audit-error material-symbols-outlined text-[18px]" onclick="removePaymentRow(this)">delete</button>
+        `;
+        
+        row.innerHTML = html;
+        container.appendChild(row);
+        
+        row.querySelector('.amount-input').addEventListener('input', calculateCollectionTotals);
+        reindexPaymentLines(containerId, propertyPrefix);
+    }
+
+    function removePaymentRow(btn) {
+        const row = btn.closest('.payment-row');
+        const container = row.parentElement;
+        const containerId = container.id;
+        let prefix = '';
+        if (containerId === 'gcash-container') prefix = 'GCashLines';
+        else if (containerId === 'bank-container') prefix = 'BankTransferLines';
+        else if (containerId === 'card-container') prefix = 'CardLines';
+        else if (containerId === 'credit-container') prefix = 'CreditLines';
+        else if (containerId === 'runaway-container') prefix = 'RunawayCustomerLines';
+        else if (containerId === 'expense-container') prefix = 'ExpenseFromSalesLines';
+        
+        row.remove();
+        reindexPaymentLines(containerId, prefix);
+    }
+
+    function calculateCollectionTotals() {
+        let gcashSum = 0;
+        document.querySelectorAll('#gcash-container .amount-input').forEach(input => {
+            gcashSum += parseFloat(input.value) || 0;
+        });
+        const gcashField = document.getElementById('GCashAmount');
+        if (gcashField) gcashField.value = gcashSum.toFixed(2);
+
+        let creditSum = 0;
+        document.querySelectorAll('#credit-container .amount-input').forEach(input => {
+            creditSum += parseFloat(input.value) || 0;
+        });
+        const creditField = document.getElementById('CreditAmount');
+        if (creditField) creditField.value = creditSum.toFixed(2);
+
+        let bankSum = 0;
+        document.querySelectorAll('#bank-container .amount-input').forEach(input => {
+            bankSum += parseFloat(input.value) || 0;
+        });
+        let cardSum = 0;
+        document.querySelectorAll('#card-container .amount-input').forEach(input => {
+            cardSum += parseFloat(input.value) || 0;
+        });
+        let runawaySum = 0;
+        document.querySelectorAll('#runaway-container .amount-input').forEach(input => {
+            runawaySum += parseFloat(input.value) || 0;
+        });
+        let otherPaymentSum = bankSum + cardSum + runawaySum;
+        const otherPaymentField = document.getElementById('OtherPaymentAmount');
+        if (otherPaymentField) otherPaymentField.value = otherPaymentSum.toFixed(2);
+
+        let expenseSum = 0;
+        document.querySelectorAll('#expense-container .amount-input').forEach(input => {
+            expenseSum += parseFloat(input.value) || 0;
+        });
+        const cashOutField = document.getElementById('CashOut');
+        if (cashOutField) cashOutField.value = expenseSum.toFixed(2);
+
+        const countedCash = parseFloat(document.getElementById('confirmedCashToHandover')?.value) || 0;
+        updateShortOverNotice(countedCash);
+    }
 
     // Set up initial event listeners
     document.addEventListener('DOMContentLoaded', () => {
@@ -381,6 +796,48 @@
             qtyInput.addEventListener('input', () => calculateRowTotal(row));
         });
 
+        document.querySelectorAll('.amount-input').forEach(input => {
+            input.addEventListener('input', calculateCollectionTotals);
+        });
+
+        document.getElementById('BusinessDate')?.addEventListener('change', (e) => {
+            const date = new Date(e.target.value);
+            if (!isNaN(date.getTime())) {
+                const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                const display = document.getElementById('dayOfWeekDisplay');
+                if (display) display.innerText = days[date.getDay()];
+            }
+        });
+
+        const isBranchStaff = @(User.IsInRole("BranchStaff") ? "true" : "false");
+        if (isBranchStaff) {
+            const grossSalesField = document.getElementById('GrossSales');
+            const syncGrossSales = () => {
+                const val = parseFloat(grossSalesField.value) || 0;
+                const amountField = document.getElementById('confirmedCashToHandover');
+                if (amountField) {
+                    amountField.value = val.toFixed(2);
+                }
+                const displayVal = document.getElementById('claimed-amount-display');
+                if (displayVal) {
+                    displayVal.innerText = val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                }
+                updateShortOverNotice(val);
+            };
+            grossSalesField?.addEventListener('input', syncGrossSales);
+            syncGrossSales();
+        }
+
+        ['GrossSales', 'CashOut', 'GCashAmount', 'CreditAmount', 'OtherPaymentAmount', 'confirmedCashToHandover'].forEach(id => {
+            document.getElementById(id)?.addEventListener('input', () => {
+                const countedCash = parseFloat(document.getElementById('confirmedCashToHandover')?.value) || 0;
+                updateShortOverNotice(countedCash);
+            });
+        });
+        calculateCollectionTotals();
+        if (!isBranchStaff) {
+            updateShortOverNotice(parseFloat(document.getElementById('confirmedCashToHandover')?.value) || 0);
+        }
         // Lightbox Modal Handlers
         const mainPreview = document.getElementById('main-preview');
         const lightbox = document.getElementById('lightboxModal');

@@ -2,6 +2,7 @@
 @{
     ViewData["Title"] = "Upload Daily Sales Report";
     var establishments = ViewBag.Establishments as SelectList ?? new SelectList(Enumerable.Empty<SelectListItem>());
+    var selectedEstablishment = establishments.FirstOrDefault(item => item.Selected) ?? establishments.FirstOrDefault();
     var today = DateTime.Today.ToString("yyyy-MM-dd");
 }
 
@@ -42,13 +43,27 @@
             @Html.AntiForgeryToken()
             <div asp-validation-summary="ModelOnly" class="md:col-span-2 text-audit-error bg-audit-error/10 border border-audit-error/20 p-space-3 rounded-lg text-body-md text-center"></div>
 
-            <label class="flex flex-col gap-space-2 md:col-span-2">
-                <span class="font-label-caps uppercase tracking-wider text-on-surface-variant text-[11px]">Operating Branch</span>
-                <select id="establishmentId" name="establishmentId" asp-items="establishments" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" required>
-                    <option value="">Select branch...</option>
-                </select>
-                <span class="text-audit-error text-[11px]" data-valmsg-for="establishmentId"></span>
-            </label>
+            @if (User.IsInRole("BranchStaff") && selectedEstablishment != null)
+            {
+                <div class="flex flex-col gap-space-2 md:col-span-2">
+                    <span class="font-label-caps uppercase tracking-wider text-on-surface-variant text-[11px]">Operating Branch</span>
+                    <input id="establishmentId" name="establishmentId" type="hidden" value="@selectedEstablishment.Value" />
+                    <div class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md text-on-surface">
+                        @selectedEstablishment.Text
+                    </div>
+                    <span class="text-on-surface-variant text-[11px]">Assigned operating branch</span>
+                </div>
+            }
+            else
+            {
+                <label class="flex flex-col gap-space-2 md:col-span-2">
+                    <span class="font-label-caps uppercase tracking-wider text-on-surface-variant text-[11px]">Operating Branch</span>
+                    <select id="establishmentId" name="establishmentId" asp-items="establishments" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" required>
+                        <option value="">Select branch...</option>
+                    </select>
+                    <span class="text-audit-error text-[11px]" data-valmsg-for="establishmentId"></span>
+                </label>
+            }
 
             <label class="flex flex-col gap-space-2">
                 <span class="font-label-caps uppercase tracking-wider text-on-surface-variant text-[11px]">Business Date</span>

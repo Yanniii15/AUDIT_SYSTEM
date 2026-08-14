@@ -4,6 +4,15 @@
     var firstAudit = Model.FirstOrDefault();
 }
 
+<div id="pageVoiceSummary" class="sr-only">
+    Audit approvals queue. Pending audits count: @Model.Count().
+    @if (Model.Any())
+    {
+        var first = Model.First();
+        <text>First audit request: Buyer @first.Buyer.Name, Branch @first.Establishment.Name, Amount ₱@first.Amount.ToString("N2"), status @first.Status.</text>
+    }
+</div>
+
 <!-- Header Section -->
 <div class="relative flex flex-col lg:flex-row gap-space-6 items-start justify-between">
     <div class="flex flex-col gap-space-2 max-w-2xl">
@@ -288,7 +297,7 @@
                         <form asp-action="Verify" method="post" class="flex-none" id="rejectForm">
                             <input type="hidden" name="id" id="reject-id" value="@firstAudit.Id" />
                             <input type="hidden" name="action" value="Rejected" />
-                            <button type="submit" id="rejectSubmitBtn" class="w-12 bg-error/10 text-error hover:bg-error hover:text-on-primary font-label-caps py-space-3 rounded-lg transition-all flex items-center justify-center shadow-sm active:scale-95">
+                            <button type="submit" id="rejectSubmitBtn" class="w-12 bg-error/10 text-error hover:bg-error hover:text-on-primary font-label-caps py-space-3 rounded-lg transition-all flex items-center justify-center shadow-sm active:scale-95" aria-label="Reject Audit">
                                 <span class="material-symbols-outlined">flag</span>
                             </button>
                         </form>
@@ -380,7 +389,7 @@
                         <span class="material-symbols-outlined text-[18px]">verified</span>
                         Approve Audit
                     </button>
-                    <button type="button" onclick="submitModalReject()" class="flex-none bg-error/10 text-error hover:bg-error hover:text-on-primary px-space-4 py-3.5 rounded-lg transition-colors flex items-center justify-center shadow-sm">
+                    <button type="button" onclick="submitModalReject()" class="flex-none bg-error/10 text-error hover:bg-error hover:text-on-primary px-space-4 py-3.5 rounded-lg transition-colors flex items-center justify-center shadow-sm" aria-label="Reject Audit">
                         <span class="material-symbols-outlined">flag</span>
                     </button>
                 </div>

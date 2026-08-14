@@ -78,14 +78,77 @@ public class HomeController : Controller
             .ThenByDescending(a => a.Id)
             .ToListAsync();
 
+        IQueryable<SalesReport> pendingSalesQuery = _context.SalesReports
+            .AsNoTracking()
+            .Include(r => r.DocumentRecord)
+            .Include(r => r.Establishment)
+            .Where(r => r.Status == SalesReportStatus.PendingManagerVerification
+                || r.DocumentRecord.ReviewStatus == DocumentReviewStatus.PendingManagerVerification);
+
+        if (role == "Manager")
+        {
+            pendingSalesQuery = pendingSalesQuery.Where(r => _context.Users
+                .Any(u => !u.IsDeleted
+                    && u.Role == UserRole.BranchStaff
+                    && u.ManagerId == userId
+                    && u.EstablishmentId == r.EstablishmentId));
+        }
+        else if (role == "BranchStaff")
+        {
+            if (currentUser.EstablishmentId.HasValue)
+            {
+                pendingSalesQuery = pendingSalesQuery.Where(r => r.EstablishmentId == currentUser.EstablishmentId.Value);
+            }
+            else
+            {
+                pendingSalesQuery = pendingSalesQuery.Where(r => false);
+            }
+        }
+        else if (role == "Buyer")
+        {
+            pendingSalesQuery = pendingSalesQuery.Where(r => false);
+        }
+
+        model.PendingSalesReports = await pendingSalesQuery
+            .OrderBy(r => r.BusinessDate)
+            .ThenBy(r => r.Establishment.Name)
+            .ThenBy(r => r.Id)
+            .ToListAsync();
+
+        IQueryable<SalesReport> historicalSalesQuery = _context.SalesReports
+            .AsNoTracking()
+            .Include(r => r.DocumentRecord)
+            .Include(r => r.Establishment);
+
+        if (role == "Manager")
+        {
+            historicalSalesQuery = historicalSalesQuery.Where(r => _context.Users
+                .Any(u => !u.IsDeleted
+                    && u.Role == UserRole.BranchStaff
+                    && u.ManagerId == userId
+                    && u.EstablishmentId == r.EstablishmentId));
+        }
+        else if (role == "BranchStaff")
+        {
+            historicalSalesQuery = currentUser.EstablishmentId.HasValue
+                ? historicalSalesQuery.Where(r => r.EstablishmentId == currentUser.EstablishmentId.Value)
+                : historicalSalesQuery.Where(r => false);
+        }
+        else if (role == "Buyer")
+        {
+            historicalSalesQuery = historicalSalesQuery.Where(r => false);
+        }
+
         // Apply search filters
         if (model.StartDate.HasValue)
         {
             query = query.Where(a => a.EntryDate >= model.StartDate.Value);
+            historicalSalesQuery = historicalSalesQuery.Where(r => r.BusinessDate >= model.StartDate.Value);
         }
         if (model.EndDate.HasValue)
         {
             query = query.Where(a => a.EntryDate < model.EndDate.Value.AddDays(1));
+            historicalSalesQuery = historicalSalesQuery.Where(r => r.BusinessDate < model.EndDate.Value.AddDays(1));
         }
         if (model.Status.HasValue)
         {
@@ -94,10 +157,20 @@ public class HomeController : Controller
         if (model.EstablishmentId.HasValue)
         {
             query = query.Where(a => a.EstablishmentId == model.EstablishmentId.Value);
+            historicalSalesQuery = historicalSalesQuery.Where(r => r.EstablishmentId == model.EstablishmentId.Value);
         }
         if (model.BuyerId.HasValue)
         {
             query = query.Where(a => a.BuyerId == model.BuyerId.Value);
+        }
+
+        if (model.RecordType == DashboardRecordType.Audits)
+        {
+            historicalSalesQuery = historicalSalesQuery.Where(r => false);
+        }
+        else if (model.RecordType == DashboardRecordType.DailySales)
+        {
+            query = query.Where(a => false);
         }
 
         // Calculate total amount from filtered items
@@ -107,6 +180,11 @@ public class HomeController : Controller
         model.Audits = await query
             .OrderByDescending(a => a.EntryDate)
             .ThenByDescending(a => a.Id)
+            .ToListAsync();
+
+        model.HistoricalSalesReports = await historicalSalesQuery
+            .OrderByDescending(r => r.BusinessDate)
+            .ThenByDescending(r => r.Id)
             .ToListAsync();
 
         if (role == "Owner" || role == "Admin")
@@ -170,16 +248,18 @@ public class HomeController : Controller
             ViewBag.Buyers = new SelectList(buyers, "Id", "Name", model.BuyerId);
         }
 
-        // Status filter select list
-        var statuses = System.Enum.GetValues(typeof(AuditStatus))
+        // Status filter select list. AuditStatus keeps legacy aliases for compatibility; the UI shows each numeric value once.
+        ViewBag.Statuses = System.Enum.GetValues(typeof(AuditStatus))
             .Cast<AuditStatus>()
-            .Select(s => new SelectListItem
+            .GroupBy(status => Convert.ToInt32(status))
+            .Select(group => group.First())
+            .Select(status => new SelectListItem
             {
-                Value = s.ToString(),
-                Text = s.ToString(),
-                Selected = model.Status.HasValue && model.Status.Value == s
-            }).ToList();
-        ViewBag.Statuses = new SelectList(statuses, "Value", "Text", model.Status?.ToString());
+                Value = status.ToString(),
+                Text = status.ToString(),
+                Selected = model.Status.HasValue && model.Status.Value == status
+            })
+            .ToList();
 
         return View(model);
     }

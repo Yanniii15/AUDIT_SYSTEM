@@ -1,0 +1,62 @@
+@model List<AuditCkDayo.Models.PnlCategory>
+@{
+    ViewData["Title"] = "P&L Registration";
+    var cogs = Model.Where(category => category.Section == AuditCkDayo.Models.PnlExpenseSection.COGS).ToList();
+    var opex = Model.Where(category => category.Section == AuditCkDayo.Models.PnlExpenseSection.OPEX).ToList();
+}
+
+<section class="space-y-space-6">
+    <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-space-4">
+        <div class="space-y-space-2 max-w-3xl">
+            <div class="flex items-center gap-space-2 text-primary">
+                <span class="material-symbols-outlined text-[20px]">category</span>
+                <span class="font-label-caps uppercase tracking-widest text-on-surface-variant">Admin Setup</span>
+            </div>
+            <h1 class="font-headline-lg text-headline-lg text-on-surface">P&L Registration</h1>
+            <p class="font-body-md text-on-surface-variant leading-relaxed">Register the dropdown categories used by audit receipt lines. Each category belongs to COGS or OPEX.</p>
+        </div>
+    </div>
+
+    @if (TempData["Message"] != null)
+    {
+        <div class="rounded-xl border border-audit-success/20 bg-audit-success/10 text-audit-success px-space-4 py-space-3 font-body-md">@TempData["Message"]</div>
+    }
+    @if (TempData["Error"] != null)
+    {
+        <div class="rounded-xl border border-audit-error/20 bg-audit-error/10 text-audit-error px-space-4 py-space-3 font-body-md">@TempData["Error"]</div>
+    }
+
+    <div class="grid grid-cols-1 xl:grid-cols-2 gap-space-5">
+        @foreach (var pnlSection in new[] { AuditCkDayo.Models.PnlExpenseSection.COGS, AuditCkDayo.Models.PnlExpenseSection.OPEX })
+        {
+            var rows = pnlSection == AuditCkDayo.Models.PnlExpenseSection.COGS ? cogs : opex;
+            <section class="bg-surface-container-lowest rounded-xl shadow-sm border border-surface-border/50 overflow-hidden">
+                <div class="bg-primary px-space-6 py-space-4 flex items-center justify-between">
+                    <span class="text-on-primary font-label-caps uppercase tracking-tighter text-[11px]">@pnlSection</span>
+                    <span class="text-on-primary/70 text-[11px] font-data-mono">@rows.Count categories</span>
+                </div>
+                <form asp-action="Create" method="post" class="p-space-5 border-b border-surface-border flex flex-col sm:flex-row gap-space-3">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="section" value="@pnlSection" />
+                    <input name="name" class="flex-1 bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-space-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" placeholder="@(pnlSection == AuditCkDayo.Models.PnlExpenseSection.COGS ? "Beers" : "Rent")" />
+                    <button type="submit" class="bg-primary text-on-primary px-space-5 py-space-3 rounded-lg font-label-caps uppercase text-[11px] tracking-wider hover:brightness-110 transition-all">Add</button>
+                </form>
+                <div class="divide-y divide-surface-border">
+                    @if (rows.Count == 0)
+                    {
+                        <div class="p-space-5 text-on-surface-variant text-[13px]">No registered categories yet.</div>
+                    }
+                    @foreach (var category in rows)
+                    {
+                        <div class="p-space-5 flex items-center justify-between gap-space-3">
+                            <div class="font-semibold text-on-surface">@category.Name</div>
+                            <span class="inline-flex items-center rounded-full border px-space-3 py-space-1 text-[11px] font-label-caps uppercase tracking-wider @(category.IsActive ? "bg-audit-success/10 border-audit-success/20 text-audit-success" : "bg-surface-container border-surface-border text-on-surface-variant")">
+                                @(category.IsActive ? "Active" : "Inactive")
+                            </span>
+                        </div>
+                    }
+                </div>
+            </section>
+        }
+    </div>
+</section>

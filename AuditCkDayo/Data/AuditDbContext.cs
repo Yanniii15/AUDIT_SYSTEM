@@ -18,12 +18,14 @@ namespace AuditCkDayo.Data
         public DbSet<CostCenter> CostCenters { get; set; }
         public DbSet<DocumentRecord> DocumentRecords { get; set; }
         public DbSet<SalesReport> SalesReports { get; set; }
+        public DbSet<SalesReportLine> SalesReportLines { get; set; }
         public DbSet<CashBreakdownLine> CashBreakdownLines { get; set; }
         public DbSet<TreasuryCashFlow> TreasuryCashFlows { get; set; }
         public DbSet<CashFlowEntry> CashFlowEntries { get; set; }
         public DbSet<PcfRelease> PcfReleases { get; set; }
         public DbSet<AuditSettlement> AuditSettlements { get; set; }
         public DbSet<ManagerCoverage> ManagerCoverages { get; set; }
+        public DbSet<PnlCategory> PnlCategories { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -95,6 +97,23 @@ namespace AuditCkDayo.Data
                 .Property(c => c.IsActive)
                 .HasDefaultValue(true);
 
+            modelBuilder.Entity<PnlCategory>()
+                .Property(category => category.Section)
+                .HasConversion<string>()
+                .HasMaxLength(50);
+
+            modelBuilder.Entity<PnlCategory>()
+                .Property(category => category.Name)
+                .HasMaxLength(100);
+
+            modelBuilder.Entity<PnlCategory>()
+                .Property(category => category.IsActive)
+                .HasDefaultValue(true);
+
+            modelBuilder.Entity<PnlCategory>()
+                .HasIndex(category => new { category.Section, category.Name })
+                .IsUnique();
+
             modelBuilder.Entity<AuditItemDetail>()
                 .Property(ad => ad.ReceiptStatus)
                 .HasConversion<string>()
@@ -105,6 +124,17 @@ namespace AuditCkDayo.Data
                 .HasConversion<string>()
                 .HasMaxLength(50)
                 .HasDefaultValue(BranchVerificationStatus.Pending);
+
+            modelBuilder.Entity<AuditItemDetail>()
+                .Property(ad => ad.PnlSection)
+                .HasConversion<string>()
+                .HasMaxLength(50);
+
+            modelBuilder.Entity<AuditItemDetail>()
+                .HasOne(ad => ad.PnlCategory)
+                .WithMany()
+                .HasForeignKey(ad => ad.PnlCategoryId)
+                .OnDelete(DeleteBehavior.SetNull);
 
             modelBuilder.Entity<AuditItemDetail>()
                 .HasOne(ad => ad.AssignedEstablishment)
@@ -269,6 +299,18 @@ namespace AuditCkDayo.Data
                 .WithOne(c => c.SalesReport)
                 .HasForeignKey(c => c.SalesReportId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<SalesReportLine>()
+                .Property(l => l.LineType)
+                .HasConversion<string>()
+                .HasMaxLength(50);
+
+            modelBuilder.Entity<SalesReportLine>()
+                .HasOne(l => l.SalesReport)
+                .WithMany(r => r.Lines)
+                .HasForeignKey(l => l.SalesReportId)
+                .OnDelete(DeleteBehavior.Cascade);
+
 
             modelBuilder.Entity<CashBreakdownLine>()
                 .Property(c => c.OwnerType)

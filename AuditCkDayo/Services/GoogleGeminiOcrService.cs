@@ -195,15 +195,26 @@ namespace AuditCkDayo.Services
             {
                 var parts = new List<object>();
 
-                var prompt = "Analyze this daily sales report / cashier shift closing sheet. Extract the following details:\n" +
+                var prompt = "Analyze this daily sales report / cashier shift closing sheet. Extract the following details. Support both tabular reports and text-message formats like CLOSING / MAIN SALES.\n" +
+                             "Mapping rules for text-message daily sales:\n" +
+                             "- BusinessDate: parse the written date such as 'August 12, 2026' and return YYYY-MM-DD.\n" +
+                             "- CashierName: value after 'Cashier Name'.\n" +
+                             "- GrossSales: use 'Daily Gross Sales' when present, not Closing Gross Sales or category subtotals.\n" +
+                             "- ConfirmedCashToHandover: use 'Cash Sales'.\n" +
+                             "- GCashAmount: SUM every amount listed under G-Cash sales until the next payment section.\n" +
+                             "- OtherPaymentAmount: SUM Bank Transfer, Card, Run-away Customer, and other non-cash/non-GCash payment amounts.\n" +
+                             "- CreditAmount: SUM every amount listed under Credit; ignore names after the amount and treat dash-prefixed amounts as positive credits.\n" +
+                             "- CashOut: this field means PCF Expenses. Use the total expenses paid from starting PCF when present; otherwise sum categorized expense lines.\n" +
+                             "- Preserve reasons/names in RawJson only; numeric fields must be totals.\n" +
+                             "Fields to return:\n" +
                              "1. CashierName (string, name of cashier/person on shift)\n" +
                              "2. BusinessDate (string in YYYY-MM-DD format)\n" +
                              "3. GrossSales (decimal, total/gross sales amount)\n" +
-                             "4. CashOut (decimal, total cash paid out or expense deducted from sales)\n" +
-                             "5. ConfirmedCashToHandover (decimal, cash to be turned over)\n" +
+                             "4. CashOut (decimal, total PCF expenses paid from starting PCF; this is not PCF change and must not reduce sales cash handover)\n" +
+                             "5. ConfirmedCashToHandover (decimal, cash sales / cash to be turned over)\n" +
                              "6. GCashAmount (decimal, total GCash sales or remittance)\n" +
                              "7. CreditAmount (decimal, total credit/complimentary sales)\n" +
-                             "8. OtherPaymentAmount (decimal, BDO/bank or other non-cash/non-GCash amounts)\n" +
+                             "8. OtherPaymentAmount (decimal, bank transfer/card/run-away/other non-cash, non-GCash amounts)\n" +
                              "9. ReceiptNumberStart (string, starting receipt number in sequence)\n" +
                              "10. ReceiptNumberEnd (string, ending receipt number in sequence)\n" +
                              "11. WitnessName (string, witness to handover)\n" +

@@ -160,6 +160,9 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
 </head>
 <body class="bg-background font-body-md text-on-surface">
+    <a href="#mainContent" class="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[999] focus:bg-primary focus:text-on-primary focus:px-space-4 focus:py-space-3 focus:rounded-lg">
+        Skip to main content
+    </a>
     @if (User.Identity?.IsAuthenticated == true)
     {
         <!-- Sidebar Navigation -->
@@ -191,14 +194,6 @@
                     <span class="font-label-caps uppercase">Cash Surrender</span>
                 </a>
 
-                @if (User.IsInRole("Buyer"))
-                {
-                    <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
-                       asp-controller="Reports" asp-action="Index">
-                        <span class="material-symbols-outlined mr-space-3">assessment</span>
-                        <span class="font-label-caps uppercase">Reports</span>
-                    </a>
-                }
 
                 @if (User.IsInRole("Manager"))
                 {
@@ -323,6 +318,12 @@
                         <span class="material-symbols-outlined mr-space-3">supervisor_account</span>
                         <span class="font-label-caps uppercase">Coverage</span>
                     </a>
+
+                    <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary"
+                       asp-controller="PnlRegistration" asp-action="Index">
+                        <span class="material-symbols-outlined mr-space-3">category</span>
+                        <span class="font-label-caps uppercase">P&L Registration</span>
+                    </a>
                     
                     <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary"
                        asp-controller="System" asp-action="Diagnostics">
@@ -351,17 +352,6 @@
                         <span class="font-label-caps uppercase">Daily Sales</span>
                     </a>
 
-                    <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
-                       asp-controller="PcfMonitor" asp-action="Index">
-                        <span class="material-symbols-outlined mr-space-3">monitoring</span>
-                        <span class="font-label-caps uppercase">PCF Monitor</span>
-                    </a>
-
-                    <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary" 
-                       asp-controller="Reports" asp-action="Index">
-                        <span class="material-symbols-outlined mr-space-3">assessment</span>
-                        <span class="font-label-caps uppercase">Reports</span>
-                    </a>
                 }
             </nav>
             
@@ -402,7 +392,18 @@
                     <div class="h-8 w-[2px] bg-surface-border hidden lg:block"></div>
                     <span class="text-label-caps text-on-surface-variant font-medium uppercase tracking-widest text-[11px] lg:text-[12px] truncate max-w-[150px] sm:max-w-none">PCF Auditing Suite</span>
                 </div>
-                <div class="flex items-center gap-space-6">
+                <div class="flex items-center gap-space-4">
+                    @if (User.IsInRole("Owner"))
+                    {
+                        <button type="button"
+                                id="voiceAssistToggle"
+                                class="inline-flex min-h-[44px] items-center justify-center gap-space-2 rounded-lg border border-surface-border bg-surface-container px-space-4 py-space-2 text-[11px] font-label-caps uppercase text-primary cursor-pointer hover:bg-surface-container-high transition-colors"
+                                aria-pressed="false"
+                                aria-label="Turn voice assist on">
+                            <span class="material-symbols-outlined text-[18px]" aria-hidden="true">record_voice_over</span>
+                            <span id="voiceAssistToggleText">Voice Assist Off</span>
+                        </button>
+                    }
                     <!-- Notification Bell Dropdown -->
                     <div class="relative hidden lg:block" id="notificationBellContainer">
                         <button type="button" id="notificationBellBtn" class="relative p-2 text-on-surface-variant hover:text-primary transition-colors focus:outline-none bg-transparent border-0 flex items-center justify-center">
@@ -451,7 +452,7 @@
             </header>
 
             <!-- Main Workspace -->
-            <main class="relative pt-16 min-h-screen bg-surface-container-low">
+            <main id="mainContent" class="relative pt-16 min-h-screen bg-surface-container-low" tabindex="-1">
                 <div class="flex flex-col w-full p-space-4 lg:p-space-8 gap-space-4 lg:gap-space-8">
                     @RenderBody()
                 </div>
@@ -623,6 +624,8 @@
         });
     </script>
 
+    <div id="globalA11yStatus" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
+    <script src="~/js/voice-assist.js"></script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>
