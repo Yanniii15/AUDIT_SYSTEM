@@ -37,6 +37,11 @@ namespace AuditCkDayo.Services
                 .Where(r => r.Status == SalesReportStatus.Confirmed)
                 .ToListAsync();
 
+            var recentSalesReports = salesReports
+                .OrderByDescending(r => r.BusinessDate)
+                .Take(5)
+                .ToList();
+
             var pnl = PnlReportViewModel.Build(auditItems, salesReports, startDate, endDate);
 
             var summary = new
@@ -65,7 +70,7 @@ namespace AuditCkDayo.Services
                     NetProfit = b.NetProfit.ToString("N2"),
                     NetProfitPercentage = $"{b.NetProfitPercentage}%"
                 }).ToList(),
-                DailySalesReports = salesReports.Select(r => new
+                DailySalesReports = recentSalesReports.Select(r => new
                 {
                     r.Id,
                     BranchName = r.Establishment.Name,
