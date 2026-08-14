@@ -1,0 +1,206 @@
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Voice Query Assistant";
+}
+
+<div id="pageVoiceSummary" class="sr-only">
+    Voice query assistant. Tap the center of the screen to record your business question.
+</div>
+
+<div class="flex flex-col items-center justify-center min-h-[70vh] p-space-4 gap-space-6 text-center select-none">
+    <div class="space-y-space-2 max-w-md">
+        <h1 class="font-headline-lg text-headline-lg text-on-surface">Voice Assistant</h1>
+        <p class="font-body-md text-on-surface-variant leading-relaxed">
+            Tap and hold the button below to ask a question about your business reports, then release to get the answer.
+        </p>
+    </div>
+
+    <!-- Massive Record Button -->
+    <button type="button" id="recordBtn" class="w-64 h-64 sm:w-80 sm:h-80 rounded-full bg-primary hover:bg-primary/95 active:scale-95 text-on-primary flex flex-col items-center justify-center gap-space-3 shadow-xl transition-all border-4 border-primary-fixed-dim/30 cursor-pointer focus:outline-none focus:ring-4 focus:ring-primary/20" aria-label="Tap and hold to record question">
+        <span id="recordIcon" class="material-symbols-outlined text-[64px] sm:text-[80px]">mic</span>
+        <span id="recordText" class="font-label-caps uppercase tracking-widest text-[13px] font-bold">Tap & Hold</span>
+    </button>
+
+    <!-- Status Output -->
+    <div class="h-16 flex items-center justify-center max-w-lg">
+        <p id="statusText" class="font-body-md text-primary font-semibold animate-pulse hidden"></p>
+        <p id="resultText" class="font-body-md text-on-surface leading-relaxed" aria-live="polite"></p>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        const recordBtn = document.getElementById("recordBtn");
+        const recordIcon = document.getElementById("recordIcon");
+        const recordText = document.getElementById("recordText");
+        const statusText = document.getElementById("statusText");
+        const resultText = document.getElementById("resultText");
+
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let audioCtx = null;
+
+        // Initialize AudioContext on first user interaction
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        // Play feedback beep
+        function playBeep(frequency, duration) {
+            initAudio();
+            if (!audioCtx) return;
+            
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+
+            osc.type = "sine";
+            osc.frequency.value = frequency;
+
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            osc.start();
+            osc.stop(audioCtx.currentTime + duration);
+        }
+
+        async function startRecording() {
+            initAudio();
+            audioChunks = [];
+            
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                
+                mediaRecorder.ondataavailable = function (e) {
+                    if (e.data.size > 0) {
+                        audioChunks.push(e.data);
+                    }
+                };
+
+                mediaRecorder.onstop = async function () {
+                    const audioBlob = new Blob(audioChunks, { type: "audio/wav" });
+                    stream.getTracks().forEach(track => track.stop());
+                    await uploadAudio(audioBlob);
+                };
+
+                // Play high start beep
+                playBeep(880, 0.15);
+                
+                mediaRecorder.start();
+                
+                recordBtn.classList.remove("bg-primary");
+                recordBtn.classList.add("bg-error");
+                recordIcon.innerText = "mic_active";
+                recordText.innerText = "Recording...";
+                
+                statusText.innerText = "Listening...";
+                statusText.classList.remove("hidden");
+                resultText.innerText = "";
+            } catch (err) {
+                console.error("Failed to access microphone", err);
+                resultText.innerText = "Microphone access denied.";
+                if (window.auditVoiceAssist) {
+                    window.auditVoiceAssist.speak("Microphone access denied.");
+                }
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state === "recording") {
+                // Play low stop beep
+                playBeep(440, 0.15);
+                
+                mediaRecorder.stop();
+                
+                recordBtn.classList.remove("bg-error");
+                recordBtn.classList.add("bg-primary");
+                recordIcon.innerText = "mic";
+                recordText.innerText = "Tap & Hold";
+                
+                statusText.innerText = "Processing...";
+            }
+        }
+
+        async function uploadAudio(blob) {
+            const formData = new FormData();
+            formData.append("audioFile", blob, "query.wav");
+
+            // Add anti-forgery token if present
+            const afToken = document.querySelector("#antiForgeryForm input[name='__RequestVerificationToken']")?.value;
+            const headers = {};
+            if (afToken) {
+                headers["RequestVerificationToken"] = afToken;
+            }
+
+            try {
+                const response = await fetch("/Voice/UploadQuery", {
+                    method: "POST",
+                    headers: headers,
+                    body: formData
+                });
+
+                statusText.classList.add("hidden");
+
+                if (!response.ok) {
+                    const errData = await response.json();
+                    throw new Error(errData.error || "Server error.");
+                }
+
+                const data = await response.json();
+                resultText.innerText = data.text;
+
+                // Read answer aloud using browser SpeechSynthesis
+                if (window.auditVoiceAssist) {
+                    window.auditVoiceAssist.speak(data.text);
+                }
+            } catch (err) {
+                console.error("Query failed", err);
+                resultText.innerText = err.message || "Failed to reach the assistant.";
+                if (window.auditVoiceAssist) {
+                    window.auditVoiceAssist.speak(resultText.innerText);
+                }
+            }
+        }
+
+        // Support both click-toggle and touch-hold gestures
+        let isRecording = false;
+
+        recordBtn.addEventListener("mousedown", function(e) {
+            e.preventDefault();
+            initAudio();
+            if (!isRecording) {
+                isRecording = true;
+                startRecording();
+            }
+        });
+
+        window.addEventListener("mouseup", function() {
+            if (isRecording) {
+                isRecording = false;
+                stopRecording();
+            }
+        });
+
+        // Touch events for mobile phones
+        recordBtn.addEventListener("touchstart", function(e) {
+            e.preventDefault();
+            initAudio();
+            if (!isRecording) {
+                isRecording = true;
+                startRecording();
+            }
+        });
+
+        window.addEventListener("touchend", function() {
+            if (isRecording) {
+                isRecording = false;
+                stopRecording();
+            }
+        });
+    });
+</script>

@@ -112,6 +112,69 @@ namespace AuditCkDayo.Models
             set => ImageUrlsJson = System.Text.Json.JsonSerializer.Serialize(value);
         }
 
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal ClosingGrossSales { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal FoodSales { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal BeerSales { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal BeverageSales { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal OtherSales { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal CashSales { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal SeniorDiscount { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal PwdDiscount { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal LoyaltyCardDiscount { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal GiftVoucherDiscount { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal EmployeeTenPercentDiscount { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal EmployeeFivePercentDiscount { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal EaglesDiscount { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal SalesShortageAmount { get; set; }
+
+        [MaxLength(255)]
+        public string? SalesShortageReason { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal SalesOverageAmount { get; set; }
+
+        [MaxLength(255)]
+        public string? SalesOverageReason { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal RestoPcf { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal PcfFromSales { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal ChangeAmount { get; set; }
+
+        public virtual ICollection<SalesReportLine> Lines { get; set; } = new List<SalesReportLine>();
+
         public virtual ICollection<CashBreakdownLine> CashBreakdownLines { get; set; } = new List<CashBreakdownLine>();
+
     }
 }

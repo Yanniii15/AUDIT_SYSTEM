@@ -61,5 +61,17 @@ namespace AuditCkDayo.Models
 
         [MaxLength(255)]
         public string? AllocationNotes { get; set; }
+
+        public int? PnlCategoryId { get; set; }
+
+        [ForeignKey("PnlCategoryId")]
+        public virtual PnlCategory? PnlCategory { get; set; }
+
+        [Required]
+        public PnlExpenseSection PnlSection { get; set; } = PnlExpenseSection.Other;
+
+        [Required]
+        [MaxLength(100)]
+        public string PnlCategoryName { get; set; } = "Other";
     }
 }

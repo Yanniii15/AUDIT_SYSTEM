@@ -41,6 +41,7 @@ public class ReportsViewModel
     public BuyerAuditReportViewModel BuyerAudit { get; set; } = new();
     public List<BuyerAuditReportViewModel> BuyerAudits { get; set; } = new();
     public BranchAuditReportViewModel BranchAudit { get; set; } = new();
+    public PnlReportViewModel PnlReport { get; set; } = new();
 }
 
 public class ReportStatusSummary
@@ -279,4 +280,160 @@ public class BranchExpenseLine
     public string Description { get; set; } = string.Empty;
     public decimal Amount { get; set; }
     public string Allocation { get; set; } = string.Empty;
+}
+
+public class PnlReportViewModel
+{
+    public DateTime StartDate { get; set; }
+    public DateTime EndDate { get; set; }
+    public string BranchName { get; set; } = "All Branches";
+    public List<PnlCategoryTotalViewModel> Categories { get; set; } = new();
+    public List<PnlBranchTotalViewModel> Branches { get; set; } = new();
+    public decimal TotalSales { get; set; }
+    public decimal CogsTotal => Categories.Where(c => c.Section == PnlExpenseSection.COGS).Sum(c => c.Amount);
+    public decimal GrossProfit => TotalSales - CogsTotal;
+    public decimal OpexTotal => Categories.Where(c => c.Section == PnlExpenseSection.OPEX).Sum(c => c.Amount);
+    public decimal MonthlyFixedCostTotal => Categories.Where(c => c.Section == PnlExpenseSection.MonthlyFixedCost).Sum(c => c.Amount);
+    public decimal OtherTotal => Categories.Where(c => c.Section == PnlExpenseSection.Other).Sum(c => c.Amount);
+    public decimal TotalExpenses => CogsTotal + OpexTotal + MonthlyFixedCostTotal + OtherTotal;
+    public decimal NetProfit => GrossProfit - OpexTotal - MonthlyFixedCostTotal - OtherTotal;
+    public decimal NetProfitPercentage => TotalSales == 0m ? 0m : Math.Round(NetProfit / TotalSales * 100m, 2);
+
+    public static PnlReportViewModel Build(IEnumerable<AuditItem> auditItems, IEnumerable<SalesReport> salesReports, DateTime startDate, DateTime endDate, int? establishmentId = null)
+    {
+        if (endDate < startDate)
+        {
+            (startDate, endDate) = (endDate, startDate);
+        }
+
+        var confirmedSales = salesReports
+            .Where(report => report.Status == SalesReportStatus.Confirmed)
+            .Where(report => report.BusinessDate.Date >= startDate.Date && report.BusinessDate.Date <= endDate.Date)
+            .Where(report => !establishmentId.HasValue || report.EstablishmentId == establishmentId.Value)
+            .ToList();
+
+        var approvedAudits = auditItems
+            .Where(audit => audit.Status == AuditStatus.Approved)
+            .Where(audit => audit.EntryDate.Date >= startDate.Date && audit.EntryDate.Date <= endDate.Date)
+            .Where(audit => !establishmentId.HasValue || audit.EstablishmentId == establishmentId.Value || audit.Details.Any(detail => detail.AssignedEstablishmentId == establishmentId.Value))
+            .ToList();
+
+        var approvedDetails = approvedAudits
+            .SelectMany(audit => audit.Details.Select(detail => new
+            {
+                Audit = audit,
+                Detail = detail,
+                BranchName = detail.AssignedEstablishment?.Name ?? audit.Establishment?.Name ?? "Unassigned"
+            }))
+            .Where(row => !establishmentId.HasValue || DetailBelongsToEstablishment(row.Audit, row.Detail, establishmentId.Value))
+            .ToList();
+
+        var model = new PnlReportViewModel
+        {
+            StartDate = startDate.Date,
+            EndDate = endDate.Date,
+            BranchName = establishmentId.HasValue
+                ? confirmedSales.Select(report => report.Establishment?.Name).Concat(approvedAudits.Select(audit => audit.Establishment?.Name)).FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)) ?? "Selected Branch"
+                : "All Branches",
+            TotalSales = confirmedSales.Sum(report => report.GrossSales)
+        };
+
+        model.Categories = approvedDetails
+            .Select(row => row.Detail)
+            .GroupBy(detail => new { Section = ResolvePnlSection(detail), CategoryName = NormalizeCategory(ResolvePnlCategoryName(detail)) })
+            .Select(group => new PnlCategoryTotalViewModel
+            {
+                Section = group.Key.Section,
+                CategoryName = group.Key.CategoryName,
+                Amount = group.Sum(detail => detail.Total),
+                Items = group
+                    .GroupBy(detail => string.IsNullOrWhiteSpace(detail.ItemName) ? group.Key.CategoryName : detail.ItemName.Trim())
+                    .Select(itemGroup => new PnlExpenseItemViewModel
+                    {
+                        ItemName = itemGroup.Key,
+                        Amount = itemGroup.Sum(detail => detail.Total)
+                    })
+                    .OrderByDescending(item => item.Amount)
+                    .ThenBy(item => item.ItemName)
+                    .ToList()
+            })
+            .OrderBy(category => category.Section)
+            .ThenByDescending(category => category.Amount)
+            .ToList();
+
+        var branchNames = confirmedSales.Select(report => report.Establishment?.Name ?? "Unassigned")
+            .Concat(approvedDetails.Select(row => row.BranchName))
+            .Distinct()
+            .OrderBy(name => name)
+            .ToList();
+
+        model.Branches = branchNames
+            .Select(branchName =>
+            {
+                var branchSales = confirmedSales.Where(report => (report.Establishment?.Name ?? "Unassigned") == branchName).ToList();
+                var branchDetails = approvedDetails.Where(row => row.BranchName == branchName).Select(row => row.Detail).ToList();
+                return new PnlBranchTotalViewModel
+                {
+                    BranchName = branchName,
+                    Sales = branchSales.Sum(report => report.GrossSales),
+                    Cogs = branchDetails.Where(detail => ResolvePnlSection(detail) == PnlExpenseSection.COGS).Sum(detail => detail.Total),
+                    Opex = branchDetails.Where(detail => ResolvePnlSection(detail) == PnlExpenseSection.OPEX).Sum(detail => detail.Total),
+                    MonthlyFixedCost = branchDetails.Where(detail => ResolvePnlSection(detail) == PnlExpenseSection.MonthlyFixedCost).Sum(detail => detail.Total),
+                    Other = branchDetails.Where(detail => ResolvePnlSection(detail) == PnlExpenseSection.Other).Sum(detail => detail.Total)
+                };
+            })
+            .ToList();
+
+        return model;
+    }
+
+    private static bool DetailBelongsToEstablishment(AuditItem audit, AuditItemDetail detail, int establishmentId)
+    {
+        return detail.AssignedEstablishmentId.HasValue
+            ? detail.AssignedEstablishmentId.Value == establishmentId
+            : audit.EstablishmentId == establishmentId;
+    }
+
+    private static PnlExpenseSection ResolvePnlSection(AuditItemDetail detail)
+    {
+        return detail.PnlCategory?.Section ?? detail.PnlSection;
+    }
+
+    private static string ResolvePnlCategoryName(AuditItemDetail detail)
+    {
+        return detail.PnlCategory?.Name ?? detail.PnlCategoryName;
+    }
+
+    private static string NormalizeCategory(string category)
+    {
+        return string.IsNullOrWhiteSpace(category) ? "Other" : category.Trim();
+    }
+}
+
+public class PnlCategoryTotalViewModel
+{
+    public PnlExpenseSection Section { get; set; }
+    public string CategoryName { get; set; } = string.Empty;
+    public decimal Amount { get; set; }
+    public List<PnlExpenseItemViewModel> Items { get; set; } = new();
+    public decimal PercentageOfSales(decimal totalSales) => totalSales == 0m ? 0m : Math.Round(Amount / totalSales * 100m, 2);
+}
+
+public class PnlExpenseItemViewModel
+{
+    public string ItemName { get; set; } = string.Empty;
+    public decimal Amount { get; set; }
+}
+
+public class PnlBranchTotalViewModel
+{
+    public string BranchName { get; set; } = string.Empty;
+    public decimal Sales { get; set; }
+    public decimal Cogs { get; set; }
+    public decimal Opex { get; set; }
+    public decimal MonthlyFixedCost { get; set; }
+    public decimal Other { get; set; }
+    public decimal GrossProfit => Sales - Cogs;
+    public decimal NetProfit => GrossProfit - Opex - MonthlyFixedCost - Other;
+    public decimal NetProfitPercentage => Sales == 0m ? 0m : Math.Round(NetProfit / Sales * 100m, 2);
 }
