@@ -20,11 +20,7 @@ public class HomeController : Controller
     private readonly AuditDbContext _context;
     private readonly Services.CoverageService? _coverageService;
 
-    public HomeController(ILogger<HomeController> logger, AuditDbContext context) : this(logger, context, null)
-    {
-    }
-
-    public HomeController(ILogger<HomeController> logger, AuditDbContext context, Services.CoverageService? coverageService)
+    public HomeController(ILogger<HomeController> logger, AuditDbContext context, Services.CoverageService? coverageService = null)
     {
         _logger = logger;
         _context = context;

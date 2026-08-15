@@ -21,12 +21,7 @@ namespace AuditCkDayo.Controllers
 
         private readonly CoverageService? _coverageService;
 
-        public SalesReportsController(AuditDbContext context, IOcrService ocrService) 
-            : this(context, ocrService, null)
-        {
-        }
-
-        public SalesReportsController(AuditDbContext context, IOcrService ocrService, CoverageService? coverageService)
+        public SalesReportsController(AuditDbContext context, IOcrService ocrService, CoverageService? coverageService = null)
         {
             _context = context;
             _ocrService = ocrService;

@@ -25,12 +25,7 @@ namespace AuditCkDayo.Controllers
         private readonly Services.CoverageService? _coverageService;
         private const string PendingAuditDraftsSessionKey = "PendingAuditDrafts";
 
-        public AuditsController(AuditDbContext context, IOcrService ocrService, IWebHostEnvironment env)
-            : this(context, ocrService, env, null)
-        {
-        }
-
-        public AuditsController(AuditDbContext context, IOcrService ocrService, IWebHostEnvironment env, Services.CoverageService? coverageService)
+        public AuditsController(AuditDbContext context, IOcrService ocrService, IWebHostEnvironment env, Services.CoverageService? coverageService = null)
         {
             _context = context;
             _ocrService = ocrService;
