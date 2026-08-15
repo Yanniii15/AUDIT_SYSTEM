@@ -4847,4 +4847,170 @@ namespace AuditCkDayo.Tests
             }
         }
     }
+
+    public class FakeAuthenticationService : Microsoft.AspNetCore.Authentication.IAuthenticationService
+    {
+        public System.Security.Claims.ClaimsPrincipal? Principal { get; private set; }
+        public Microsoft.AspNetCore.Authentication.AuthenticationProperties? Properties { get; private set; }
+
+        public Task<Microsoft.AspNetCore.Authentication.AuthenticateResult> AuthenticateAsync(Microsoft.AspNetCore.Http.HttpContext context, string? scheme)
+        {
+            return Task.FromResult(Microsoft.AspNetCore.Authentication.AuthenticateResult.NoResult());
+        }
+
+        public Task ChallengeAsync(Microsoft.AspNetCore.Http.HttpContext context, string? scheme, Microsoft.AspNetCore.Authentication.AuthenticationProperties? properties)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task ForbidAsync(Microsoft.AspNetCore.Http.HttpContext context, string? scheme, Microsoft.AspNetCore.Authentication.AuthenticationProperties? properties)
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task SignInAsync(Microsoft.AspNetCore.Http.HttpContext context, string? scheme, System.Security.Claims.ClaimsPrincipal principal, Microsoft.AspNetCore.Authentication.AuthenticationProperties? properties)
+        {
+            Principal = principal;
+            Properties = properties;
+            return Task.CompletedTask;
+        }
+
+        public Task SignOutAsync(Microsoft.AspNetCore.Http.HttpContext context, string? scheme, Microsoft.AspNetCore.Authentication.AuthenticationProperties? properties)
+        {
+            return Task.CompletedTask;
+        }
+    }
+
+    public class FakeUrlHelperFactory : Microsoft.AspNetCore.Mvc.Routing.IUrlHelperFactory
+    {
+        public IUrlHelper GetUrlHelper(ActionContext context)
+        {
+            return new UsersControllerTests.FakeUrlHelper();
+        }
+    }
+
+    public class FakeServiceProvider : IServiceProvider
+    {
+        private readonly Microsoft.AspNetCore.Authentication.IAuthenticationService _authService;
+
+        public FakeServiceProvider(Microsoft.AspNetCore.Authentication.IAuthenticationService authService)
+        {
+            _authService = authService;
+        }
+
+        public object? GetService(Type serviceType)
+        {
+            if (serviceType == typeof(Microsoft.AspNetCore.Authentication.IAuthenticationService))
+            {
+                return _authService;
+            }
+            if (serviceType == typeof(Microsoft.AspNetCore.Mvc.Routing.IUrlHelperFactory))
+            {
+                return new FakeUrlHelperFactory();
+            }
+            return null;
+        }
+    }
+
+    public class AccountControllerTests : IDisposable
+    {
+        private readonly SqliteConnection _connection;
+        private readonly DbContextOptions<AuditDbContext> _options;
+
+        public AccountControllerTests()
+        {
+            _connection = new SqliteConnection("Filename=:memory:");
+            _connection.Open();
+
+            _options = new DbContextOptionsBuilder<AuditDbContext>()
+                .UseSqlite(_connection)
+                .Options;
+
+            using (var context = new AuditDbContext(_options))
+            {
+                context.Database.EnsureCreated();
+            }
+        }
+
+        public void Dispose()
+        {
+            _connection.Dispose();
+        }
+
+        [Fact]
+        public async Task Login_RedirectsOwnerToVoiceQuery()
+        {
+            using (var context = new AuditDbContext(_options))
+            {
+                var passwordHash = BCrypt.Net.BCrypt.HashPassword("Password123!");
+                context.Users.Add(new User { Id = 1, Name = "Alice Owner", Email = "owner@test.com", PasswordHash = passwordHash, Role = UserRole.Owner });
+                await context.SaveChangesAsync();
+            }
+
+            using (var context = new AuditDbContext(_options))
+            {
+                var controller = new AccountController(context);
+
+                var authService = new FakeAuthenticationService();
+                var httpContext = new DefaultHttpContext
+                {
+                    RequestServices = new FakeServiceProvider(authService)
+                };
+                controller.ControllerContext = new ControllerContext
+                {
+                    HttpContext = httpContext
+                };
+
+                var model = new LoginViewModel
+                {
+                    Email = "owner@test.com",
+                    Password = "Password123!"
+                };
+
+                var result = await controller.Login(model);
+
+                var redirect = Assert.IsType<RedirectToActionResult>(result);
+                Assert.Equal("Query", redirect.ActionName);
+                Assert.Equal("Voice", redirect.ControllerName);
+            }
+        }
+
+        [Fact]
+        public async Task Login_RedirectsManagerToHomeIndex()
+        {
+            using (var context = new AuditDbContext(_options))
+            {
+                var passwordHash = BCrypt.Net.BCrypt.HashPassword("Password123!");
+                context.Users.Add(new User { Id = 2, Name = "Bob Manager", Email = "manager@test.com", PasswordHash = passwordHash, Role = UserRole.Manager });
+                await context.SaveChangesAsync();
+            }
+
+            using (var context = new AuditDbContext(_options))
+            {
+                var controller = new AccountController(context);
+
+                var authService = new FakeAuthenticationService();
+                var httpContext = new DefaultHttpContext
+                {
+                    RequestServices = new FakeServiceProvider(authService)
+                };
+                controller.ControllerContext = new ControllerContext
+                {
+                    HttpContext = httpContext
+                };
+
+                var model = new LoginViewModel
+                {
+                    Email = "manager@test.com",
+                    Password = "Password123!"
+                };
+
+                var result = await controller.Login(model);
+
+                var redirect = Assert.IsType<RedirectToActionResult>(result);
+                Assert.Equal("Index", redirect.ActionName);
+                Assert.Equal("Home", redirect.ControllerName);
+            }
+        }
+    }
 }

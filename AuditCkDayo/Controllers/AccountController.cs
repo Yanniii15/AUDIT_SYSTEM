@@ -60,6 +60,10 @@ namespace AuditCkDayo.Controllers
                     {
                         return Redirect(returnUrl);
                     }
+                    if (user.Role == UserRole.Owner)
+                    {
+                        return RedirectToAction("Query", "Voice");
+                    }
                     return RedirectToAction("Index", "Home");
                 }
                 ModelState.AddModelError(string.Empty, "Invalid login attempt.");
