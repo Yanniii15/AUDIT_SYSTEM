@@ -67,7 +67,7 @@ using (var scope = app.Services.CreateScope())
 
     try
     {
-        DbSeeder.Seed(db);
+        DbSeeder.Seed(db, app.Environment.IsDevelopment());
     }
     catch (Exception ex)
     {

@@ -8,9 +8,8 @@ namespace AuditCkDayo.Data
 {
     public static class DbSeeder
     {
-        public static void Seed(AuditDbContext db)
+        public static void Seed(AuditDbContext db, bool isDevelopment)
         {
-            // Seed Establishments if empty
             if (!db.Establishments.Any())
             {
                 var establishments = new List<Establishment>
@@ -82,161 +81,164 @@ namespace AuditCkDayo.Data
                 DailyStartingFloat = 0m,
                 IsTreasury = true
             });
-
-            // Seed two users for each operational role.
-            EnsureUser("owner1@test.com", () => new User
+            // Seed two users for each operational role if in Development/Test environment.
+            if (isDevelopment)
             {
-                Name = "Owner One",
-                Email = "owner1@test.com",
-                PasswordHash = defaultPasswordHash,
-                Role = UserRole.Owner,
-                PcfBalance = 1000m,
-                DailyStartingFloat = 1000m,
-                IsTreasury = true
-            });
-
-            EnsureUser("owner2@test.com", () => new User
-            {
-                Name = "Owner Two",
-                Email = "owner2@test.com",
-                PasswordHash = defaultPasswordHash,
-                Role = UserRole.Owner,
-                PcfBalance = 1000m,
-                DailyStartingFloat = 1000m,
-                IsTreasury = true
-            });
-
-            var managerOne = EnsureUser("manager1@test.com", () => new User
-            {
-                Name = "Manager One",
-                Email = "manager1@test.com",
-                PasswordHash = defaultPasswordHash,
-                Role = UserRole.Manager,
-                PcfBalance = 500m,
-                DailyStartingFloat = 500m,
-                IsTreasury = true
-            });
-
-            var managerTwo = EnsureUser("manager2@test.com", () => new User
-            {
-                Name = "Manager Two",
-                Email = "manager2@test.com",
-                PasswordHash = defaultPasswordHash,
-                Role = UserRole.Manager,
-                PcfBalance = 500m,
-                DailyStartingFloat = 500m,
-                IsTreasury = true
-            });
-
-            EnsureUser("maymay@ckr.com", () => new User
-            {
-                Name = "Dorothy May",
-                Email = "maymay@ckr.com",
-                PasswordHash = defaultPasswordHash,
-                Role = UserRole.Manager,
-                PcfBalance = 500m,
-                DailyStartingFloat = 500m,
-                IsTreasury = true
-            });
-
-            EnsureUser("chelsea@ckr.com", () => new User
-            {
-                Name = "Chelsea Manager",
-                Email = "chelsea@ckr.com",
-                PasswordHash = defaultPasswordHash,
-                Role = UserRole.Manager,
-                PcfBalance = 500m,
-                DailyStartingFloat = 500m,
-                IsTreasury = true
-            });
-            EnsureUser("buyer1@test.com", () => new User
-            {
-                Name = "Buyer One",
-                Email = "buyer1@test.com",
-                PasswordHash = defaultPasswordHash,
-                Role = UserRole.Buyer,
-                PcfBalance = 200m,
-                DailyStartingFloat = 200m,
-                ManagerId = managerOne.Id
-            });
-
-            EnsureUser("buyer2@test.com", () => new User
-            {
-                Name = "Buyer Two",
-                Email = "buyer2@test.com",
-                PasswordHash = defaultPasswordHash,
-                Role = UserRole.Buyer,
-                PcfBalance = 200m,
-                DailyStartingFloat = 200m,
-                ManagerId = managerTwo.Id
-            });
-
-            var dayo = db.Establishments.FirstOrDefault(e => e.Name == "Dayo");
-            var ckrMain = db.Establishments.FirstOrDefault(e => e.Name == "CKR Main");
-            var ckrBranchTwo = db.Establishments.FirstOrDefault(e => e.Name == "CKR Branch 2");
-            var ckrBranchFour = db.Establishments.FirstOrDefault(e => e.Name == "CKR Branch 4");
-
-            if (ckrMain != null)
-            {
-                EnsureUser("staff1@test.com", () => new User
+                EnsureUser("owner1@test.com", () => new User
                 {
-                    Name = "Branch Staff One",
-                    Email = "staff1@test.com",
+                    Name = "Owner One",
+                    Email = "owner1@test.com",
                     PasswordHash = defaultPasswordHash,
-                    Role = UserRole.BranchStaff,
-                    PcfBalance = 0m,
-                    DailyStartingFloat = 0m,
-                    EstablishmentId = ckrMain.Id,
+                    Role = UserRole.Owner,
+                    PcfBalance = 1000m,
+                    DailyStartingFloat = 1000m,
+                    IsTreasury = true
+                });
+
+                EnsureUser("owner2@test.com", () => new User
+                {
+                    Name = "Owner Two",
+                    Email = "owner2@test.com",
+                    PasswordHash = defaultPasswordHash,
+                    Role = UserRole.Owner,
+                    PcfBalance = 1000m,
+                    DailyStartingFloat = 1000m,
+                    IsTreasury = true
+                });
+
+                var managerOne = EnsureUser("manager1@test.com", () => new User
+                {
+                    Name = "Manager One",
+                    Email = "manager1@test.com",
+                    PasswordHash = defaultPasswordHash,
+                    Role = UserRole.Manager,
+                    PcfBalance = 500m,
+                    DailyStartingFloat = 500m,
+                    IsTreasury = true
+                });
+
+                var managerTwo = EnsureUser("manager2@test.com", () => new User
+                {
+                    Name = "Manager Two",
+                    Email = "manager2@test.com",
+                    PasswordHash = defaultPasswordHash,
+                    Role = UserRole.Manager,
+                    PcfBalance = 500m,
+                    DailyStartingFloat = 500m,
+                    IsTreasury = true
+                });
+
+                EnsureUser("maymay@ckr.com", () => new User
+                {
+                    Name = "Dorothy May",
+                    Email = "maymay@ckr.com",
+                    PasswordHash = defaultPasswordHash,
+                    Role = UserRole.Manager,
+                    PcfBalance = 500m,
+                    DailyStartingFloat = 500m,
+                    IsTreasury = true
+                });
+
+                EnsureUser("chelsea@ckr.com", () => new User
+                {
+                    Name = "Chelsea Manager",
+                    Email = "chelsea@ckr.com",
+                    PasswordHash = defaultPasswordHash,
+                    Role = UserRole.Manager,
+                    PcfBalance = 500m,
+                    DailyStartingFloat = 500m,
+                    IsTreasury = true
+                });
+
+                EnsureUser("buyer1@test.com", () => new User
+                {
+                    Name = "Buyer One",
+                    Email = "buyer1@test.com",
+                    PasswordHash = defaultPasswordHash,
+                    Role = UserRole.Buyer,
+                    PcfBalance = 200m,
+                    DailyStartingFloat = 200m,
                     ManagerId = managerOne.Id
                 });
-            }
 
-            if (ckrBranchTwo != null)
-            {
-                EnsureUser("staff2@test.com", () => new User
+                EnsureUser("buyer2@test.com", () => new User
                 {
-                    Name = "Branch Staff Two",
-                    Email = "staff2@test.com",
+                    Name = "Buyer Two",
+                    Email = "buyer2@test.com",
                     PasswordHash = defaultPasswordHash,
-                    Role = UserRole.BranchStaff,
-                    PcfBalance = 0m,
-                    DailyStartingFloat = 0m,
-                    EstablishmentId = ckrBranchTwo.Id,
+                    Role = UserRole.Buyer,
+                    PcfBalance = 200m,
+                    DailyStartingFloat = 200m,
                     ManagerId = managerTwo.Id
                 });
-            }
 
-            if (dayo != null)
-            {
-                EnsureUser("staff-dayo@test.com", () => new User
+                var dayo = db.Establishments.FirstOrDefault(e => e.Name == "Dayo");
+                var ckrMain = db.Establishments.FirstOrDefault(e => e.Name == "CKR Main");
+                var ckrBranchTwo = db.Establishments.FirstOrDefault(e => e.Name == "CKR Branch 2");
+                var ckrBranchFour = db.Establishments.FirstOrDefault(e => e.Name == "CKR Branch 4");
+
+                if (ckrMain != null)
                 {
-                    Name = "Dayo Branch Staff",
-                    Email = "staff-dayo@test.com",
-                    PasswordHash = defaultPasswordHash,
-                    Role = UserRole.BranchStaff,
-                    PcfBalance = 0m,
-                    DailyStartingFloat = 0m,
-                    EstablishmentId = dayo.Id,
-                    ManagerId = managerOne.Id
-                });
-            }
+                    EnsureUser("staff1@test.com", () => new User
+                    {
+                        Name = "Branch Staff One",
+                        Email = "staff1@test.com",
+                        PasswordHash = defaultPasswordHash,
+                        Role = UserRole.BranchStaff,
+                        PcfBalance = 0m,
+                        DailyStartingFloat = 0m,
+                        EstablishmentId = ckrMain.Id,
+                        ManagerId = managerOne.Id
+                    });
+                }
 
-            if (ckrBranchFour != null)
-            {
-                EnsureUser("staff4@test.com", () => new User
+                if (ckrBranchTwo != null)
                 {
-                    Name = "Branch Staff Four",
-                    Email = "staff4@test.com",
-                    PasswordHash = defaultPasswordHash,
-                    Role = UserRole.BranchStaff,
-                    PcfBalance = 0m,
-                    DailyStartingFloat = 0m,
-                    EstablishmentId = ckrBranchFour.Id,
-                    ManagerId = managerTwo.Id
-                });
-            }
+                    EnsureUser("staff2@test.com", () => new User
+                    {
+                        Name = "Branch Staff Two",
+                        Email = "staff2@test.com",
+                        PasswordHash = defaultPasswordHash,
+                        Role = UserRole.BranchStaff,
+                        PcfBalance = 0m,
+                        DailyStartingFloat = 0m,
+                        EstablishmentId = ckrBranchTwo.Id,
+                        ManagerId = managerTwo.Id
+                    });
+                }
 
-            SeedThirtyDayQaData(db);
+                if (dayo != null)
+                {
+                    EnsureUser("staff-dayo@test.com", () => new User
+                    {
+                        Name = "Dayo Branch Staff",
+                        Email = "staff-dayo@test.com",
+                        PasswordHash = defaultPasswordHash,
+                        Role = UserRole.BranchStaff,
+                        PcfBalance = 0m,
+                        DailyStartingFloat = 0m,
+                        EstablishmentId = dayo.Id,
+                        ManagerId = managerOne.Id
+                    });
+                }
+
+                if (ckrBranchFour != null)
+                {
+                    EnsureUser("staff4@test.com", () => new User
+                    {
+                        Name = "Branch Staff Four",
+                        Email = "staff4@test.com",
+                        PasswordHash = defaultPasswordHash,
+                        Role = UserRole.BranchStaff,
+                        PcfBalance = 0m,
+                        DailyStartingFloat = 0m,
+                        EstablishmentId = ckrBranchFour.Id,
+                        ManagerId = managerTwo.Id
+                    });
+                }
+
+                SeedThirtyDayQaData(db);
+            }
         }
 
         private static void SeedThirtyDayQaData(AuditDbContext db)

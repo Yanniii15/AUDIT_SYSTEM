@@ -2300,7 +2300,7 @@ namespace AuditCkDayo.Tests
 
             using var context = new AuditDbContext(options);
 
-            DbSeeder.Seed(context);
+            DbSeeder.Seed(context, true);
 
             const string marker = "[seed:thirty-day-qa]";
             var demoSalesReports = context.SalesReports
