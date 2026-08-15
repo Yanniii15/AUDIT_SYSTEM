@@ -1,5 +1,6 @@
 @using Microsoft.EntityFrameworkCore
 @inject AuditCkDayo.Data.AuditDbContext dbContext
+@inject AuditCkDayo.Services.CoverageService coverageService
 @{
     var userIdStr = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
     var userRole = User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value;
@@ -22,8 +23,18 @@
     {
         if (userRole == "Manager")
         {
-            pendingAuditsCount = dbContext.AuditItems.Count(a => a.Status == AuditCkDayo.Models.AuditStatus.AwaitingManagerApproval && (a.AssignedReviewerId == userId || a.Buyer.ManagerId == userId));
-            pendingSurrendersCount = dbContext.SurrenderRequests.Count(s => s.Status == AuditCkDayo.Models.SurrenderStatus.Pending && (s.AssignedReceiverId == userId || s.Buyer.ManagerId == userId));
+            var coveredAuditsManagerIds = coverageService.GetCoveredManagerIds(userId, DateTime.Today, AuditCkDayo.Models.CoverageScope.BuyerAudits);
+            var coveredSurrendersManagerIds = coverageService.GetCoveredManagerIds(userId, DateTime.Today, AuditCkDayo.Models.CoverageScope.AuditSettlement | AuditCkDayo.Models.CoverageScope.BranchHandovers);
+
+            pendingAuditsCount = dbContext.AuditItems.Count(a => a.Status == AuditCkDayo.Models.AuditStatus.AwaitingManagerApproval 
+                && (a.AssignedReviewerId == userId 
+                    || a.Buyer.ManagerId == userId 
+                    || (coveredAuditsManagerIds.Count > 0 && a.Buyer.ManagerId.HasValue && coveredAuditsManagerIds.Contains(a.Buyer.ManagerId.Value))));
+
+            pendingSurrendersCount = dbContext.SurrenderRequests.Count(s => s.Status == AuditCkDayo.Models.SurrenderStatus.Pending 
+                && (s.AssignedReceiverId == userId 
+                    || s.Buyer.ManagerId == userId
+                    || (coveredSurrendersManagerIds.Count > 0 && s.Buyer.ManagerId.HasValue && coveredSurrendersManagerIds.Contains(s.Buyer.ManagerId.Value))));
         }
         else if (userRole == "Owner")
         {

@@ -5013,4 +5013,189 @@ namespace AuditCkDayo.Tests
             }
         }
     }
+
+    public class ManagerCoverageUsabilityTests : IDisposable
+    {
+        private readonly SqliteConnection _connection;
+        private readonly DbContextOptions<AuditDbContext> _options;
+
+        public ManagerCoverageUsabilityTests()
+        {
+            _connection = new SqliteConnection("Filename=:memory:");
+            _connection.Open();
+
+            _options = new DbContextOptionsBuilder<AuditDbContext>()
+                .UseSqlite(_connection)
+                .Options;
+
+            using (var context = new AuditDbContext(_options))
+            {
+                context.Database.EnsureCreated();
+            }
+        }
+
+        public void Dispose()
+        {
+            _connection.Dispose();
+        }
+
+        [Fact]
+        public async Task HomeController_Index_IncludesCoveredManagersTasksOnActiveCoverage()
+        {
+            using (var context = new AuditDbContext(_options))
+            {
+                // Seed Manager A (ID 10) & Buyer A (ID 11)
+                var managerA = new User { Id = 10, Name = "Manager A", Email = "a@mgr.com", PasswordHash = "hash", Role = UserRole.Manager };
+                var buyerA = new User { Id = 11, Name = "Buyer A", Email = "a@buyer.com", PasswordHash = "hash", Role = UserRole.Buyer, ManagerId = 10 };
+
+                // Seed Manager B (ID 20) & Buyer B (ID 21)
+                var managerB = new User { Id = 20, Name = "Manager B", Email = "b@mgr.com", PasswordHash = "hash", Role = UserRole.Manager };
+                var buyerB = new User { Id = 21, Name = "Buyer B", Email = "b@buyer.com", PasswordHash = "hash", Role = UserRole.Buyer, ManagerId = 20 };
+
+                var establishment = new Establishment { Id = 1, Name = "Main Branch", IsOperatingBranch = true, IsActive = true };
+
+                context.Users.AddRange(managerA, buyerA, managerB, buyerB);
+                context.Establishments.Add(establishment);
+                await context.SaveChangesAsync();
+
+                // Create a pending audit for Buyer A (reports to Manager A)
+                var audit = new AuditItem
+                {
+                    Id = 1,
+                    EstablishmentId = 1,
+                    BuyerId = 11,
+                    Status = AuditStatus.AwaitingManagerApproval,
+                    Amount = 100m,
+                    Description = "Sample audit"
+                };
+                context.AuditItems.Add(audit);
+
+                // Setup Active Coverage: Manager B covers Manager A today
+                context.ManagerCoverages.Add(new ManagerCoverage
+                {
+                    CoveredManagerId = 10,
+                    CoveringManagerId = 20,
+                    StartDate = DateTime.Today.AddDays(-1),
+                    EndDate = DateTime.Today.AddDays(1),
+                    Scope = CoverageScope.All,
+                    IsActive = true,
+                    CreatedByUserId = 10,
+                    CreatedAt = DateTime.UtcNow
+                });
+                await context.SaveChangesAsync();
+            }
+
+            using (var context = new AuditDbContext(_options))
+            {
+                // Mock HomeController for Manager B (ID 20)
+                var claims = new List<Claim>
+                {
+                    new Claim(ClaimTypes.NameIdentifier, "20"),
+                    new Claim(ClaimTypes.Role, "Manager")
+                };
+                var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"));
+                var controller = new HomeController(null, context, new CoverageService(context))
+                {
+                    ControllerContext = new ControllerContext
+                    {
+                        HttpContext = new DefaultHttpContext { User = principal }
+                    }
+                };
+
+                var result = await controller.Index(new DashboardViewModel());
+                var viewResult = Assert.IsType<ViewResult>(result);
+                var model = Assert.IsType<DashboardViewModel>(viewResult.Model);
+
+                // Manager B should see Manager A's buyer's pending audit in their queue!
+                var pendingAudit = Assert.Single(model.Audits);
+                Assert.Equal(11, pendingAudit.BuyerId);
+                Assert.Equal(100m, pendingAudit.Amount);
+            }
+        }
+
+        [Fact]
+        public async Task AuditsController_VerifyList_IncludesCoveredManagersAudits()
+        {
+            using (var context = new AuditDbContext(_options))
+            {
+                // Seed Manager A (ID 10) & Buyer A (ID 11)
+                var managerA = new User { Id = 10, Name = "Manager A", Email = "a@mgr.com", PasswordHash = "hash", Role = UserRole.Manager };
+                var buyerA = new User { Id = 11, Name = "Buyer A", Email = "a@buyer.com", PasswordHash = "hash", Role = UserRole.Buyer, ManagerId = 10 };
+
+                // Seed Manager B (ID 20) & Buyer B (ID 21)
+                var managerB = new User { Id = 20, Name = "Manager B", Email = "b@mgr.com", PasswordHash = "hash", Role = UserRole.Manager };
+                var buyerB = new User { Id = 21, Name = "Buyer B", Email = "b@buyer.com", PasswordHash = "hash", Role = UserRole.Buyer, ManagerId = 20 };
+
+                var establishment = new Establishment { Id = 1, Name = "Main Branch", IsOperatingBranch = true, IsActive = true };
+
+                context.Users.AddRange(managerA, buyerA, managerB, buyerB);
+                context.Establishments.Add(establishment);
+                await context.SaveChangesAsync();
+
+                // Create a pending audit for Buyer A (reports to Manager A)
+                var audit = new AuditItem
+                {
+                    Id = 1,
+                    EstablishmentId = 1,
+                    BuyerId = 11,
+                    Status = AuditStatus.AwaitingManagerApproval,
+                    Amount = 100m,
+                    Description = "Sample audit"
+                };
+                context.AuditItems.Add(audit);
+
+                // Setup Active Coverage: Manager B covers Manager A today
+                context.ManagerCoverages.Add(new ManagerCoverage
+                {
+                    CoveredManagerId = 10,
+                    CoveringManagerId = 20,
+                    StartDate = DateTime.Today.AddDays(-1),
+                    EndDate = DateTime.Today.AddDays(1),
+                    Scope = CoverageScope.All,
+                    IsActive = true,
+                    CreatedByUserId = 10,
+                    CreatedAt = DateTime.UtcNow
+                });
+                await context.SaveChangesAsync();
+            }
+
+            using (var context = new AuditDbContext(_options))
+            {
+                // Mock AuditsController for Manager B (ID 20)
+                var claims = new List<Claim>
+                {
+                    new Claim(ClaimTypes.NameIdentifier, "20"),
+                    new Claim(ClaimTypes.Role, "Manager")
+                };
+                var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"));
+                var httpContext = new DefaultHttpContext { User = principal };
+                var tempData = new TempDataDictionary(httpContext, new FakeTempDataProvider());
+
+                var controller = new AuditsController(context, new UsersControllerTests.FakeOcrService(), new UsersControllerTests.FakeWebHostEnvironment(), new CoverageService(context))
+                {
+                    ControllerContext = new ControllerContext
+                    {
+                        HttpContext = httpContext
+                    },
+                    TempData = tempData,
+                    Url = new UsersControllerTests.FakeUrlHelper()
+                };
+
+                // 1. VerifyList GET should include the covered audit
+                var result = await controller.VerifyList();
+                var viewResult = Assert.IsType<ViewResult>(result);
+                var model = Assert.IsAssignableFrom<IEnumerable<AuditItem>>(viewResult.Model);
+                var pendingAudit = Assert.Single(model);
+                Assert.Equal(1, pendingAudit.Id);
+
+                // 2. Verify POST should approve the audit successfully (not throw Forbid!)
+                var postResult = await controller.Verify(1, AuditStatus.Approved);
+                var redirectResult = Assert.IsType<RedirectToActionResult>(postResult);
+                Assert.Equal(nameof(AuditsController.VerifyList), redirectResult.ActionName);
+
+                var savedAudit = await context.AuditItems.FindAsync(1);
+                Assert.Equal(AuditStatus.Approved, savedAudit.Status);
+            }
+        }
+    }
 }

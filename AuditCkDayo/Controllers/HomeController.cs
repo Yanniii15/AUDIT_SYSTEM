@@ -18,11 +18,17 @@ public class HomeController : Controller
 {
     private readonly ILogger<HomeController> _logger;
     private readonly AuditDbContext _context;
+    private readonly Services.CoverageService? _coverageService;
 
-    public HomeController(ILogger<HomeController> logger, AuditDbContext context)
+    public HomeController(ILogger<HomeController> logger, AuditDbContext context) : this(logger, context, null)
+    {
+    }
+
+    public HomeController(ILogger<HomeController> logger, AuditDbContext context, Services.CoverageService? coverageService)
     {
         _logger = logger;
         _context = context;
+        _coverageService = coverageService;
     }
 
     [HttpGet]
@@ -43,6 +49,18 @@ public class HomeController : Controller
         ViewBag.CurrentUser = currentUser;
 
         var role = User.FindFirst(ClaimTypes.Role)?.Value;
+
+        var coveredManagerIds = _coverageService != null 
+            ? await _coverageService.GetCoveredManagerIdsAsync(userId, DateTime.Today, CoverageScope.BuyerAudits)
+            : new List<int>();
+
+        var coveredManagerSalesIds = _coverageService != null
+            ? await _coverageService.GetCoveredManagerIdsAsync(userId, DateTime.Today, CoverageScope.SalesReports)
+            : new List<int>();
+
+        var coveredManagerIdsAll = _coverageService != null
+            ? await _coverageService.GetCoveredManagerIdsAsync(userId, DateTime.Today, CoverageScope.All)
+            : new List<int>();
         IQueryable<AuditItem> query = _context.AuditItems
             .AsNoTracking()
             .Include(a => a.Buyer)
@@ -52,7 +70,10 @@ public class HomeController : Controller
         // Apply role-based filtering
         if (role == "Manager")
         {
-            query = query.Where(a => a.BuyerId == userId || a.AssignedReviewerId == userId || a.Buyer.ManagerId == userId);
+            query = query.Where(a => a.BuyerId == userId 
+                || a.AssignedReviewerId == userId 
+                || a.Buyer.ManagerId == userId
+                || (coveredManagerIds.Any() && a.Buyer.ManagerId.HasValue && coveredManagerIds.Contains(a.Buyer.ManagerId.Value)));
         }
         else if (role == "Buyer")
         {
@@ -90,7 +111,7 @@ public class HomeController : Controller
             pendingSalesQuery = pendingSalesQuery.Where(r => _context.Users
                 .Any(u => !u.IsDeleted
                     && u.Role == UserRole.BranchStaff
-                    && u.ManagerId == userId
+                    && (u.ManagerId == userId || (coveredManagerSalesIds.Any() && u.ManagerId.HasValue && coveredManagerSalesIds.Contains(u.ManagerId.Value)))
                     && u.EstablishmentId == r.EstablishmentId));
         }
         else if (role == "BranchStaff")
@@ -125,7 +146,7 @@ public class HomeController : Controller
             historicalSalesQuery = historicalSalesQuery.Where(r => _context.Users
                 .Any(u => !u.IsDeleted
                     && u.Role == UserRole.BranchStaff
-                    && u.ManagerId == userId
+                    && (u.ManagerId == userId || (coveredManagerSalesIds.Any() && u.ManagerId.HasValue && coveredManagerSalesIds.Contains(u.ManagerId.Value)))
                     && u.EstablishmentId == r.EstablishmentId));
         }
         else if (role == "BranchStaff")
@@ -201,7 +222,7 @@ public class HomeController : Controller
         {
             model.CashOnHandUsers = await _context.Users
                 .AsNoTracking()
-                .Where(u => !u.IsDeleted && (u.Id == userId || u.ManagerId == userId))
+                .Where(u => !u.IsDeleted && (u.Id == userId || u.ManagerId == userId || (coveredManagerIdsAll.Any() && u.ManagerId.HasValue && coveredManagerIdsAll.Contains(u.ManagerId.Value))))
                 .Include(u => u.Establishment)
                 .OrderBy(u => u.Role)
                 .ThenBy(u => u.Name)

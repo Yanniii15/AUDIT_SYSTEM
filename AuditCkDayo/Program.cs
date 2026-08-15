@@ -31,6 +31,7 @@ builder.Services.AddSingleton<AuditCkDayo.Services.IDiagnosticsPathProvider, Aud
 builder.Services.AddScoped<AuditCkDayo.Services.SystemDiagnosticsService>();
 builder.Services.AddScoped<AuditCkDayo.Services.VoiceBiService>();
 builder.Services.AddHttpClient();
+builder.Services.AddScoped<AuditCkDayo.Services.CoverageService>();
 
 var app = builder.Build();
 app.UseForwardedHeaders(new ForwardedHeadersOptions

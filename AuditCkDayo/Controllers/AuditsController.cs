@@ -22,13 +22,20 @@ namespace AuditCkDayo.Controllers
         private readonly AuditDbContext _context;
         private readonly IOcrService _ocrService;
         private readonly IWebHostEnvironment _env;
+        private readonly Services.CoverageService? _coverageService;
         private const string PendingAuditDraftsSessionKey = "PendingAuditDrafts";
 
         public AuditsController(AuditDbContext context, IOcrService ocrService, IWebHostEnvironment env)
+            : this(context, ocrService, env, null)
+        {
+        }
+
+        public AuditsController(AuditDbContext context, IOcrService ocrService, IWebHostEnvironment env, Services.CoverageService? coverageService)
         {
             _context = context;
             _ocrService = ocrService;
             _env = env;
+            _coverageService = coverageService;
         }
 
         [HttpGet]
@@ -667,8 +674,13 @@ namespace AuditCkDayo.Controllers
 
             if (role == "Manager")
             {
-                // Only see assigned buyers
-                query = query.Where(a => a.AssignedReviewerId == userId || a.Buyer.ManagerId == userId);
+                var coveredManagerIds = _coverageService != null
+                    ? await _coverageService.GetCoveredManagerIdsAsync(userId, DateTime.Today, CoverageScope.BuyerAudits)
+                    : new List<int>();
+
+                query = query.Where(a => a.AssignedReviewerId == userId 
+                    || a.Buyer.ManagerId == userId
+                    || (coveredManagerIds.Any() && a.Buyer.ManagerId.HasValue && coveredManagerIds.Contains(a.Buyer.ManagerId.Value)));
             }
 
             var pendingAudits = await query.ToListAsync();
@@ -698,7 +710,17 @@ namespace AuditCkDayo.Controllers
             var role = User.FindFirst(ClaimTypes.Role)?.Value;
 
             // Access check
-            if (role == "Manager" && audit.AssignedReviewerId != userId && audit.Buyer.ManagerId != userId)
+            bool isAuthorized = role == "Owner" || audit.AssignedReviewerId == userId || audit.Buyer.ManagerId == userId;
+            if (!isAuthorized && role == "Manager" && _coverageService != null)
+            {
+                var coveredManagerIds = await _coverageService.GetCoveredManagerIdsAsync(userId, DateTime.Today, CoverageScope.BuyerAudits);
+                if (audit.Buyer.ManagerId.HasValue && coveredManagerIds.Contains(audit.Buyer.ManagerId.Value))
+                {
+                    isAuthorized = true;
+                }
+            }
+
+            if (!isAuthorized)
             {
                 return Forbid();
             }
@@ -1475,7 +1497,13 @@ namespace AuditCkDayo.Controllers
 
             if (currentUserRole == "Manager")
             {
-                query = query.Where(s => s.AssignedReceiverId == currentUserId || s.Buyer.ManagerId == currentUserId);
+                var coveredManagerIds = _coverageService != null
+                    ? await _coverageService.GetCoveredManagerIdsAsync(currentUserId, DateTime.Today, CoverageScope.AuditSettlement | CoverageScope.BranchHandovers)
+                    : new List<int>();
+
+                query = query.Where(s => s.AssignedReceiverId == currentUserId 
+                    || s.Buyer.ManagerId == currentUserId
+                    || (coveredManagerIds.Any() && s.Buyer.ManagerId.HasValue && coveredManagerIds.Contains(s.Buyer.ManagerId.Value)));
             }
 
             var pendingRequests = await query.OrderByDescending(s => s.RequestDate).ToListAsync();
@@ -1509,7 +1537,17 @@ namespace AuditCkDayo.Controllers
             }
 
             var currentUserRole = User.FindFirst(ClaimTypes.Role)?.Value;
-            if (currentUserRole == "Manager" && request.AssignedReceiverId != currentUserId && request.Buyer.ManagerId != currentUserId)
+            bool isAuthorized = currentUserRole == "Owner" || request.AssignedReceiverId == currentUserId || request.Buyer.ManagerId == currentUserId;
+            if (!isAuthorized && currentUserRole == "Manager" && _coverageService != null)
+            {
+                var coveredManagerIds = await _coverageService.GetCoveredManagerIdsAsync(currentUserId, DateTime.Today, CoverageScope.AuditSettlement | CoverageScope.BranchHandovers);
+                if (request.Buyer.ManagerId.HasValue && coveredManagerIds.Contains(request.Buyer.ManagerId.Value))
+                {
+                    isAuthorized = true;
+                }
+            }
+
+            if (!isAuthorized)
             {
                 return Forbid();
             }
