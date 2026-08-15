@@ -16,7 +16,7 @@
     </div>
 
     <!-- Massive Record Button -->
-    <button type="button" id="recordBtn" class="w-64 h-64 sm:w-80 sm:h-80 rounded-full bg-primary hover:bg-primary/95 active:scale-95 text-on-primary flex flex-col items-center justify-center gap-space-3 shadow-xl transition-all border-4 border-primary-fixed-dim/30 cursor-pointer focus:outline-none focus:ring-4 focus:ring-primary/20" aria-label="Tap and hold to record question">
+    <button type="button" id="recordBtn" class="w-64 h-64 sm:w-80 sm:h-80 rounded-full bg-primary hover:bg-primary/95 active:scale-95 text-on-primary flex flex-col items-center justify-center gap-space-3 shadow-xl transition-all border-4 border-primary-fixed-dim/30 cursor-pointer focus:outline-none focus:ring-4 focus:ring-primary/20" style="border-radius: 50%;" aria-label="Tap and hold to record question">
         <span id="recordIcon" class="material-symbols-outlined text-[64px] sm:text-[80px]">mic</span>
         <span id="recordText" class="font-label-caps uppercase tracking-widest text-[13px] font-bold">Tap & Hold</span>
     </button>
@@ -95,7 +95,7 @@
                 
                 recordBtn.classList.remove("bg-primary");
                 recordBtn.classList.add("bg-error");
-                recordIcon.innerText = "mic_active";
+                recordIcon.innerText = "mic";
                 recordText.innerText = "Recording...";
                 
                 statusText.innerText = "Listening...";
