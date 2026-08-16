@@ -811,9 +811,9 @@
 
         const isBranchStaff = @(User.IsInRole("BranchStaff") ? "true" : "false");
         if (isBranchStaff) {
-            const grossSalesField = document.getElementById('GrossSales');
-            const syncGrossSales = () => {
-                const val = parseFloat(grossSalesField.value) || 0;
+            const cashSalesField = document.getElementById('CashSales');
+            const syncCashSales = () => {
+                const val = parseFloat(cashSalesField.value) || 0;
                 const amountField = document.getElementById('confirmedCashToHandover');
                 if (amountField) {
                     amountField.value = val.toFixed(2);
@@ -824,8 +824,8 @@
                 }
                 updateShortOverNotice(val);
             };
-            grossSalesField?.addEventListener('input', syncGrossSales);
-            syncGrossSales();
+            cashSalesField?.addEventListener('input', syncCashSales);
+            syncCashSales();
         }
 
         ['GrossSales', 'CashOut', 'GCashAmount', 'CreditAmount', 'OtherPaymentAmount', 'confirmedCashToHandover'].forEach(id => {

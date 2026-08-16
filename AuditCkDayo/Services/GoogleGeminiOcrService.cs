@@ -84,7 +84,7 @@ namespace AuditCkDayo.Services
                 };
 
                 var jsonPayload = JsonSerializer.Serialize(payload);
-                var requestUrl = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={_apiKey}";
+                var requestUrl = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent?key={_apiKey}";
                 
                 var request = new HttpRequestMessage(HttpMethod.Post, requestUrl)
                 {
@@ -256,7 +256,7 @@ namespace AuditCkDayo.Services
                 };
 
                 var jsonPayload = JsonSerializer.Serialize(payload);
-                var requestUrl = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={_apiKey}";
+                var requestUrl = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent?key={_apiKey}";
                 
                 var request = new HttpRequestMessage(HttpMethod.Post, requestUrl)
                 {

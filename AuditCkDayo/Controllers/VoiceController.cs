@@ -111,7 +111,7 @@ namespace AuditCkDayo.Controllers
                 return StatusCode(500, new { error = $"Failed to fetch BI data snapshot: {ex.Message}" });
             }
 
-            // 3. Pipe everything to Google AI Studio Gemma 2 API
+            // 3. Pipe everything to Gemini 3.7 Flash API
             try
             {
                 var googleApiKey = _configuration["GoogleGemini:ApiKey"] ?? "";
@@ -120,7 +120,7 @@ namespace AuditCkDayo.Controllers
                     googleApiKey = apiKey;
                 }
 
-                var googleChatUrl = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={googleApiKey}";
+                var googleChatUrl = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent?key={googleApiKey}";
 
                 var prompt = "System Prompt: You are a helpful business voice assistant. Answer the user's question about the branch P&L, sales, or cash flow using ONLY the following structured JSON data. All numbers in the data are in Philippine Pesos (PHP). Always read and output currency figures using the word 'pesos' (e.g. '100 pesos' or 'pesos 100') rather than dollars. Keep the answer extremely brief (1-2 sentences max) so it is pleasant to read out loud. Do not perform calculations yourself - use the exact numbers from the data. If the question cannot be answered from the data, say you do not have that information.\n\nJSON Data:\n" + biJson + "\n\nUser Question: " + transcribedText;
 
@@ -149,7 +149,7 @@ namespace AuditCkDayo.Controllers
                 if (!response.IsSuccessStatusCode)
                 {
                     var errorMsg = await response.Content.ReadAsStringAsync();
-                    return StatusCode((int)response.StatusCode, new { error = $"Gemma 2 generation failed: {errorMsg}" });
+                    return StatusCode((int)response.StatusCode, new { error = $"Gemini generation failed: {errorMsg}" });
                 }
 
                 var jsonResponse = await response.Content.ReadAsStringAsync();
