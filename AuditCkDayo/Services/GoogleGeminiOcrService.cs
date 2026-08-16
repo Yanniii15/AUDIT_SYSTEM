@@ -2,11 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.Processing;
 
 namespace AuditCkDayo.Services
 {
@@ -18,7 +22,91 @@ namespace AuditCkDayo.Services
         public GoogleGeminiOcrService(IConfiguration configuration)
         {
             _apiKey = configuration["GoogleGemini:ApiKey"] ?? "";
-            _httpClient = new HttpClient();
+            _httpClient = new HttpClient
+            {
+                Timeout = TimeSpan.FromSeconds(120)
+            };
+        }
+
+        // Downscale + re-encode the receipt to a compact JPEG so Gemini receives a smaller,
+        // faster-to-process payload. Falls back to the original bytes if the image can't be decoded.
+        private static async Task<byte[]> CompressToJpegAsync(Stream source, int maxDimension = 1800, int quality = 82)
+        {
+            try
+            {
+                if (source.CanSeek) source.Position = 0;
+                using (var image = await Image.LoadAsync(source))
+                {
+                    if (image.Width > maxDimension || image.Height > maxDimension)
+                    {
+                        image.Mutate(x => x.Resize(new ResizeOptions
+                        {
+                            Mode = ResizeMode.Max,
+                            Size = new SixLabors.ImageSharp.Size(maxDimension, maxDimension)
+                        }));
+                    }
+
+                    using (var ms = new MemoryStream())
+                    {
+                        await image.SaveAsync(ms, new JpegEncoder { Quality = quality });
+                        return ms.ToArray();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[GEMINI_OCR] Image compression failed, using original bytes. Error: {ex.Message}");
+                if (source.CanSeek) source.Position = 0;
+                using (var ms = new MemoryStream())
+                {
+                    await source.CopyToAsync(ms);
+                    return ms.ToArray();
+                }
+            }
+        }
+
+        // Retries transient Gemini failures (503/429 and other 5xx, plus timeouts) with a short backoff.
+        private async Task<string> SendWithRetryAsync(string requestUrl, string jsonPayload, int maxAttempts = 3)
+        {
+            for (int attempt = 1; attempt <= maxAttempts; attempt++)
+            {
+                using (var request = new HttpRequestMessage(HttpMethod.Post, requestUrl)
+                {
+                    Content = new StringContent(jsonPayload, Encoding.UTF8, "application/json")
+                })
+                {
+                    try
+                    {
+                        var response = await _httpClient.SendAsync(request);
+
+                        var retriable = response.StatusCode == HttpStatusCode.ServiceUnavailable
+                            || response.StatusCode == HttpStatusCode.TooManyRequests
+                            || (int)response.StatusCode >= 500;
+
+                        if (retriable && attempt < maxAttempts)
+                        {
+                            Console.WriteLine($"[GEMINI_OCR] {response.StatusCode} on attempt {attempt}/{maxAttempts}, retrying...");
+                            await Task.Delay(attempt * 500);
+                            continue;
+                        }
+
+                        response.EnsureSuccessStatusCode();
+                        return await response.Content.ReadAsStringAsync();
+                    }
+                    catch (HttpRequestException) when (attempt < maxAttempts)
+                    {
+                        Console.WriteLine($"[GEMINI_OCR] network error on attempt {attempt}/{maxAttempts}, retrying...");
+                        await Task.Delay(attempt * 500);
+                    }
+                    catch (TaskCanceledException) when (attempt < maxAttempts)
+                    {
+                        Console.WriteLine($"[GEMINI_OCR] request timed out on attempt {attempt}/{maxAttempts}, retrying...");
+                        await Task.Delay(attempt * 500);
+                    }
+                }
+            }
+
+            throw new HttpRequestException($"Gemini request failed after {maxAttempts} attempts.");
         }
 
         public async Task<OcrResult> ParseReceiptAsync(List<Stream> imageStreams)
@@ -50,13 +138,8 @@ namespace AuditCkDayo.Services
 
                 foreach (var imageStream in imageStreams)
                 {
-                    // Convert stream to base64
-                    byte[] bytes;
-                    using (var ms = new MemoryStream())
-                    {
-                        await imageStream.CopyToAsync(ms);
-                        bytes = ms.ToArray();
-                    }
+                    // Downscale + re-encode to JPEG, then base64 so Gemini gets a smaller payload
+                    var bytes = await CompressToJpegAsync(imageStream);
                     var base64Image = Convert.ToBase64String(bytes);
                     parts.Add(new
                     {
@@ -85,16 +168,8 @@ namespace AuditCkDayo.Services
 
                 var jsonPayload = JsonSerializer.Serialize(payload);
                 var requestUrl = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent?key={_apiKey}";
-                
-                var request = new HttpRequestMessage(HttpMethod.Post, requestUrl)
-                {
-                    Content = new StringContent(jsonPayload, Encoding.UTF8, "application/json")
-                };
 
-                var response = await _httpClient.SendAsync(request);
-                response.EnsureSuccessStatusCode();
-
-                var responseContent = await response.Content.ReadAsStringAsync();
+                var responseContent = await SendWithRetryAsync(requestUrl, jsonPayload);
                 
                 // Parse Gemini Response
                 using (var doc = JsonDocument.Parse(responseContent))
@@ -224,12 +299,7 @@ namespace AuditCkDayo.Services
 
                 parts.Add(new { text = prompt });
 
-                byte[] bytes;
-                using (var ms = new MemoryStream())
-                {
-                    await imageStream.CopyToAsync(ms);
-                    bytes = ms.ToArray();
-                }
+                var bytes = await CompressToJpegAsync(imageStream);
                 var base64Image = Convert.ToBase64String(bytes);
                 parts.Add(new
                 {
@@ -257,16 +327,8 @@ namespace AuditCkDayo.Services
 
                 var jsonPayload = JsonSerializer.Serialize(payload);
                 var requestUrl = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent?key={_apiKey}";
-                
-                var request = new HttpRequestMessage(HttpMethod.Post, requestUrl)
-                {
-                    Content = new StringContent(jsonPayload, Encoding.UTF8, "application/json")
-                };
 
-                var response = await _httpClient.SendAsync(request);
-                response.EnsureSuccessStatusCode();
-
-                var responseContent = await response.Content.ReadAsStringAsync();
+                var responseContent = await SendWithRetryAsync(requestUrl, jsonPayload);
                 
                 using (var doc = JsonDocument.Parse(responseContent))
                 {
