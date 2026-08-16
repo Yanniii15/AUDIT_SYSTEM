@@ -504,11 +504,12 @@ namespace AuditCkDayo.Controllers
 
             if (flow == null)
             {
-                var yesterday = handoverDate.AddDays(-1);
-                var yesterdayFlow = await _context.TreasuryCashFlows
+                var priorFlow = await _context.TreasuryCashFlows
                     .AsNoTracking()
-                    .FirstOrDefaultAsync(f => f.CashFlowDate == yesterday && f.TreasuryUserId == currentUserId);
-                var startingBalance = yesterdayFlow?.ClosingBalance ?? 0m;
+                    .Where(f => f.CashFlowDate < handoverDate && f.TreasuryUserId == currentUserId)
+                    .OrderByDescending(f => f.CashFlowDate)
+                    .FirstOrDefaultAsync();
+                var startingBalance = priorFlow?.ClosingBalance ?? 0m;
 
                 flow = new TreasuryCashFlow
                 {

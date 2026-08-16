@@ -2499,7 +2499,7 @@ namespace AuditCkDayo.Tests
         }
 
         [Fact]
-        public void Index_ForNoFlowDateReturnsZeroTotalsAndNoEntriesWithoutCreatingFlow()
+        public void Index_ForNoFlowDateCarriesForwardMostRecentClosingWithoutCreatingFlow()
         {
             using (var context = new AuditDbContext(_options))
             {
@@ -2509,7 +2509,11 @@ namespace AuditCkDayo.Tests
                 {
                     TreasuryUserId = context.Users.Single().Id,
                     CashFlowDate = new DateTime(2026, 8, 9),
-                    StartingBalance = 500m
+                    StartingBalance = 500m,
+                    TotalCashIn = 100m,
+                    TotalCashOut = 200m,
+                    NetCashFlow = 600m,
+                    ClosingBalance = 400m
                 });
                 context.SaveChanges();
             }
@@ -2527,7 +2531,7 @@ namespace AuditCkDayo.Tests
                 Assert.Null(model.FlowId);
                 Assert.Null(model.Status);
                 Assert.Empty(model.Entries);
-                Assert.Equal(0m, model.StartingBalance);
+                Assert.Equal(400m, model.StartingBalance);
                 Assert.Equal(0m, model.TotalCashIn);
                 Assert.Equal(0m, model.TotalCashOut);
                 Assert.Equal(0m, model.NetCashFlow);

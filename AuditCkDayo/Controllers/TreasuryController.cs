@@ -40,11 +40,12 @@ namespace AuditCkDayo.Controllers
 
             if (flow == null)
             {
-                var yesterday = selectedDate.AddDays(-1);
-                var yesterdayFlow = _context.TreasuryCashFlows
+                var previousFlow = _context.TreasuryCashFlows
                     .AsNoTracking()
-                    .FirstOrDefault(f => f.CashFlowDate == yesterday && f.TreasuryUserId == currentUserId);
-                var startingBalance = yesterdayFlow?.ClosingBalance ?? 0m;
+                    .Where(f => f.CashFlowDate < selectedDate && f.TreasuryUserId == currentUserId)
+                    .OrderByDescending(f => f.CashFlowDate)
+                    .FirstOrDefault();
+                var startingBalance = previousFlow?.ClosingBalance ?? 0m;
 
                 PopulateManualCashFlowLookups();
                 return View(new TreasuryCashFlowViewModel { SelectedDate = selectedDate, StartingBalance = startingBalance });
@@ -170,11 +171,12 @@ namespace AuditCkDayo.Controllers
 
             if (flow == null)
             {
-                var yesterday = model.ReleaseDate.AddDays(-1);
-                var yesterdayFlow = await _context.TreasuryCashFlows
+                var previousFlow = await _context.TreasuryCashFlows
                     .AsNoTracking()
-                    .FirstOrDefaultAsync(f => f.CashFlowDate == yesterday && f.TreasuryUserId == currentUserId);
-                var startingBalance = yesterdayFlow?.ClosingBalance ?? 0m;
+                    .Where(f => f.CashFlowDate < model.ReleaseDate && f.TreasuryUserId == currentUserId)
+                    .OrderByDescending(f => f.CashFlowDate)
+                    .FirstOrDefaultAsync();
+                var startingBalance = previousFlow?.ClosingBalance ?? 0m;
 
                 flow = new TreasuryCashFlow
                 {
@@ -479,11 +481,12 @@ namespace AuditCkDayo.Controllers
                 return flow;
             }
 
-            var yesterday = cashFlowDate.AddDays(-1);
-            var yesterdayFlow = await _context.TreasuryCashFlows
+            var previousFlow = await _context.TreasuryCashFlows
                 .AsNoTracking()
-                .FirstOrDefaultAsync(f => f.CashFlowDate == yesterday && f.TreasuryUserId == treasuryUserId);
-            var startingBalance = yesterdayFlow?.ClosingBalance ?? 0m;
+                .Where(f => f.CashFlowDate < cashFlowDate && f.TreasuryUserId == treasuryUserId)
+                .OrderByDescending(f => f.CashFlowDate)
+                .FirstOrDefaultAsync();
+            var startingBalance = previousFlow?.ClosingBalance ?? 0m;
 
             flow = new TreasuryCashFlow
             {
