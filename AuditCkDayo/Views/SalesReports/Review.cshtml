@@ -601,13 +601,13 @@
         updateShortOverNotice(sum);
     }
 
+    const expectedBaseline = (() => {
+        const f = document.getElementById('confirmedCashToHandover');
+        return f ? (parseFloat(f.value) || 0) : 0;
+    })();
+
     function updateShortOverNotice(countedCash) {
-        const grossSales = parseFloat(document.getElementById('GrossSales')?.value) || 0;
-        const cashOut = parseFloat(document.getElementById('CashOut')?.value) || 0;
-        const gcash = parseFloat(document.getElementById('GCashAmount')?.value) || 0;
-        const credit = parseFloat(document.getElementById('CreditAmount')?.value) || 0;
-        const other = parseFloat(document.getElementById('OtherPaymentAmount')?.value) || 0;
-        const expected = grossSales - gcash - credit - other;
+        const expected = expectedBaseline;
         const variance = countedCash - expected;
         const label = document.getElementById('short-over-label');
         const amount = document.getElementById('short-over-amount');
@@ -810,23 +810,23 @@
         });
 
         const isBranchStaff = @(User.IsInRole("BranchStaff") ? "true" : "false");
+        const cashSalesField = document.getElementById('CashSales');
+        const syncCashSales = () => {
+            const val = parseFloat(cashSalesField.value) || 0;
+            const amountField = document.getElementById('confirmedCashToHandover');
+            if (amountField) {
+                amountField.value = val.toFixed(2);
+            }
+            const displayVal = document.getElementById('claimed-amount-display');
+            if (displayVal) {
+                displayVal.innerText = val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            }
+            updateShortOverNotice(val);
+        };
         if (isBranchStaff) {
-            const cashSalesField = document.getElementById('CashSales');
-            const syncCashSales = () => {
-                const val = parseFloat(cashSalesField.value) || 0;
-                const amountField = document.getElementById('confirmedCashToHandover');
-                if (amountField) {
-                    amountField.value = val.toFixed(2);
-                }
-                const displayVal = document.getElementById('claimed-amount-display');
-                if (displayVal) {
-                    displayVal.innerText = val.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                }
-                updateShortOverNotice(val);
-            };
-            cashSalesField?.addEventListener('input', syncCashSales);
             syncCashSales();
         }
+        cashSalesField?.addEventListener('input', syncCashSales);
 
         ['GrossSales', 'CashOut', 'GCashAmount', 'CreditAmount', 'OtherPaymentAmount', 'confirmedCashToHandover'].forEach(id => {
             document.getElementById(id)?.addEventListener('input', () => {
