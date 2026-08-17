@@ -3933,6 +3933,9 @@ namespace AuditCkDayo.Tests
         {
             using var context = new AuditDbContext(_options);
             var report = await SeedDraftSalesReportAsync(context);
+            report.OpeningGrossSales = 500m;
+            report.OpeningCashSales = 100m;
+            await context.SaveChangesAsync();
             var controller = CreateController(context, 2, "BranchStaff"); // Staff member has access to branch 1
 
             var model = BuildReviewModel(report, 4788m); // Cash Sales 4788m
