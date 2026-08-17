@@ -31,9 +31,34 @@ namespace AuditCkDayo.Controllers
         [HttpGet]
         public async Task<IActionResult> Index()
         {
-            if (IsBranchStaff())
+            var isBranchStaff = IsBranchStaff();
+            if (isBranchStaff)
             {
-                return RedirectToAction(nameof(Upload));
+                var staffUserId = GetCurrentUserId();
+                var assignedEstablishmentId = staffUserId.HasValue
+                    ? await _context.Users
+                        .AsNoTracking()
+                        .Where(u => u.Id == staffUserId.Value && u.Role == UserRole.BranchStaff && !u.IsDeleted)
+                        .Select(u => u.EstablishmentId)
+                        .FirstOrDefaultAsync()
+                    : null;
+
+                if (!assignedEstablishmentId.HasValue)
+                {
+                    return View(new List<SalesReport>());
+                }
+
+                var staffReports = await _context.SalesReports
+                    .AsNoTracking()
+                    .Include(r => r.DocumentRecord)
+                    .Include(r => r.Establishment)
+                    .Where(r => r.EstablishmentId == assignedEstablishmentId.Value)
+                    .OrderByDescending(r => r.BusinessDate)
+                    .ThenByDescending(r => r.Id)
+                    .ToListAsync();
+
+                ViewBag.IsBranchStaff = true;
+                return View(staffReports);
             }
 
             var query = _context.SalesReports
