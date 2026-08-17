@@ -2499,7 +2499,7 @@ namespace AuditCkDayo.Tests
         }
 
         [Fact]
-        public void Index_ForNoFlowDateCarriesForwardMostRecentClosingWithoutCreatingFlow()
+        public void Index_ShowsZeroStartingWhenPriorDayNotClosedWithoutCreatingFlow()
         {
             using (var context = new AuditDbContext(_options))
             {
@@ -2513,7 +2513,8 @@ namespace AuditCkDayo.Tests
                     TotalCashIn = 100m,
                     TotalCashOut = 200m,
                     NetCashFlow = 600m,
-                    ClosingBalance = 400m
+                    ClosingBalance = 400m,
+                    Status = TreasuryCashFlowStatus.Open
                 });
                 context.SaveChanges();
             }
@@ -2531,12 +2532,170 @@ namespace AuditCkDayo.Tests
                 Assert.Null(model.FlowId);
                 Assert.Null(model.Status);
                 Assert.Empty(model.Entries);
-                Assert.Equal(400m, model.StartingBalance);
+                Assert.Equal(0m, model.StartingBalance);
                 Assert.Equal(0m, model.TotalCashIn);
                 Assert.Equal(0m, model.TotalCashOut);
                 Assert.Equal(0m, model.NetCashFlow);
                 Assert.Equal(0m, model.ClosingBalance);
                 Assert.Equal(cashFlowCountBefore, context.TreasuryCashFlows.Count());
+            }
+        }
+
+        [Fact]
+        public void Index_CarriesForwardClosingFromClosedPriorDayWithoutCreatingFlow()
+        {
+            using (var context = new AuditDbContext(_options))
+            {
+                context.Users.Add(new User { Name = "Treasury Owner", Email = "carried-owner@test.com", PasswordHash = "hash", Role = UserRole.Owner, IsTreasury = true });
+                context.SaveChanges();
+                context.TreasuryCashFlows.Add(new TreasuryCashFlow
+                {
+                    TreasuryUserId = context.Users.Single().Id,
+                    CashFlowDate = new DateTime(2026, 8, 9),
+                    StartingBalance = 500m,
+                    TotalCashIn = 100m,
+                    TotalCashOut = 200m,
+                    NetCashFlow = 600m,
+                    ClosingBalance = 400m,
+                    Status = TreasuryCashFlowStatus.Closed
+                });
+                context.SaveChanges();
+            }
+
+            using (var context = new AuditDbContext(_options))
+            {
+                var controller = CreateController(context);
+                var cashFlowCountBefore = context.TreasuryCashFlows.Count();
+                var result = controller.Index(new DateTime(2026, 8, 10));
+
+                var viewResult = Assert.IsType<ViewResult>(result);
+                var model = Assert.IsType<TreasuryCashFlowViewModel>(viewResult.Model);
+
+                Assert.Null(model.FlowId);
+                Assert.Empty(model.Entries);
+                Assert.Equal(400m, model.StartingBalance);
+                Assert.Equal(0m, model.TotalCashOut);
+                Assert.Equal(cashFlowCountBefore, context.TreasuryCashFlows.Count());
+            }
+        }
+
+        [Fact]
+        public void Index_DoesNotCarryAcrossGapWhenImmediatePreviousDayHasNoFlow()
+        {
+            using (var context = new AuditDbContext(_options))
+            {
+                context.Users.Add(new User { Name = "Treasury Owner", Email = "carried-gap-owner@test.com", PasswordHash = "hash", Role = UserRole.Owner, IsTreasury = true });
+                context.SaveChanges();
+                context.TreasuryCashFlows.Add(new TreasuryCashFlow
+                {
+                    TreasuryUserId = context.Users.Single().Id,
+                    CashFlowDate = new DateTime(2026, 8, 9),
+                    StartingBalance = 500m,
+                    TotalCashIn = 100m,
+                    TotalCashOut = 200m,
+                    NetCashFlow = 600m,
+                    ClosingBalance = 400m,
+                    Status = TreasuryCashFlowStatus.Closed
+                });
+                context.SaveChanges();
+            }
+
+            using (var context = new AuditDbContext(_options))
+            {
+                var controller = CreateController(context);
+                var result = controller.Index(new DateTime(2026, 8, 11));
+
+                var viewResult = Assert.IsType<ViewResult>(result);
+                var model = Assert.IsType<TreasuryCashFlowViewModel>(viewResult.Model);
+
+                Assert.Null(model.FlowId);
+                Assert.Equal(0m, model.StartingBalance);
+            }
+        }
+
+        [Fact]
+        public async Task CloseTreasury_MarksOpenFlowAsClosedAndRecomputesTotals()
+        {
+            using (var context = new AuditDbContext(_options))
+            {
+                var user = new User { Name = "Treasury Owner", Email = "close-treasury@test.com", PasswordHash = "hash", Role = UserRole.Owner, IsTreasury = true };
+                context.Users.Add(user);
+                context.SaveChanges();
+
+                var flow = new TreasuryCashFlow
+                {
+                    TreasuryUserId = user.Id,
+                    CashFlowDate = new DateTime(2026, 8, 20),
+                    StartingBalance = 1000m,
+                    Status = TreasuryCashFlowStatus.Open
+                };
+                flow.Entries.Add(new CashFlowEntry { Direction = CashFlowDirection.In, Category = CashFlowCategory.Sales, Amount = 500m, CreatedByUserId = user.Id, ConfirmedByUserId = user.Id });
+                flow.Entries.Add(new CashFlowEntry { Direction = CashFlowDirection.Out, Category = CashFlowCategory.Expense, Amount = 200m, CreatedByUserId = user.Id, ConfirmedByUserId = user.Id });
+                context.TreasuryCashFlows.Add(flow);
+                context.SaveChanges();
+            }
+
+            using (var context = new AuditDbContext(_options))
+            {
+                var controller = CreateController(context);
+                var result = await controller.CloseTreasury(new DateTime(2026, 8, 20));
+
+                Assert.IsType<RedirectToActionResult>(result);
+
+                var saved = context.TreasuryCashFlows.Single(f => f.CashFlowDate.Date == new DateTime(2026, 8, 20));
+                Assert.Equal(TreasuryCashFlowStatus.Closed, saved.Status);
+                Assert.Equal(500m, saved.TotalCashIn);
+                Assert.Equal(200m, saved.TotalCashOut);
+                Assert.Equal(1500m, saved.NetCashFlow);
+                Assert.Equal(1300m, saved.ClosingBalance);
+            }
+        }
+
+        [Fact]
+        public async Task CloseTreasury_DoesNotCreateFlowAndRedirectsWhenNoneExists()
+        {
+            using (var context = new AuditDbContext(_options))
+            {
+                var user = new User { Name = "Treasury Owner", Email = "close-treasury-empty@test.com", PasswordHash = "hash", Role = UserRole.Owner, IsTreasury = true };
+                context.Users.Add(user);
+                context.SaveChanges();
+            }
+
+            using (var context = new AuditDbContext(_options))
+            {
+                var controller = CreateController(context);
+                var countBefore = context.TreasuryCashFlows.Count();
+                var result = await controller.CloseTreasury(new DateTime(2026, 8, 22));
+
+                Assert.IsType<RedirectToActionResult>(result);
+                Assert.Equal(countBefore, context.TreasuryCashFlows.Count());
+            }
+        }
+
+        [Fact]
+        public async Task CloseTreasury_DoesNotRecloseWhenAlreadyClosed()
+        {
+            using (var context = new AuditDbContext(_options))
+            {
+                context.Users.Add(new User { Name = "Treasury Owner", Email = "close-treasury-reclose@test.com", PasswordHash = "hash", Role = UserRole.Owner, IsTreasury = true });
+                context.SaveChanges();
+                context.TreasuryCashFlows.Add(new TreasuryCashFlow
+                {
+                    TreasuryUserId = context.Users.Single().Id,
+                    CashFlowDate = new DateTime(2026, 8, 21),
+                    StartingBalance = 50m,
+                    Status = TreasuryCashFlowStatus.Closed
+                });
+                context.SaveChanges();
+            }
+
+            using (var context = new AuditDbContext(_options))
+            {
+                var controller = CreateController(context);
+                var result = await controller.CloseTreasury(new DateTime(2026, 8, 21));
+
+                Assert.IsType<RedirectToActionResult>(result);
+                Assert.Equal(TreasuryCashFlowStatus.Closed, context.TreasuryCashFlows.Single().Status);
             }
         }
 
@@ -2853,7 +3012,16 @@ namespace AuditCkDayo.Tests
 
             var viewResult = Assert.IsType<ViewResult>(result);
             var model = Assert.IsType<PcfReleaseViewModel>(viewResult.Model);
-            Assert.Equal(DateTime.Today, model.ReleaseDate.Date);
+            DateTime expectedToday;
+            try
+            {
+                expectedToday = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Asia/Manila")).Date;
+            }
+            catch (TimeZoneNotFoundException)
+            {
+                expectedToday = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Singapore Standard Time")).Date;
+            }
+            Assert.Equal(expectedToday, model.ReleaseDate.Date);
 
             var receivers = Assert.IsAssignableFrom<SelectList>((object)controller.ViewBag.ReceiverUsers);
             Assert.Contains(receivers, item => item.Value == "2" && item.Text == "Branch Receiver");

@@ -19,6 +19,22 @@
         </div>
 
         <div class="flex flex-wrap gap-3">
+            @if (Model.FlowId.HasValue && Model.Status == TreasuryCashFlowStatus.Closed)
+            {
+                <span class="inline-flex items-center rounded-lg bg-surface-container-highest px-4 py-2 text-sm font-semibold text-on-surface-variant">
+                    &check; Closed
+                </span>
+            }
+            else if (Model.FlowId.HasValue)
+            {
+                <form asp-controller="Treasury" asp-action="CloseTreasury" method="post" class="inline">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="date" value="@Model.SelectedDate.ToString("yyyy-MM-dd")" />
+                    <button type="submit" class="inline-flex items-center rounded-lg bg-tertiary px-4 py-2 text-sm font-semibold text-on-tertiary shadow-sm hover:bg-tertiary/90" onclick="return confirm('Close this treasury day? This locks the day.')">
+                        Close Treasury
+                    </button>
+                </form>
+            }
             <a asp-controller="Treasury" asp-action="ReleasePcf" class="inline-flex items-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary shadow-sm hover:bg-primary/90">
                 Release PCF
             </a>

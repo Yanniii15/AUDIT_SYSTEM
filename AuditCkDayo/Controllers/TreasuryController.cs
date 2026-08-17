@@ -22,7 +22,7 @@ namespace AuditCkDayo.Controllers
         [HttpGet]
         public IActionResult Index(DateTime? date = null)
         {
-            var selectedDate = date?.Date ?? DateTime.Today;
+            var selectedDate = date?.Date ?? GetToday();
             var currentUserIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
             int currentUserId = int.TryParse(currentUserIdValue, out var id) ? id : 0;
 
@@ -40,12 +40,10 @@ namespace AuditCkDayo.Controllers
 
             if (flow == null)
             {
-                var previousFlow = _context.TreasuryCashFlows
+                var previousDayFlow = _context.TreasuryCashFlows
                     .AsNoTracking()
-                    .Where(f => f.CashFlowDate < selectedDate && f.TreasuryUserId == currentUserId)
-                    .OrderByDescending(f => f.CashFlowDate)
-                    .FirstOrDefault();
-                var startingBalance = previousFlow?.ClosingBalance ?? 0m;
+                    .FirstOrDefault(f => f.CashFlowDate == selectedDate.AddDays(-1) && f.TreasuryUserId == currentUserId);
+                var startingBalance = ResolveCarryForwardStartingBalance(previousDayFlow);
 
                 PopulateManualCashFlowLookups();
                 return View(new TreasuryCashFlowViewModel { SelectedDate = selectedDate, StartingBalance = startingBalance });
@@ -75,7 +73,7 @@ namespace AuditCkDayo.Controllers
         {
             var model = new PcfReleaseViewModel
             {
-                ReleaseDate = DateTime.Today
+                ReleaseDate = GetToday()
             };
 
             await PopulateReleasePcfLookupsAsync(model);
@@ -171,12 +169,10 @@ namespace AuditCkDayo.Controllers
 
             if (flow == null)
             {
-                var previousFlow = await _context.TreasuryCashFlows
+                var previousDayFlow = await _context.TreasuryCashFlows
                     .AsNoTracking()
-                    .Where(f => f.CashFlowDate < model.ReleaseDate && f.TreasuryUserId == currentUserId)
-                    .OrderByDescending(f => f.CashFlowDate)
-                    .FirstOrDefaultAsync();
-                var startingBalance = previousFlow?.ClosingBalance ?? 0m;
+                    .FirstOrDefaultAsync(f => f.CashFlowDate == model.ReleaseDate.AddDays(-1) && f.TreasuryUserId == currentUserId);
+                var startingBalance = ResolveCarryForwardStartingBalance(previousDayFlow);
 
                 flow = new TreasuryCashFlow
                 {
@@ -470,6 +466,41 @@ namespace AuditCkDayo.Controllers
             return RedirectToAction(nameof(Index), new { date = model.CashOutDate });
         }
 
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CloseTreasury(DateTime date)
+        {
+            if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var currentUserId))
+            {
+                return Unauthorized();
+            }
+
+            date = date.Date;
+
+            var flow = await _context.TreasuryCashFlows
+                .Include(f => f.Entries)
+                .FirstOrDefaultAsync(f => f.CashFlowDate == date && f.TreasuryUserId == currentUserId);
+
+            if (flow == null)
+            {
+                TempData["Error"] = "No cash flow exists for this date to close.";
+                return RedirectToAction(nameof(Index), new { date });
+            }
+
+            if (flow.Status == TreasuryCashFlowStatus.Closed)
+            {
+                TempData["Message"] = "This treasury day is already closed.";
+                return RedirectToAction(nameof(Index), new { date });
+            }
+
+            flow.RecomputeTotals();
+            flow.Status = TreasuryCashFlowStatus.Closed;
+            await _context.SaveChangesAsync();
+
+            TempData["Message"] = "Treasury day closed.";
+            return RedirectToAction(nameof(Index), new { date });
+        }
+
         private async Task<TreasuryCashFlow> FindOrCreateCashFlowAsync(DateTime cashFlowDate, int treasuryUserId)
         {
             var flow = await _context.TreasuryCashFlows
@@ -481,12 +512,10 @@ namespace AuditCkDayo.Controllers
                 return flow;
             }
 
-            var previousFlow = await _context.TreasuryCashFlows
+            var previousDayFlow = await _context.TreasuryCashFlows
                 .AsNoTracking()
-                .Where(f => f.CashFlowDate < cashFlowDate && f.TreasuryUserId == treasuryUserId)
-                .OrderByDescending(f => f.CashFlowDate)
-                .FirstOrDefaultAsync();
-            var startingBalance = previousFlow?.ClosingBalance ?? 0m;
+                .FirstOrDefaultAsync(f => f.CashFlowDate == cashFlowDate.AddDays(-1) && f.TreasuryUserId == treasuryUserId);
+            var startingBalance = ResolveCarryForwardStartingBalance(previousDayFlow);
 
             flow = new TreasuryCashFlow
             {
@@ -543,6 +572,28 @@ namespace AuditCkDayo.Controllers
 
             ViewBag.ResponsibleManagers = new SelectList(managers, "Id", "Name", model.ResponsibleManagerId);
             ViewBag.PcfReleases = new SelectList(availablePcfReleases, "Id", "Display", model.PcfReleaseId);
+        }
+
+        private static decimal ResolveCarryForwardStartingBalance(TreasuryCashFlow? previousDayFlow)
+        {
+            return previousDayFlow != null && previousDayFlow.Status == TreasuryCashFlowStatus.Closed
+                ? previousDayFlow.ClosingBalance
+                : 0m;
+        }
+
+        private static DateTime GetToday()
+        {
+            var utcNow = DateTime.UtcNow;
+            try
+            {
+                var manila = TimeZoneInfo.FindSystemTimeZoneById("Asia/Manila");
+                return TimeZoneInfo.ConvertTimeFromUtc(utcNow, manila).Date;
+            }
+            catch (TimeZoneNotFoundException)
+            {
+                var fallback = TimeZoneInfo.FindSystemTimeZoneById("Singapore Standard Time");
+                return TimeZoneInfo.ConvertTimeFromUtc(utcNow, fallback).Date;
+            }
         }
     }
 }
