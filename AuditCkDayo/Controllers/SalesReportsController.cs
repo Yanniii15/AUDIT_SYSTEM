@@ -337,8 +337,8 @@ namespace AuditCkDayo.Controllers
 
             ApplyReviewModel(report, model);
 
-            _context.CashBreakdownLines.RemoveRange(report.CashBreakdownLines);
-            report.CashBreakdownLines.Clear();
+            _context.CashBreakdownLines.RemoveRange(report.CashBreakdownLines.Where(b => b.Section == SalesReportSection.Closing).ToList());
+            report.CashBreakdownLines.Where(b => b.Section == SalesReportSection.Closing).ToList().ForEach(b => report.CashBreakdownLines.Remove(b));
             if (model.Items != null)
             {
                 foreach (var item in model.Items)
@@ -347,6 +347,7 @@ namespace AuditCkDayo.Controllers
                     {
                         OwnerType = CashBreakdownOwnerType.SalesReport,
                         OwnerId = report.Id,
+                        Section = SalesReportSection.Closing,
                         Denomination = item.Denomination,
                         Quantity = item.Quantity,
                         Total = item.Denomination * item.Quantity
@@ -354,8 +355,8 @@ namespace AuditCkDayo.Controllers
                 }
             }
 
-            _context.SalesReportLines.RemoveRange(report.Lines);
-            report.Lines.Clear();
+            _context.SalesReportLines.RemoveRange(report.Lines.Where(l => l.Section == SalesReportSection.Closing).ToList());
+            report.Lines.Where(l => l.Section == SalesReportSection.Closing).ToList().ForEach(l => report.Lines.Remove(l));
 
             int sortOrder = 0;
             if (model.GCashLines != null)
@@ -367,6 +368,7 @@ namespace AuditCkDayo.Controllers
                         report.Lines.Add(new SalesReportLine
                         {
                             LineType = SalesReportLineType.GCash,
+                            Section = SalesReportSection.Closing,
                             Amount = line.Amount,
                             Label = line.Label,
                             SortOrder = sortOrder++
@@ -384,6 +386,7 @@ namespace AuditCkDayo.Controllers
                         report.Lines.Add(new SalesReportLine
                         {
                             LineType = SalesReportLineType.BankTransfer,
+                            Section = SalesReportSection.Closing,
                             Amount = line.Amount,
                             Label = line.Label,
                             SortOrder = sortOrder++
@@ -401,6 +404,7 @@ namespace AuditCkDayo.Controllers
                         report.Lines.Add(new SalesReportLine
                         {
                             LineType = SalesReportLineType.Card,
+                            Section = SalesReportSection.Closing,
                             Amount = line.Amount,
                             Label = line.Label,
                             SortOrder = sortOrder++
@@ -418,6 +422,7 @@ namespace AuditCkDayo.Controllers
                         report.Lines.Add(new SalesReportLine
                         {
                             LineType = SalesReportLineType.Credit,
+                            Section = SalesReportSection.Closing,
                             Amount = line.Amount,
                             Label = line.Label,
                             SortOrder = sortOrder++
@@ -435,6 +440,7 @@ namespace AuditCkDayo.Controllers
                         report.Lines.Add(new SalesReportLine
                         {
                             LineType = SalesReportLineType.RunawayCustomer,
+                            Section = SalesReportSection.Closing,
                             Amount = line.Amount,
                             Label = line.Label,
                             SortOrder = sortOrder++
@@ -452,6 +458,7 @@ namespace AuditCkDayo.Controllers
                         report.Lines.Add(new SalesReportLine
                         {
                             LineType = SalesReportLineType.ExpenseFromSales,
+                            Section = SalesReportSection.Closing,
                             Amount = line.Amount,
                             Label = line.Label,
                             SortOrder = sortOrder++
@@ -483,6 +490,14 @@ namespace AuditCkDayo.Controllers
             }
             else if (isSubmitForVerificationAction)
             {
+                if (report.OpeningCashSales == 0m && report.OpeningGrossSales == 0m)
+                {
+                    ModelState.AddModelError(string.Empty, "Add the opening sales section before submitting this daily sales report.");
+                    TempData["Error"] = "Add the opening daily sales before submitting for manager verification.";
+                    await _context.SaveChangesAsync();
+                    return View(BuildReviewModel(report));
+                }
+
                 report.Status = SalesReportStatus.PendingManagerVerification;
                 report.DocumentRecord.ReviewStatus = DocumentReviewStatus.PendingManagerVerification;
                 report.ConfirmedByUserId = null;
@@ -763,6 +778,30 @@ namespace AuditCkDayo.Controllers
                 RestoPcf = report.RestoPcf,
                 PcfFromSales = report.PcfFromSales,
                 ChangeAmount = report.ChangeAmount,
+                OpeningGrossSales = report.OpeningGrossSales,
+                OpeningCashSales = report.OpeningCashSales,
+                OpeningFoodSales = report.OpeningFoodSales,
+                OpeningBeerSales = report.OpeningBeerSales,
+                OpeningBeverageSales = report.OpeningBeverageSales,
+                OpeningOtherSales = report.OpeningOtherSales,
+                OpeningSeniorDiscount = report.OpeningSeniorDiscount,
+                OpeningPwdDiscount = report.OpeningPwdDiscount,
+                OpeningLoyaltyCardDiscount = report.OpeningLoyaltyCardDiscount,
+                OpeningGiftVoucherDiscount = report.OpeningGiftVoucherDiscount,
+                OpeningEmployeeTenPercentDiscount = report.OpeningEmployeeTenPercentDiscount,
+                OpeningEmployeeFivePercentDiscount = report.OpeningEmployeeFivePercentDiscount,
+                OpeningEaglesDiscount = report.OpeningEaglesDiscount,
+                OpeningSalesShortageAmount = report.OpeningSalesShortageAmount,
+                OpeningSalesShortageReason = report.OpeningSalesShortageReason,
+                OpeningSalesOverageAmount = report.OpeningSalesOverageAmount,
+                OpeningSalesOverageReason = report.OpeningSalesOverageReason,
+                OpeningRestoPcf = report.OpeningRestoPcf,
+                OpeningPcfFromSales = report.OpeningPcfFromSales,
+                OpeningChangeAmount = report.OpeningChangeAmount,
+                OpeningReceiptNumberStart = report.OpeningReceiptNumberStart,
+                OpeningReceiptNumberEnd = report.OpeningReceiptNumberEnd,
+                OpeningWitnessName = report.OpeningWitnessName,
+                OpeningNotes = report.OpeningNotes,
 
                 ReceiptNumberStart = report.ReceiptNumberStart,
                 ReceiptNumberEnd = report.ReceiptNumberEnd,
@@ -787,6 +826,32 @@ namespace AuditCkDayo.Controllers
                         SortOrder = line.SortOrder
                     };
 
+                    if (line.Section == SalesReportSection.Opening)
+                    {
+                        switch (line.LineType)
+                        {
+                            case SalesReportLineType.GCash:
+                                model.OpeningGCashLines.Add(lineVm);
+                                break;
+                            case SalesReportLineType.BankTransfer:
+                                model.OpeningBankTransferLines.Add(lineVm);
+                                break;
+                            case SalesReportLineType.Card:
+                                model.OpeningCardLines.Add(lineVm);
+                                break;
+                            case SalesReportLineType.Credit:
+                                model.OpeningCreditLines.Add(lineVm);
+                                break;
+                            case SalesReportLineType.RunawayCustomer:
+                                model.OpeningRunawayCustomerLines.Add(lineVm);
+                                break;
+                            case SalesReportLineType.ExpenseFromSales:
+                                model.OpeningExpenseFromSalesLines.Add(lineVm);
+                                break;
+                        }
+                        continue;
+                    }
+
                     switch (line.LineType)
                     {
                         case SalesReportLineType.GCash:
@@ -808,6 +873,20 @@ namespace AuditCkDayo.Controllers
                             model.ExpenseFromSalesLines.Add(lineVm);
                             break;
                     }
+                }
+            }
+
+            if (report.CashBreakdownLines != null)
+            {
+                foreach (var b in report.CashBreakdownLines.Where(b => b.Section == SalesReportSection.Opening))
+                {
+                    model.OpeningItems.Add(new CashBreakdownLineViewModel
+                    {
+                        Id = b.Id,
+                        Denomination = b.Denomination,
+                        Quantity = b.Quantity,
+                        Total = b.Total
+                    });
                 }
             }
 
