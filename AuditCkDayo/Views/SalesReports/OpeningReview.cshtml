@@ -562,10 +562,6 @@
         document.querySelectorAll('#line-items-body .total-input').forEach(input => {
             sum += parseFloat(input.value) || 0;
         });
-        const displayVal = document.getElementById('claimed-amount-display');
-        if (displayVal) {
-            displayVal.innerText = sum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        }
     }
 
     function calculateRowTotal(row) {
