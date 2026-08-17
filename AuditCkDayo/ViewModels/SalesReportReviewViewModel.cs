@@ -100,12 +100,76 @@ namespace AuditCkDayo.ViewModels
         [Range(0, double.MaxValue)]
         public decimal ChangeAmount { get; set; }
 
+        public SalesReportSection ReportSection { get; set; } = SalesReportSection.Closing;
+
+        [Range(0, double.MaxValue)]
+        public decimal OpeningGrossSales { get; set; }
+        [Range(0, double.MaxValue)]
+        public decimal OpeningCashSales { get; set; }
+        [Range(0, double.MaxValue)]
+        public decimal OpeningFoodSales { get; set; }
+        [Range(0, double.MaxValue)]
+        public decimal OpeningBeerSales { get; set; }
+        [Range(0, double.MaxValue)]
+        public decimal OpeningBeverageSales { get; set; }
+        [Range(0, double.MaxValue)]
+        public decimal OpeningOtherSales { get; set; }
+        [Range(0, double.MaxValue)]
+        public decimal OpeningSeniorDiscount { get; set; }
+        [Range(0, double.MaxValue)]
+        public decimal OpeningPwdDiscount { get; set; }
+        [Range(0, double.MaxValue)]
+        public decimal OpeningLoyaltyCardDiscount { get; set; }
+        [Range(0, double.MaxValue)]
+        public decimal OpeningGiftVoucherDiscount { get; set; }
+        [Range(0, double.MaxValue)]
+        public decimal OpeningEmployeeTenPercentDiscount { get; set; }
+        [Range(0, double.MaxValue)]
+        public decimal OpeningEmployeeFivePercentDiscount { get; set; }
+        [Range(0, double.MaxValue)]
+        public decimal OpeningEaglesDiscount { get; set; }
+        [Range(0, double.MaxValue)]
+        public decimal OpeningSalesShortageAmount { get; set; }
+        [Range(0, double.MaxValue)]
+        public decimal OpeningSalesOverageAmount { get; set; }
+        [Range(0, double.MaxValue)]
+        public decimal OpeningRestoPcf { get; set; }
+        [Range(0, double.MaxValue)]
+        public decimal OpeningPcfFromSales { get; set; }
+        [Range(0, double.MaxValue)]
+        public decimal OpeningChangeAmount { get; set; }
+        [Range(0, double.MaxValue)]
+        public decimal OpeningGCashAmount { get; set; }
+        [Range(0, double.MaxValue)]
+        public decimal OpeningCreditAmount { get; set; }
+        [Range(0, double.MaxValue)]
+        public decimal OpeningOtherPaymentAmount { get; set; }
+
+        [StringLength(255)]
+        public string? OpeningSalesShortageReason { get; set; }
+        [StringLength(255)]
+        public string? OpeningSalesOverageReason { get; set; }
+        [StringLength(50)]
+        public string? OpeningReceiptNumberStart { get; set; }
+        [StringLength(50)]
+        public string? OpeningReceiptNumberEnd { get; set; }
+        [StringLength(100)]
+        public string? OpeningWitnessName { get; set; }
+        [StringLength(255)]
+        public string? OpeningNotes { get; set; }
+
         public List<SalesReportLineViewModel> GCashLines { get; set; } = new();
         public List<SalesReportLineViewModel> BankTransferLines { get; set; } = new();
         public List<SalesReportLineViewModel> CardLines { get; set; } = new();
         public List<SalesReportLineViewModel> CreditLines { get; set; } = new();
         public List<SalesReportLineViewModel> RunawayCustomerLines { get; set; } = new();
         public List<SalesReportLineViewModel> ExpenseFromSalesLines { get; set; } = new();
+        public List<SalesReportLineViewModel> OpeningGCashLines { get; set; } = new();
+        public List<SalesReportLineViewModel> OpeningBankTransferLines { get; set; } = new();
+        public List<SalesReportLineViewModel> OpeningCardLines { get; set; } = new();
+        public List<SalesReportLineViewModel> OpeningCreditLines { get; set; } = new();
+        public List<SalesReportLineViewModel> OpeningRunawayCustomerLines { get; set; } = new();
+        public List<SalesReportLineViewModel> OpeningExpenseFromSalesLines { get; set; } = new();
 
         public decimal TotalGCash => GCashLines.Any() ? GCashLines.Sum(l => l.Amount) : GCashAmount;
         public decimal TotalBankTransfer => BankTransferLines.Sum(l => l.Amount);
@@ -113,7 +177,13 @@ namespace AuditCkDayo.ViewModels
         public decimal TotalCredit => CreditLines.Any() ? CreditLines.Sum(l => l.Amount) : CreditAmount;
         public decimal TotalRunawayCustomer => RunawayCustomerLines.Sum(l => l.Amount);
         public decimal TotalExpensesFromSales => ExpenseFromSalesLines.Sum(l => l.Amount);
-        
+        public decimal OpeningTotalGCash => OpeningGCashLines.Any() ? OpeningGCashLines.Sum(l => l.Amount) : OpeningGCashAmount;
+        public decimal OpeningTotalBankTransfer => OpeningBankTransferLines.Sum(l => l.Amount);
+        public decimal OpeningTotalCard => OpeningCardLines.Sum(l => l.Amount);
+        public decimal OpeningTotalCredit => OpeningCreditLines.Any() ? OpeningCreditLines.Sum(l => l.Amount) : OpeningCreditAmount;
+        public decimal OpeningTotalRunawayCustomer => OpeningRunawayCustomerLines.Sum(l => l.Amount);
+        public decimal OpeningTotalExpensesFromSales => OpeningExpenseFromSalesLines.Sum(l => l.Amount);
+
         public decimal TotalDiscounts => SeniorDiscount + PwdDiscount + LoyaltyCardDiscount + GiftVoucherDiscount + EmployeeTenPercentDiscount + EmployeeFivePercentDiscount + EaglesDiscount;
 
         public decimal ExpectedCashToHandover
@@ -131,6 +201,24 @@ namespace AuditCkDayo.ViewModels
         }
         public decimal ShortOverAmount => ConfirmedCashToHandover - ExpectedCashToHandover;
         public string ShortOverLabel => ShortOverAmount < 0 ? "Short" : ShortOverAmount > 0 ? "Over" : "Balanced";
+
+        public decimal OpeningTotalDiscounts => OpeningSeniorDiscount + OpeningPwdDiscount + OpeningLoyaltyCardDiscount + OpeningGiftVoucherDiscount + OpeningEmployeeTenPercentDiscount + OpeningEmployeeFivePercentDiscount + OpeningEaglesDiscount;
+
+        public decimal OpeningExpectedCashToHandover
+        {
+            get
+            {
+                decimal nonCash = OpeningTotalGCash + OpeningTotalCredit;
+                decimal otherPayments = OpeningTotalBankTransfer + OpeningTotalCard + OpeningTotalRunawayCustomer;
+                if (otherPayments == 0m)
+                {
+                    otherPayments = OpeningOtherPaymentAmount;
+                }
+                return OpeningGrossSales - nonCash - otherPayments;
+            }
+        }
+        public decimal OpeningShortOverAmount => OpeningCashSales - OpeningExpectedCashToHandover;
+        public string OpeningShortOverLabel => OpeningShortOverAmount < 0 ? "Short" : OpeningShortOverAmount > 0 ? "Over" : "Balanced";
 
         [StringLength(50)]
         public string? ReceiptNumberStart { get; set; }
@@ -158,6 +246,7 @@ namespace AuditCkDayo.ViewModels
         public string PrimaryActionType => CanConfirmToTreasury ? "Confirm" : "SubmitForVerification";
         public string PrimaryActionText => CanConfirmToTreasury ? "Confirm to Treasury" : "Submit for Manager Verification";
         public string PrimaryActionIcon => CanConfirmToTreasury ? "check_circle" : "send";
+        public List<CashBreakdownLineViewModel> OpeningItems { get; set; } = new();
         public List<CashBreakdownLineViewModel> Items { get; set; } = new();
     }
 
