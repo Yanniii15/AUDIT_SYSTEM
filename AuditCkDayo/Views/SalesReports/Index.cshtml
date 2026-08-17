@@ -16,14 +16,22 @@
 {
     <div class="space-y-6">
         <div class="flex flex-col gap-space-2 max-w-3xl">
-            <div class="flex items-center gap-space-2 text-primary">
-                <span class="material-symbols-outlined text-[20px]">receipt_long</span>
-                <span class="font-label-caps uppercase tracking-widest text-on-surface-variant">Daily Sales</span>
+            <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-space-4">
+                <div class="flex flex-col gap-space-2 max-w-3xl">
+                    <div class="flex items-center gap-space-2 text-primary">
+                        <span class="material-symbols-outlined text-[20px]">receipt_long</span>
+                        <span class="font-label-caps uppercase tracking-widest text-on-surface-variant">Daily Sales</span>
+                    </div>
+                    <h1 class="font-headline-lg text-headline-lg text-on-surface">Daily Sales</h1>
+                    <p class="font-body-md text-on-surface-variant leading-relaxed">
+                        Add your establishment's opening and closing daily sales.
+                    </p>
+                </div>
+                <a asp-action="Upload" class="inline-flex items-center justify-center gap-space-2 rounded-lg bg-surface-container border border-surface-border px-space-5 py-space-3 text-primary font-label-caps uppercase tracking-widest text-[12px] hover:bg-surface-container-high transition-all">
+                    <span class="material-symbols-outlined text-[18px]">upload_file</span>
+                    Upload Daily Sales Report
+                </a>
             </div>
-            <h1 class="font-headline-lg text-headline-lg text-on-surface">Daily Sales</h1>
-            <p class="font-body-md text-on-surface-variant leading-relaxed">
-                Add your establishment's opening and closing daily sales.
-            </p>
         </div>
 
         <div class="bg-surface-container-lowest rounded-xl shadow-sm border border-surface-border overflow-hidden">
