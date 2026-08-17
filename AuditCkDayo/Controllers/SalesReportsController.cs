@@ -259,6 +259,32 @@ namespace AuditCkDayo.Controllers
             return View(BuildReviewModel(report));
         }
 
+        [HttpGet]
+        public async Task<IActionResult> OpeningReview(int id)
+        {
+            var report = await _context.SalesReports
+                .AsNoTracking()
+                .Include(r => r.DocumentRecord)
+                .Include(r => r.CashBreakdownLines)
+                .Include(r => r.Lines)
+                .FirstOrDefaultAsync(r => r.Id == id);
+
+            if (report == null)
+            {
+                return NotFound();
+            }
+
+            if (await CurrentUserCannotAccessAsync(report.EstablishmentId))
+            {
+                return Forbid();
+            }
+
+            await PopulateEstablishments(report.EstablishmentId);
+            var model = BuildReviewModel(report);
+            model.ReportSection = SalesReportSection.Opening;
+            return View("OpeningReview", model);
+        }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Review(SalesReportReviewViewModel model, string actionType)
@@ -480,6 +506,73 @@ namespace AuditCkDayo.Controllers
 
             await _context.SaveChangesAsync();
             return RedirectToAction(nameof(Review), new { id = report.Id });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> OpeningReview(SalesReportReviewViewModel model, string actionType)
+        {
+            if (!model.SalesReportId.HasValue)
+            {
+                return NotFound();
+            }
+
+            var report = await _context.SalesReports
+                .Include(r => r.DocumentRecord)
+                .Include(r => r.CashBreakdownLines)
+                .Include(r => r.Lines)
+                .FirstOrDefaultAsync(r => r.Id == model.SalesReportId.Value && r.DocumentRecordId == model.DocumentRecordId);
+
+            if (report == null)
+            {
+                return NotFound();
+            }
+
+            if (await CurrentUserCannotAccessAsync(report.EstablishmentId) || await CurrentUserCannotAccessAsync(model.EstablishmentId))
+            {
+                return Forbid();
+            }
+
+            await PopulateEstablishments(model.EstablishmentId);
+            model.ReportSection = SalesReportSection.Opening;
+            PopulateReviewUiState(model, report);
+
+            if (!await IsValidOperatingBranchAsync(model.EstablishmentId))
+            {
+                ModelState.AddModelError(nameof(model.EstablishmentId), "Select an active operating branch.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                return View("OpeningReview", model);
+            }
+
+            var requestedConfirmAction = string.Equals(actionType, "Confirm", StringComparison.OrdinalIgnoreCase);
+            var canConfirmToTreasury = CanConfirmSalesReportToTreasury();
+            var isConfirmAction = requestedConfirmAction && canConfirmToTreasury;
+            var isSubmitForVerificationAction = string.Equals(actionType, "SubmitForVerification", StringComparison.OrdinalIgnoreCase)
+                || (requestedConfirmAction && !canConfirmToTreasury);
+            if (!isConfirmAction && (report.Status == SalesReportStatus.Confirmed || report.DocumentRecord.ReviewStatus == DocumentReviewStatus.Confirmed))
+            {
+                ModelState.AddModelError(string.Empty, "Confirmed sales reports cannot be saved as drafts.");
+                TempData["Error"] = "Confirmed sales reports cannot be saved as drafts.";
+                return View("OpeningReview", BuildReviewModel(report));
+            }
+
+            ApplyOpeningModel(report, model);
+            ApplyOpeningLines(report, model);
+
+            report.Status = SalesReportStatus.Draft;
+            report.DocumentRecord.ReviewStatus = DocumentReviewStatus.Draft;
+            report.ConfirmedByUserId = null;
+            report.ConfirmedAt = null;
+            report.DocumentRecord.ConfirmedByUserId = null;
+            report.DocumentRecord.ConfirmedAt = null;
+
+            TempData["Message"] = "Opening sales draft saved.";
+
+            await _context.SaveChangesAsync();
+            return RedirectToAction(nameof(OpeningReview), new { id = report.Id });
         }
 
         [HttpGet("SalesReports/Image/{fileName}")]
@@ -779,6 +872,93 @@ namespace AuditCkDayo.Controllers
             report.ReceiptNumberEnd = model.ReceiptNumberEnd;
             report.WitnessName = model.WitnessName;
             report.Notes = model.Notes;
+        }
+
+        private static void ApplyOpeningModel(SalesReport report, SalesReportReviewViewModel model)
+        {
+            report.EstablishmentId = model.EstablishmentId;
+            report.CashierName = model.CashierName;
+            report.BusinessDate = model.BusinessDate.Date;
+            report.HandoverDate = model.HandoverDate.Date;
+            report.OpeningGrossSales = model.OpeningGrossSales;
+            report.OpeningCashSales = model.OpeningCashSales;
+            report.OpeningFoodSales = model.OpeningFoodSales;
+            report.OpeningBeerSales = model.OpeningBeerSales;
+            report.OpeningBeverageSales = model.OpeningBeverageSales;
+            report.OpeningOtherSales = model.OpeningOtherSales;
+            report.OpeningSeniorDiscount = model.OpeningSeniorDiscount;
+            report.OpeningPwdDiscount = model.OpeningPwdDiscount;
+            report.OpeningLoyaltyCardDiscount = model.OpeningLoyaltyCardDiscount;
+            report.OpeningGiftVoucherDiscount = model.OpeningGiftVoucherDiscount;
+            report.OpeningEmployeeTenPercentDiscount = model.OpeningEmployeeTenPercentDiscount;
+            report.OpeningEmployeeFivePercentDiscount = model.OpeningEmployeeFivePercentDiscount;
+            report.OpeningEaglesDiscount = model.OpeningEaglesDiscount;
+            report.OpeningSalesShortageAmount = model.OpeningSalesShortageAmount;
+            report.OpeningSalesShortageReason = model.OpeningSalesShortageReason;
+            report.OpeningSalesOverageAmount = model.OpeningSalesOverageAmount;
+            report.OpeningSalesOverageReason = model.OpeningSalesOverageReason;
+            report.OpeningRestoPcf = model.OpeningRestoPcf;
+            report.OpeningPcfFromSales = model.OpeningPcfFromSales;
+            report.OpeningChangeAmount = model.OpeningChangeAmount;
+            report.OpeningReceiptNumberStart = model.OpeningReceiptNumberStart;
+            report.OpeningReceiptNumberEnd = model.OpeningReceiptNumberEnd;
+            report.OpeningWitnessName = model.OpeningWitnessName;
+            report.OpeningNotes = model.OpeningNotes;
+        }
+
+        private void ApplyOpeningLines(SalesReport report, SalesReportReviewViewModel model)
+        {
+            _context.SalesReportLines.RemoveRange(report.Lines.Where(l => l.Section == SalesReportSection.Opening).ToList());
+            report.Lines.Where(l => l.Section == SalesReportSection.Opening).ToList().ForEach(l => report.Lines.Remove(l));
+
+            _context.CashBreakdownLines.RemoveRange(report.CashBreakdownLines.Where(b => b.Section == SalesReportSection.Opening).ToList());
+            report.CashBreakdownLines.Where(b => b.Section == SalesReportSection.Opening).ToList().ForEach(b => report.CashBreakdownLines.Remove(b));
+
+            int sortOrder = 0;
+            AddOpeningLines(model.OpeningGCashLines, SalesReportLineType.GCash, report, ref sortOrder);
+            AddOpeningLines(model.OpeningBankTransferLines, SalesReportLineType.BankTransfer, report, ref sortOrder);
+            AddOpeningLines(model.OpeningCardLines, SalesReportLineType.Card, report, ref sortOrder);
+            AddOpeningLines(model.OpeningCreditLines, SalesReportLineType.Credit, report, ref sortOrder);
+            AddOpeningLines(model.OpeningRunawayCustomerLines, SalesReportLineType.RunawayCustomer, report, ref sortOrder);
+            AddOpeningLines(model.OpeningExpenseFromSalesLines, SalesReportLineType.ExpenseFromSales, report, ref sortOrder);
+
+            if (model.OpeningItems != null)
+            {
+                foreach (var item in model.OpeningItems)
+                {
+                    report.CashBreakdownLines.Add(new CashBreakdownLine
+                    {
+                        OwnerType = CashBreakdownOwnerType.SalesReport,
+                        OwnerId = report.Id,
+                        Section = SalesReportSection.Opening,
+                        Denomination = item.Denomination,
+                        Quantity = item.Quantity,
+                        Total = item.Denomination * item.Quantity
+                    });
+                }
+            }
+        }
+
+        private static void AddOpeningLines(List<SalesReportLineViewModel>? lines, SalesReportLineType lineType, SalesReport report, ref int sortOrder)
+        {
+            if (lines == null)
+            {
+                return;
+            }
+            foreach (var line in lines)
+            {
+                if (line.Amount > 0m || !string.IsNullOrWhiteSpace(line.Label))
+                {
+                    report.Lines.Add(new SalesReportLine
+                    {
+                        LineType = lineType,
+                        Section = SalesReportSection.Opening,
+                        Amount = line.Amount,
+                        Label = line.Label,
+                        SortOrder = sortOrder++
+                    });
+                }
+            }
         }
 
         private int? GetCurrentUserId()
