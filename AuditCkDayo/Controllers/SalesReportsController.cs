@@ -53,6 +53,7 @@ namespace AuditCkDayo.Controllers
                     .Include(r => r.DocumentRecord)
                     .Include(r => r.Establishment)
                     .Where(r => r.EstablishmentId == assignedEstablishmentId.Value)
+                    .Where(r => r.BusinessDate >= DateTime.Today.AddDays(-30))
                     .OrderByDescending(r => r.BusinessDate)
                     .ThenByDescending(r => r.Id)
                     .ToListAsync();
