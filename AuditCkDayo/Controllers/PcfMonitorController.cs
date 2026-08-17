@@ -63,13 +63,30 @@ namespace AuditCkDayo.Controllers
                 usersQuery = usersQuery.Where(u => u.Id == userId);
             }
 
+            var users = await usersQuery
+                .OrderBy(u => u.Role)
+                .ThenBy(u => u.Name)
+                .ToListAsync();
+
             var model = new PcfMonitorViewModel
             {
                 ScopeLabel = scopeLabel,
-                Users = await usersQuery
-                    .OrderBy(u => u.Role)
-                    .ThenBy(u => u.Name)
-                    .ToListAsync()
+                Establishments = users
+                    .GroupBy(u => u.EstablishmentId ?? -u.Id)
+                    .Select(g =>
+                    {
+                        var ordered = g.OrderBy(u => u.Role).ThenBy(u => u.Name).ToList();
+                        var representative = ordered.First();
+                        return new PcfEstablishmentGroup
+                        {
+                            EstablishmentId = representative.EstablishmentId ?? 0,
+                            EstablishmentName = representative.Establishment?.Name ?? "Unassigned",
+                            SharedStartingPcf = representative.DailyStartingFloat,
+                            SharedCurrentPcf = representative.PcfBalance,
+                            Staff = ordered
+                        };
+                    })
+                    .ToList()
             };
 
             return View(model);

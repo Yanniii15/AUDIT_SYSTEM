@@ -4,8 +4,8 @@
 }
 
 <div id="pageVoiceSummary" class="sr-only">
-    Petty cash fund monitor. Monitored balance count: @Model.Users.Count accounts.
-    Total active PCF: ₱@Model.Users.Sum(u => u.PcfBalance).ToString("N2").
+    Petty cash fund monitor. @Model.Establishments.Count establishments, @Model.AccountCount accounts.
+    Total active PCF: ₱@Model.TotalCurrentPcf.ToString("N2").
 </div>
 
 <section class="space-y-space-6">
@@ -40,8 +40,8 @@
 
     <section class="bg-surface-container-lowest border border-surface-border rounded-xl shadow-sm overflow-hidden">
         <div class="px-space-6 py-space-4 border-b border-surface-border flex items-center justify-between gap-space-4">
-            <h2 class="font-headline-sm text-on-surface">User PCF Balances</h2>
-            <span class="text-[12px] text-on-surface-variant">@Model.Users.Count users</span>
+            <h2 class="font-headline-sm text-on-surface">Establishment PCF Balances</h2>
+            <span class="text-[12px] text-on-surface-variant">@Model.Establishments.Count establishments • @Model.AccountCount accounts</span>
         </div>
         <div class="hidden lg:block max-h-[620px] overflow-y-auto overflow-x-auto">
             <table class="w-full text-left border-collapse">
@@ -57,25 +57,37 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-surface-border">
-                    @if (!Model.Users.Any())
+                    @if (!Model.Establishments.Any())
                     {
                         <tr><td colspan="7" class="px-space-6 py-space-8 text-center text-on-surface-variant">No PCF balances in this scope.</td></tr>
                     }
                     else
                     {
-                        @foreach (var user in Model.Users)
+                        @foreach (var group in Model.Establishments)
                         {
-                            var used = user.DailyStartingFloat - user.PcfBalance;
-                            var utilization = user.DailyStartingFloat <= 0 ? 0 : Math.Round((used / user.DailyStartingFloat) * 100, 1);
-                            <tr class="hover:bg-surface-container-low/50 transition-colors">
-                                <td class="px-space-6 py-space-4 text-on-surface font-semibold">@user.Name</td>
-                                <td class="px-space-6 py-space-4 text-on-surface-variant">@user.Role</td>
-                                <td class="px-space-6 py-space-4 text-on-surface-variant">@(user.Establishment?.Name ?? "Unassigned")</td>
-                                <td class="px-space-6 py-space-4 text-right font-data-mono text-on-surface">₱@user.DailyStartingFloat.ToString("N2")</td>
-                                <td class="px-space-6 py-space-4 text-right font-data-mono text-primary">₱@user.PcfBalance.ToString("N2")</td>
-                                <td class="px-space-6 py-space-4 text-right font-data-mono @(used >= 0 ? "text-audit-error" : "text-audit-success")">₱@used.ToString("N2")</td>
-                                <td class="px-space-6 py-space-4 text-right font-data-mono text-on-surface-variant">@utilization.ToString("N1")%</td>
+                            <tr class="bg-surface-container-low hover:bg-surface-container-low transition-colors">
+                                <td class="px-space-6 py-space-4 text-on-surface font-bold">@group.EstablishmentName</td>
+                                <td class="px-space-6 py-space-4 text-on-surface-variant">Establishment</td>
+                                <td class="px-space-6 py-space-4 text-on-surface-variant">@(group.Staff.Count) account(s)</td>
+                                <td class="px-space-6 py-space-4 text-right font-data-mono text-on-surface">₱@group.SharedStartingPcf.ToString("N2")</td>
+                                <td class="px-space-6 py-space-4 text-right font-data-mono text-primary">₱@group.SharedCurrentPcf.ToString("N2")</td>
+                                <td class="px-space-6 py-space-4 text-right font-data-mono @(group.SharedUsedPcf >= 0 ? "text-audit-error" : "text-audit-success")">₱@group.SharedUsedPcf.ToString("N2")</td>
+                                <td class="px-space-6 py-space-4 text-right font-data-mono text-on-surface-variant">@group.Utilization.ToString("N1")%</td>
                             </tr>
+                            @foreach (var user in group.Staff)
+                            {
+                                var used = user.DailyStartingFloat - user.PcfBalance;
+                                var utilization = user.DailyStartingFloat <= 0 ? 0 : Math.Round((used / user.DailyStartingFloat) * 100, 1);
+                                <tr class="hover:bg-surface-container-low/50 transition-colors">
+                                    <td class="px-space-6 py-space-4 pl-space-10 text-on-surface font-semibold">@user.Name</td>
+                                    <td class="px-space-6 py-space-4 text-on-surface-variant">@user.Role</td>
+                                    <td class="px-space-6 py-space-4 text-on-surface-variant">@(user.Establishment?.Name ?? "Unassigned")</td>
+                                    <td class="px-space-6 py-space-4 text-right font-data-mono text-on-surface">₱@user.DailyStartingFloat.ToString("N2")</td>
+                                    <td class="px-space-6 py-space-4 text-right font-data-mono text-primary">₱@user.PcfBalance.ToString("N2")</td>
+                                    <td class="px-space-6 py-space-4 text-right font-data-mono @(used >= 0 ? "text-audit-error" : "text-audit-success")">₱@used.ToString("N2")</td>
+                                    <td class="px-space-6 py-space-4 text-right font-data-mono text-on-surface-variant">@utilization.ToString("N1")%</td>
+                                </tr>
+                            }
                         }
                     }
                 </tbody>
@@ -83,29 +95,46 @@
         </div>
 
         <div class="block lg:hidden max-h-[620px] overflow-y-auto space-y-space-4 p-space-4">
-            @if (!Model.Users.Any())
+            @if (!Model.Establishments.Any())
             {
                 <div class="text-center text-on-surface-variant font-body-md py-space-6">No PCF balances in this scope.</div>
             }
             else
             {
-                @foreach (var user in Model.Users)
+                @foreach (var group in Model.Establishments)
                 {
-                    var used = user.DailyStartingFloat - user.PcfBalance;
-                    var utilization = user.DailyStartingFloat <= 0 ? 0 : Math.Round((used / user.DailyStartingFloat) * 100, 1);
                     <article class="bg-surface-container-low border border-surface-border rounded-xl p-space-4 space-y-space-3">
                         <div class="flex items-start justify-between gap-space-3">
                             <div>
-                                <h3 class="font-body-md font-semibold text-on-surface">@user.Name</h3>
-                                <p class="text-[11px] text-on-surface-variant">@user.Role • @(user.Establishment?.Name ?? "Unassigned")</p>
+                                <h3 class="font-body-md font-semibold text-on-surface">@group.EstablishmentName</h3>
+                                <p class="text-[11px] text-on-surface-variant">Establishment • @(group.Staff.Count) account(s)</p>
                             </div>
-                            <span class="font-data-mono text-primary">₱@user.PcfBalance.ToString("N2")</span>
+                            <span class="font-data-mono text-primary">₱@group.SharedCurrentPcf.ToString("N2")</span>
                         </div>
                         <div class="grid grid-cols-3 gap-space-2 text-[11px]">
-                            <div class="bg-surface-container-lowest rounded-lg p-space-3 border border-surface-border"><div class="font-label-caps uppercase text-[9px] text-on-surface-variant">Starting</div><div class="font-data-mono text-on-surface">₱@user.DailyStartingFloat.ToString("N2")</div></div>
-                            <div class="bg-surface-container-lowest rounded-lg p-space-3 border border-surface-border"><div class="font-label-caps uppercase text-[9px] text-on-surface-variant">Used</div><div class="font-data-mono @(used >= 0 ? "text-audit-error" : "text-audit-success")">₱@used.ToString("N2")</div></div>
-                            <div class="bg-surface-container-lowest rounded-lg p-space-3 border border-surface-border"><div class="font-label-caps uppercase text-[9px] text-on-surface-variant">Use %</div><div class="font-data-mono text-on-surface">@utilization.ToString("N1")%</div></div>
+                            <div class="bg-surface-container-lowest rounded-lg p-space-3 border border-surface-border"><div class="font-label-caps uppercase text-[9px] text-on-surface-variant">Starting</div><div class="font-data-mono text-on-surface">₱@group.SharedStartingPcf.ToString("N2")</div></div>
+                            <div class="bg-surface-container-lowest rounded-lg p-space-3 border border-surface-border"><div class="font-label-caps uppercase text-[9px] text-on-surface-variant">Used</div><div class="font-data-mono @(group.SharedUsedPcf >= 0 ? "text-audit-error" : "text-audit-success")">₱@group.SharedUsedPcf.ToString("N2")</div></div>
+                            <div class="bg-surface-container-lowest rounded-lg p-space-3 border border-surface-border"><div class="font-label-caps uppercase text-[9px] text-on-surface-variant">Use %</div><div class="font-data-mono text-on-surface">@group.Utilization.ToString("N1")%</div></div>
                         </div>
+                        @foreach (var user in group.Staff)
+                        {
+                            var used = user.DailyStartingFloat - user.PcfBalance;
+                            var utilization = user.DailyStartingFloat <= 0 ? 0 : Math.Round((used / user.DailyStartingFloat) * 100, 1);
+                            <div class="border-t border-surface-border pt-space-3 mt-space-3">
+                                <div class="flex items-start justify-between gap-space-3">
+                                    <div>
+                                        <h4 class="font-body-md font-semibold text-on-surface">@user.Name</h4>
+                                        <p class="text-[11px] text-on-surface-variant">@user.Role • @(user.Establishment?.Name ?? "Unassigned")</p>
+                                    </div>
+                                    <span class="font-data-mono text-primary">₱@user.PcfBalance.ToString("N2")</span>
+                                </div>
+                                <div class="grid grid-cols-3 gap-space-2 text-[11px] mt-space-2">
+                                    <div class="bg-surface-container-lowest rounded-lg p-space-3 border border-surface-border"><div class="font-label-caps uppercase text-[9px] text-on-surface-variant">Starting</div><div class="font-data-mono text-on-surface">₱@user.DailyStartingFloat.ToString("N2")</div></div>
+                                    <div class="bg-surface-container-lowest rounded-lg p-space-3 border border-surface-border"><div class="font-label-caps uppercase text-[9px] text-on-surface-variant">Used</div><div class="font-data-mono @(used >= 0 ? "text-audit-error" : "text-audit-success")">₱@used.ToString("N2")</div></div>
+                                    <div class="bg-surface-container-lowest rounded-lg p-space-3 border border-surface-border"><div class="font-label-caps uppercase text-[9px] text-on-surface-variant">Use %</div><div class="font-data-mono text-on-surface">@utilization.ToString("N1")%</div></div>
+                                </div>
+                            </div>
+                        }
                     </article>
                 }
             }
