@@ -30,7 +30,8 @@
             <div class="bg-primary px-space-6 py-space-4 flex justify-between items-center">
                 <span class="text-on-primary font-label-caps uppercase tracking-tighter text-[11px]">Daily Sales Records</span>
             </div>
-            <table class="w-full text-left border-collapse">
+            <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse" style="min-width: 760px;">
                 <thead class="hidden lg:table-header-group">
                     <tr class="bg-surface-container-low border-b border-surface-border">
                         <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px]">Business Date</th>
@@ -74,6 +75,7 @@
                     }
                 </tbody>
             </table>
+            </div>
             @if (!Model.Any())
             {
                 <div class="p-space-8 text-center text-on-surface-variant font-body-md">No daily sales records yet.</div>
