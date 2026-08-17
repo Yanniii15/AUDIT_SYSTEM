@@ -36,5 +36,7 @@ namespace AuditCkDayo.Models
         [Required]
         [Column(TypeName = "decimal(12,2)")]
         public decimal Total { get; set; }
+
+        public SalesReportSection Section { get; set; } = SalesReportSection.Closing;
     }
 }
