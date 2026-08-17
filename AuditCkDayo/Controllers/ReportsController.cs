@@ -60,6 +60,8 @@ public class ReportsController : Controller
                 .ThenInclude(entry => entry.RelatedUser)
             .Include(flow => flow.Entries)
                 .ThenInclude(entry => entry.CostCenter)
+            .Include(flow => flow.Entries)
+                .ThenInclude(entry => entry.ReportedByUser)
             .OrderBy(flow => flow.CashFlowDate)
             .ThenBy(flow => flow.Id)
             .ToListAsync();
@@ -430,7 +432,8 @@ public class ReportsController : Controller
 
         if (role == "Manager")
         {
-            query = query.Where(flow => flow.TreasuryUserId == userId);
+            query = query.Where(flow => flow.TreasuryUserId == userId
+                || flow.Entries.Any(e => e.ReportedByUserId == userId));
         }
         else if (role == "Buyer" || role == "BranchStaff")
         {

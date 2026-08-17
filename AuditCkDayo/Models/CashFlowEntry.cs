@@ -56,6 +56,11 @@ namespace AuditCkDayo.Models
         [ForeignKey("RelatedUserId")]
         public virtual User? RelatedUser { get; set; }
 
+        public int? ReportedByUserId { get; set; }
+
+        [ForeignKey("ReportedByUserId")]
+        public virtual User? ReportedByUser { get; set; }
+
         public int? SourceDocumentId { get; set; }
 
         [ForeignKey("SourceDocumentId")]

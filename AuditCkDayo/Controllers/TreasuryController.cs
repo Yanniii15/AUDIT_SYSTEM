@@ -455,6 +455,7 @@ namespace AuditCkDayo.Controllers
                 Direction = CashFlowDirection.Out,
                 Category = model.Category,
                 EstablishmentId = model.AppliesAcrossEstablishments ? null : model.EstablishmentId,
+                ReportedByUserId = model.ReportedByUserId,
                 Amount = model.Amount,
                 Notes = model.Purpose,
                 CreatedByUserId = currentUserId,
@@ -541,7 +542,14 @@ namespace AuditCkDayo.Controllers
                 .OrderBy(e => e.Name)
                 .ToList();
 
+            var managers = _context.Users
+                .AsNoTracking()
+                .Where(u => u.Role == UserRole.Manager && !u.IsDeleted)
+                .OrderBy(u => u.Name)
+                .ToList();
+
             ViewBag.CashFlowEstablishments = new SelectList(establishments, "Id", "Name");
+            ViewBag.ReportedByManagers = new SelectList(managers, "Id", "Name");
         }
 
 

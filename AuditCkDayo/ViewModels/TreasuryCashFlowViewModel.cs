@@ -51,6 +51,8 @@ namespace AuditCkDayo.ViewModels
 
         public int? EstablishmentId { get; set; }
 
+        public int? ReportedByUserId { get; set; }
+
         [MaxLength(255)]
         public string? Purpose { get; set; }
 

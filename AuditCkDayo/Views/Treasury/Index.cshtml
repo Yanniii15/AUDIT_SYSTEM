@@ -151,6 +151,13 @@
                     <label asp-for="ManualCashOut.Purpose" class="block text-sm font-medium text-on-surface">Purpose / remarks</label>
                     <input asp-for="ManualCashOut.Purpose" id="manual-cashout-purpose" maxlength="255" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2 text-on-surface" placeholder="Example: KEITH GAS AUG. 5" />
                 </div>
+                <div id="manual-cashout-reportedby-wrap" class="md:col-span-2">
+                    <label asp-for="ManualCashOut.ReportedByUserId" class="block text-sm font-medium text-on-surface">Report under manager</label>
+                    <select asp-for="ManualCashOut.ReportedByUserId" asp-items="ViewBag.ReportedByManagers" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2 text-on-surface">
+                        <option value="">— same as this treasury (default) —</option>
+                    </select>
+                    <p class="mt-1 text-xs text-on-surface-variant">Optional: shows this cash-out under another manager's report (e.g. covering manager). Treasury total stays with this handler.</p>
+                </div>
                 <label class="md:col-span-2 flex flex-col gap-1 text-sm font-medium text-on-surface">
                     <span class="inline-flex items-center gap-2">
                         <input asp-for="ManualCashOut.AppliesAcrossEstablishments" id="manual-cashout-across-establishments" type="checkbox" class="rounded border-outline text-primary focus:ring-primary" />

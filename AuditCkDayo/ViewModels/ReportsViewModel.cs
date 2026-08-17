@@ -90,14 +90,24 @@ public class TreasuryAuditReportViewModel
 
         var selectedFlows = flows
             .Where(flow => flow.CashFlowDate.Date >= startDate.Date && flow.CashFlowDate.Date <= endDate.Date)
-            .Where(flow => !treasuryHandlerId.HasValue || flow.TreasuryUserId == treasuryHandlerId.Value)
             .OrderBy(flow => flow.CashFlowDate)
             .ThenBy(flow => flow.Id)
             .ToList();
 
-        var handlerName = selectedFlows
-            .Select(flow => flow.TreasuryUser?.Name)
-            .FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)) ?? "Selected Treasury";
+        var handlerName = treasuryHandlerId.HasValue
+            ? selectedFlows
+                .Where(flow => flow.TreasuryUserId == treasuryHandlerId.Value)
+                .Select(flow => flow.TreasuryUser?.Name)
+                .FirstOrDefault(name => !string.IsNullOrWhiteSpace(name))
+              ?? selectedFlows
+                .SelectMany(flow => flow.Entries)
+                .Where(entry => entry.ReportedByUserId == treasuryHandlerId.Value)
+                .Select(entry => entry.ReportedByUser?.Name)
+                .FirstOrDefault(name => !string.IsNullOrWhiteSpace(name))
+              ?? "Selected Treasury"
+            : selectedFlows
+                .Select(flow => flow.TreasuryUser?.Name)
+                .FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)) ?? "Selected Treasury";
 
         var report = new TreasuryAuditReportViewModel
         {
@@ -109,7 +119,8 @@ public class TreasuryAuditReportViewModel
 
         var cashInEntries = selectedFlows
             .SelectMany(flow => flow.Entries
-                .Where(entry => entry.Direction == CashFlowDirection.In)
+                .Where(entry => entry.Direction == CashFlowDirection.In
+                    && (!treasuryHandlerId.HasValue || flow.TreasuryUserId == treasuryHandlerId.Value))
                 .Select(entry => new { Flow = flow, Entry = entry, Label = GetCashInLabel(entry) }))
             .Where(item => !string.IsNullOrWhiteSpace(item.Label))
             .ToList();
@@ -137,13 +148,16 @@ public class TreasuryAuditReportViewModel
 
         report.CashOutRows = selectedFlows
             .SelectMany(flow => flow.Entries
-                .Where(entry => entry.Direction == CashFlowDirection.Out)
+                .Where(entry => entry.Direction == CashFlowDirection.Out
+                    && (!treasuryHandlerId.HasValue
+                        || flow.TreasuryUserId == treasuryHandlerId.Value
+                        || entry.ReportedByUserId == treasuryHandlerId.Value))
                 .Select(entry => new TreasuryAuditCashOutRowViewModel
                 {
                     Date = flow.CashFlowDate.Date,
                     Description = GetCashOutDescription(entry),
                     Category = entry.Category.ToString(),
-                    TreasuryHandlerName = flow.TreasuryUser?.Name ?? "Unassigned Treasury",
+                    TreasuryHandlerName = entry.ReportedByUser?.Name ?? flow.TreasuryUser?.Name ?? "Unassigned Treasury",
                     Amount = entry.Amount
                 }))
             .OrderBy(row => row.Date)
