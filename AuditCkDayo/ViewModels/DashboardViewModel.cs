@@ -25,8 +25,8 @@ namespace AuditCkDayo.ViewModels
         public List<AuditItem> TodayAudits { get; set; } = new List<AuditItem>();
         public List<SalesReport> PendingSalesReports { get; set; } = new List<SalesReport>();
         public List<SalesReport> HistoricalSalesReports { get; set; } = new List<SalesReport>();
-        public decimal PendingSalesGrossTotal => PendingSalesReports.Sum(r => r.GrossSales);
-        public decimal PendingSalesCashToHandoverTotal => PendingSalesReports.Sum(r => r.ConfirmedCashToHandover);
+        public decimal PendingSalesGrossTotal => PendingSalesReports.Sum(r => r.TotalGrossSales);
+        public decimal PendingSalesCashToHandoverTotal => PendingSalesReports.Sum(r => r.TotalConfirmedCashToHandover);
         public List<User> CashOnHandUsers { get; set; } = new List<User>();
         public decimal TotalAmount { get; set; }
     }

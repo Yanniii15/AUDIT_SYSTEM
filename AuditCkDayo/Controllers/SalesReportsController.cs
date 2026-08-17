@@ -686,7 +686,7 @@ namespace AuditCkDayo.Controllers
             entry.Category = CashFlowCategory.Sales;
             entry.EstablishmentId = report.EstablishmentId;
             entry.SourceDocumentId = report.DocumentRecordId;
-            entry.Amount = report.ConfirmedCashToHandover;
+            entry.Amount = report.TotalConfirmedCashToHandover;
             entry.Notes = $"Sales handover for {report.BusinessDate:yyyy-MM-dd}";
             entry.ConfirmedByUserId = currentUserId;
 
