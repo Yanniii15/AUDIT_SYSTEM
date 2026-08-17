@@ -250,6 +250,15 @@ namespace AuditCkDayo.Models
         [MaxLength(255)]
         public string? OpeningNotes { get; set; }
 
+        [NotMapped]
+        public decimal TotalGrossSales => GrossSales + OpeningGrossSales;
+
+        [NotMapped]
+        public decimal TotalCashSales => CashSales + OpeningCashSales;
+
+        [NotMapped]
+        public decimal TotalConfirmedCashToHandover => ConfirmedCashToHandover + OpeningCashSales;
+
         public virtual ICollection<SalesReportLine> Lines { get; set; } = new List<SalesReportLine>();
 
         public virtual ICollection<CashBreakdownLine> CashBreakdownLines { get; set; } = new List<CashBreakdownLine>();
