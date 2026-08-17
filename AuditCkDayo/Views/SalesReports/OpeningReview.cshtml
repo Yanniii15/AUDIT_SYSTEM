@@ -651,7 +651,12 @@
         const row = document.createElement('div');
         row.className = "flex items-center gap-2 payment-row";
 
-        const lineType = propertyPrefix.replace('Lines', '');
+        const lineType = containerId === 'gcash-container' ? 'GCash'
+            : containerId === 'bank-container' ? 'BankTransfer'
+            : containerId === 'card-container' ? 'Card'
+            : containerId === 'credit-container' ? 'Credit'
+            : containerId === 'runaway-container' ? 'RunawayCustomer'
+            : 'ExpenseFromSales';
 
         let html = `
             <input type="hidden" name="${propertyPrefix}[${idx}].Id" value="0" />
