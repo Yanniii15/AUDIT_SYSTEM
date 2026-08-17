@@ -8,7 +8,7 @@
     @if (Model.Any())
     {
         var first = Model.First();
-        <text>First report: Branch @first.Establishment.Name, Business Date @first.BusinessDate.ToString("MMM d, yyyy"), Cash to handover ₱@first.ConfirmedCashToHandover.ToString("N2").</text>
+        <text>First report: Branch @first.Establishment.Name, Business Date @first.BusinessDate.ToString("MMM d, yyyy"), Cash to handover ₱@first.TotalConfirmedCashToHandover.ToString("N2").</text>
     }
 </div>
 
@@ -164,7 +164,7 @@ else
                                     </div>
                                 </td>
                                 <td class="px-space-5 py-space-4 text-right font-data-mono text-primary font-bold text-[14px]">
-                                    ₱@report.ConfirmedCashToHandover.ToString("N2")
+                                    ₱@report.TotalConfirmedCashToHandover.ToString("N2")
                                 </td>
                                 <td class="px-space-5 py-space-4">
                                     <span class="inline-flex items-center gap-1.5 rounded-full border border-audit-pending/35 bg-audit-pending/8 px-3 py-1 text-[10px] font-label-caps uppercase tracking-wider text-audit-pending font-semibold shadow-sm">
