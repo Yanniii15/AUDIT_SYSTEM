@@ -68,24 +68,40 @@ namespace AuditCkDayo.Controllers
                 .ThenBy(u => u.Name)
                 .ToListAsync();
 
+            var establishmentItems = users
+                .Where(u => u.Role == UserRole.BranchStaff && u.EstablishmentId.HasValue)
+                .GroupBy(u => u.EstablishmentId!.Value)
+                .Select(g =>
+                {
+                    var representative = g.OrderBy(u => u.Role).ThenBy(u => u.Name).First();
+                    return new PcfMonitorItem
+                    {
+                        Id = representative.EstablishmentId.Value,
+                        Name = representative.Establishment?.Name ?? $"Establishment {representative.EstablishmentId}",
+                        Role = "Establishment",
+                        EstablishmentName = representative.Establishment?.Name ?? string.Empty,
+                        StartingPcf = representative.Establishment?.DailyStartingFloat ?? 0m,
+                        CurrentPcf = representative.Establishment?.PcfBalance ?? 0m
+                    };
+                });
+
+            var individualItems = users
+                .Where(u => !(u.Role == UserRole.BranchStaff && u.EstablishmentId.HasValue))
+                .Select(u => new PcfMonitorItem
+                {
+                    Id = u.Id,
+                    Name = u.Name,
+                    Role = u.Role.ToString(),
+                    EstablishmentName = u.Establishment?.Name ?? "—",
+                    StartingPcf = u.DailyStartingFloat,
+                    CurrentPcf = u.PcfBalance
+                });
+
             var model = new PcfMonitorViewModel
             {
                 ScopeLabel = scopeLabel,
-                Establishments = users
-                    .GroupBy(u => u.EstablishmentId ?? -u.Id)
-                    .Select(g =>
-                    {
-                        var ordered = g.OrderBy(u => u.Role).ThenBy(u => u.Name).ToList();
-                        var representative = ordered.First();
-                        return new PcfEstablishmentGroup
-                        {
-                            EstablishmentId = representative.EstablishmentId ?? 0,
-                            EstablishmentName = representative.Establishment?.Name ?? "Unassigned",
-                            SharedStartingPcf = representative.DailyStartingFloat,
-                            SharedCurrentPcf = representative.PcfBalance,
-                            Staff = ordered
-                        };
-                    })
+                Items = establishmentItems
+                    .Concat(individualItems)
                     .ToList()
             };
 

@@ -32,6 +32,7 @@ builder.Services.AddScoped<AuditCkDayo.Services.SystemDiagnosticsService>();
 builder.Services.AddScoped<AuditCkDayo.Services.VoiceBiService>();
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<AuditCkDayo.Services.CoverageService>();
+builder.Services.AddScoped<AuditCkDayo.Services.SharedPcfFundService>();
 
 var app = builder.Build();
 app.UseForwardedHeaders(new ForwardedHeadersOptions

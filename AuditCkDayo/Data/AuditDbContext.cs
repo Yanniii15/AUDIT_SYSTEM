@@ -84,6 +84,14 @@ namespace AuditCkDayo.Data
                 .Property(e => e.IsActive)
                 .HasDefaultValue(true);
 
+            modelBuilder.Entity<Establishment>()
+                .Property(e => e.PcfBalance)
+                .HasDefaultValue(0.00m);
+
+            modelBuilder.Entity<Establishment>()
+                .Property(e => e.DailyStartingFloat)
+                .HasDefaultValue(0.00m);
+
             modelBuilder.Entity<CostCenter>()
                 .HasIndex(c => c.Name)
                 .IsUnique();

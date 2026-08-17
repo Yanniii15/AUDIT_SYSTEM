@@ -105,7 +105,7 @@ public class ReportsController : Controller
                 .OrderByDescending(l => l.Timestamp)
                 .Take(20)
                 .ToListAsync(),
-            CurrentCashBalance = await cashUserQuery.SumAsync(u => u.PcfBalance),
+            CurrentCashBalance = await Services.SharedPcfFundService.SumSharedAwareAsync(cashUserQuery),
             TotalAuditAmount = allAuditsForSummary.Sum(a => a.Amount),
             ApprovedAuditAmount = allAuditsForSummary.Where(a => a.Status == AuditStatus.Approved).Sum(a => a.Amount),
             AuditCount = allAuditsForSummary.Count,

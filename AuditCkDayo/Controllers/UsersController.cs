@@ -15,12 +15,14 @@ namespace AuditCkDayo.Controllers
     public class UsersController : Controller
     {
         private readonly AuditDbContext _context;
+        private readonly Services.SharedPcfFundService _pcfFund;
         private static readonly ConcurrentDictionary<string, SemaphoreSlim> CashTransferLocks = new();
 
 
-        public UsersController(AuditDbContext context)
+        public UsersController(AuditDbContext context, Services.SharedPcfFundService? pcfFund = null)
         {
             _context = context;
+            _pcfFund = pcfFund ?? new Services.SharedPcfFundService(context);
         }
 
         [HttpGet]
@@ -41,7 +43,7 @@ namespace AuditCkDayo.Controllers
             var isOwner = User.IsInRole("Owner");
             if (isOwner)
             {
-                var usersList = await _context.Users.Include(u => u.Manager).Where(u => !u.IsDeleted).ToListAsync();
+                var usersList = await _context.Users.Include(u => u.Manager).Include(u => u.Establishment).Where(u => !u.IsDeleted).ToListAsync();
                 var sortedUsers = usersList
                     .OrderBy(u => u.Role)
                     .ThenBy(u => u.Name)
@@ -52,7 +54,7 @@ namespace AuditCkDayo.Controllers
                     .OrderBy(u => u.Name)
                     .ToListAsync();
 
-                ViewBag.TotalPcfBalance = await _context.Users.Where(u => !u.IsDeleted).SumAsync(u => u.PcfBalance);
+                ViewBag.TotalPcfBalance = await Services.SharedPcfFundService.SumSharedAwareAsync(_context.Users.Where(u => !u.IsDeleted));
                 ViewBag.LedgerEntries = await _context.PettyCashLedgers
                     .Include(l => l.User)
                     .Include(l => l.CounterpartyUser)
@@ -66,13 +68,13 @@ namespace AuditCkDayo.Controllers
             {
                 var users = await _context.Users
                     .Include(u => u.Manager)
+                    .Include(u => u.Establishment)
                     .Where(u => u.ManagerId == userId && !u.IsDeleted)
                     .OrderBy(u => u.Name)
                     .ToListAsync();
 
-                ViewBag.TotalPcfBalance = await _context.Users
-                    .Where(u => (u.Id == userId || u.ManagerId == userId) && !u.IsDeleted)
-                    .SumAsync(u => u.PcfBalance);
+                ViewBag.TotalPcfBalance = await Services.SharedPcfFundService.SumSharedAwareAsync(_context.Users
+                    .Where(u => (u.Id == userId || u.ManagerId == userId) && !u.IsDeleted));
                 ViewBag.LedgerEntries = await _context.PettyCashLedgers
                     .Include(l => l.User)
                     .Include(l => l.CounterpartyUser)
@@ -148,22 +150,23 @@ namespace AuditCkDayo.Controllers
                 if (isSelfTransfer)
                 {
                     // Check that new balance won't fall below 0
-                    decimal newBalance = targetUser.PcfBalance + finalAmount;
+                    var selfCurrent = await _pcfFund.GetAvailableBalanceAsync(targetUser);
+                    decimal newBalance = selfCurrent + finalAmount;
                     if (newBalance < 0)
                     {
                         TempData["Error"] = "Error: Not enough funds.";
                         return RedirectToAction(nameof(Index));
                     }
 
-                    targetUser.PcfBalance += finalAmount;
-                    targetUser.DailyStartingFloat += finalAmount;
+                    await _pcfFund.CreditAsync(targetUser, finalAmount, adjustStartingFloat: true);
+                    var selfResult = await _pcfFund.GetAvailableBalanceAsync(targetUser);
 
                     var ledger = new PettyCashLedger
                     {
                         UserId = targetUser.Id,
                         TransactionType = LedgerTransactionType.VaultFunding,
                         Amount = finalAmount,
-                        ResultingBalance = targetUser.PcfBalance,
+                        ResultingBalance = selfResult,
                         Timestamp = DateTime.Now,
                         CounterpartyUserId = null,
                         Notes = finalAmount > 0 
@@ -175,7 +178,8 @@ namespace AuditCkDayo.Controllers
                 else
                 {
                     // Check that target user's new balance won't fall below 0 when subtracting
-                    decimal newTargetBalance = targetUser.PcfBalance + finalAmount;
+                    var targetCurrent = await _pcfFund.GetAvailableBalanceAsync(targetUser);
+                    decimal newTargetBalance = targetCurrent + finalAmount;
                     if (newTargetBalance < 0)
                     {
                         TempData["Error"] = "Error: Not enough funds.";
@@ -183,26 +187,25 @@ namespace AuditCkDayo.Controllers
                     }
 
                     // Check that manager has enough balance to cover a positive transfer
-                    if (finalAmount > 0 && currentUser.PcfBalance < finalAmount)
+                    var managerCurrent = await _pcfFund.GetAvailableBalanceAsync(currentUser);
+                    if (finalAmount > 0 && managerCurrent < finalAmount)
                     {
                         TempData["Error"] = "Error: You don't have enough funds.";
                         return RedirectToAction(nameof(Index));
                     }
 
-                    // Deduct amount from manager's PcfBalance and DailyStartingFloat
-                    currentUser.PcfBalance -= finalAmount;
-                    currentUser.DailyStartingFloat -= finalAmount;
+                    // Deduct amount from manager's fund and DailyStartingFloat
+                    await _pcfFund.DebitAsync(currentUser, finalAmount, adjustStartingFloat: true);
 
-                    // Add amount to target user's PcfBalance and DailyStartingFloat
-                    targetUser.PcfBalance += finalAmount;
-                    targetUser.DailyStartingFloat += finalAmount;
+                    // Add amount to target user's fund and DailyStartingFloat
+                    await _pcfFund.CreditAsync(targetUser, finalAmount, adjustStartingFloat: true);
 
                     var managerLedger = new PettyCashLedger
                     {
                         UserId = currentUser.Id,
                         TransactionType = LedgerTransactionType.ManagerFunding,
                         Amount = -finalAmount,
-                        ResultingBalance = currentUser.PcfBalance,
+                        ResultingBalance = await _pcfFund.GetAvailableBalanceAsync(currentUser),
                         Timestamp = DateTime.Now,
                         CounterpartyUserId = targetUser.Id,
                         Notes = finalAmount > 0
@@ -216,7 +219,7 @@ namespace AuditCkDayo.Controllers
                         UserId = targetUser.Id,
                         TransactionType = LedgerTransactionType.ManagerFunding,
                         Amount = finalAmount,
-                        ResultingBalance = targetUser.PcfBalance,
+                        ResultingBalance = await _pcfFund.GetAvailableBalanceAsync(targetUser),
                         Timestamp = DateTime.Now,
                         CounterpartyUserId = currentUser.Id,
                         Notes = finalAmount > 0

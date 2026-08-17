@@ -2,24 +2,28 @@ using AuditCkDayo.Models;
 
 namespace AuditCkDayo.ViewModels
 {
-    public class PcfEstablishmentGroup
+    /// <summary>
+    /// A single PCF monitor row: either an establishment (sharing a branch fund
+    /// among its BranchStaff) or an individual holder such as a Buyer (personal fund).
+    /// </summary>
+    public class PcfMonitorItem
     {
-        public int EstablishmentId { get; set; }
-        public string EstablishmentName { get; set; } = "Unassigned";
-        public decimal SharedStartingPcf { get; set; }
-        public decimal SharedCurrentPcf { get; set; }
-        public decimal SharedUsedPcf => SharedStartingPcf - SharedCurrentPcf;
-        public decimal Utilization => SharedStartingPcf <= 0 ? 0 : Math.Round((SharedUsedPcf / SharedStartingPcf) * 100, 1);
-        public List<User> Staff { get; set; } = new List<User>();
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Role { get; set; } = string.Empty;
+        public string EstablishmentName { get; set; } = "—";
+        public decimal StartingPcf { get; set; }
+        public decimal CurrentPcf { get; set; }
+        public decimal UsedPcf => StartingPcf - CurrentPcf;
+        public decimal Utilization => StartingPcf <= 0 ? 0 : Math.Round((UsedPcf / StartingPcf) * 100, 1);
     }
 
     public class PcfMonitorViewModel
     {
         public string ScopeLabel { get; set; } = string.Empty;
-        public List<PcfEstablishmentGroup> Establishments { get; set; } = new List<PcfEstablishmentGroup>();
-        public int AccountCount => Establishments.Sum(g => g.Staff.Count);
-        public decimal TotalStartingPcf => Establishments.Sum(g => g.SharedStartingPcf);
-        public decimal TotalCurrentPcf => Establishments.Sum(g => g.SharedCurrentPcf);
+        public List<PcfMonitorItem> Items { get; set; } = new List<PcfMonitorItem>();
+        public decimal TotalStartingPcf => Items.Sum(g => g.StartingPcf);
+        public decimal TotalCurrentPcf => Items.Sum(g => g.CurrentPcf);
         public decimal TotalUsedPcf => TotalStartingPcf - TotalCurrentPcf;
     }
 }

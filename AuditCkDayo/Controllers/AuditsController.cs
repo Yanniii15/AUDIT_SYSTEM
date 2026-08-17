@@ -23,14 +23,16 @@ namespace AuditCkDayo.Controllers
         private readonly IOcrService _ocrService;
         private readonly IWebHostEnvironment _env;
         private readonly Services.CoverageService? _coverageService;
+        private readonly SharedPcfFundService _pcfFund;
         private const string PendingAuditDraftsSessionKey = "PendingAuditDrafts";
 
-        public AuditsController(AuditDbContext context, IOcrService ocrService, IWebHostEnvironment env, Services.CoverageService? coverageService = null)
+        public AuditsController(AuditDbContext context, IOcrService ocrService, IWebHostEnvironment env, Services.CoverageService? coverageService = null, Services.SharedPcfFundService? pcfFund = null)
         {
             _context = context;
             _ocrService = ocrService;
             _env = env;
             _coverageService = coverageService;
+            _pcfFund = pcfFund ?? new SharedPcfFundService(context);
         }
 
         [HttpGet]
@@ -231,9 +233,9 @@ namespace AuditCkDayo.Controllers
                 }
             }
 
-            if (buyer.PcfBalance < model.Amount)
+            if (await _pcfFund.GetAvailableBalanceAsync(buyer) < model.Amount)
             {
-                ModelState.AddModelError("", $"Insufficient Petty Cash Fund balance. Required: ₱{model.Amount:N2}, Available: ₱{buyer.PcfBalance:N2}");
+                ModelState.AddModelError("", $"Insufficient Petty Cash Fund balance. Required: ₱{model.Amount:N2}, Available: ₱{await _pcfFund.GetAvailableBalanceAsync(buyer):N2}");
                 await PopulateReviewLookupsAsync();
                 return View("Review", model);
             }
@@ -241,8 +243,8 @@ namespace AuditCkDayo.Controllers
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
-                // Deduct from wallet immediately
-                buyer.PcfBalance -= model.Amount;
+                // Deduct from the (shared) fund immediately
+                await _pcfFund.DebitAsync(buyer, model.Amount);
 
                 var auditItem = new AuditItem
                 {
@@ -317,7 +319,7 @@ namespace AuditCkDayo.Controllers
                     UserId = buyerId,
                     TransactionType = LedgerTransactionType.ExpenseDeduction,
                     Amount = -model.Amount,
-                    ResultingBalance = buyer.PcfBalance,
+                    ResultingBalance = await _pcfFund.GetAvailableBalanceAsync(buyer),
                     Timestamp = DateTime.Now,
                     AssociatedRecordId = auditItem.Id,
                     Notes = $"Expense deduction for submitted AuditItem ID {auditItem.Id}: {model.Description}"
@@ -524,16 +526,16 @@ namespace AuditCkDayo.Controllers
             }
 
             var totalAmount = drafts.Sum(d => d.Amount);
-            if (buyer.PcfBalance < totalAmount)
+            if (await _pcfFund.GetAvailableBalanceAsync(buyer) < totalAmount)
             {
-                ModelState.AddModelError("", $"Insufficient Petty Cash Fund balance. Required: ₱{totalAmount:N2}, Available: ₱{buyer.PcfBalance:N2}");
+                ModelState.AddModelError("", $"Insufficient Petty Cash Fund balance. Required: ₱{totalAmount:N2}, Available: ₱{await _pcfFund.GetAvailableBalanceAsync(buyer):N2}");
                 return View(nameof(BatchReview), drafts);
             }
 
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
-                buyer.PcfBalance -= totalAmount;
+                await _pcfFund.DebitAsync(buyer, totalAmount);
 
                 foreach (var draft in drafts)
                 {
@@ -625,7 +627,7 @@ namespace AuditCkDayo.Controllers
                         UserId = buyerId,
                         TransactionType = LedgerTransactionType.ExpenseDeduction,
                         Amount = -draft.Amount,
-                        ResultingBalance = buyer.PcfBalance,
+                        ResultingBalance = await _pcfFund.GetAvailableBalanceAsync(buyer),
                         Timestamp = DateTime.Now,
                         AssociatedRecordId = auditItem.Id,
                         Notes = $"Expense deduction for submitted AuditItem ID {auditItem.Id}: {draft.Description}"
@@ -734,15 +736,16 @@ namespace AuditCkDayo.Controllers
 
                 if (action == AuditStatus.Rejected)
                 {
-                    // Refund money to buyer wallet
-                    audit.Buyer.PcfBalance += audit.Amount;
+                    // Refund money to the (shared) fund
+                    await _pcfFund.CreditAsync(audit.Buyer, audit.Amount);
+                    var refundedBalance = await _pcfFund.GetAvailableBalanceAsync(audit.Buyer);
 
                     var ledger = new PettyCashLedger
                     {
                         UserId = audit.BuyerId,
                         TransactionType = LedgerTransactionType.ReversalRefund,
                         Amount = audit.Amount,
-                        ResultingBalance = audit.Buyer.PcfBalance,
+                        ResultingBalance = refundedBalance,
                         Timestamp = DateTime.Now,
                         AssociatedRecordId = audit.Id,
                         CounterpartyUserId = userId,
@@ -876,14 +879,15 @@ namespace AuditCkDayo.Controllers
 
                     audit.Status = AuditStatus.Rejected;
                     // Refund immediately
-                    audit.Buyer.PcfBalance += audit.Amount;
+                    await _pcfFund.CreditAsync(audit.Buyer, audit.Amount);
+                    var branchRefundBalance = await _pcfFund.GetAvailableBalanceAsync(audit.Buyer);
 
                     var ledger = new PettyCashLedger
                     {
                         UserId = audit.BuyerId,
                         TransactionType = LedgerTransactionType.ReversalRefund,
                         Amount = audit.Amount,
-                        ResultingBalance = audit.Buyer.PcfBalance,
+                        ResultingBalance = branchRefundBalance,
                         Timestamp = DateTime.Now,
                         AssociatedRecordId = audit.Id,
                         CounterpartyUserId = userId,
@@ -1120,9 +1124,9 @@ namespace AuditCkDayo.Controllers
             }
 
             var amountDelta = model.Amount - audit.Amount;
-            if (amountDelta > 0 && audit.Buyer.PcfBalance < amountDelta)
+            if (amountDelta > 0 && await _pcfFund.GetAvailableBalanceAsync(audit.Buyer) < amountDelta)
             {
-                ModelState.AddModelError("", $"Insufficient Petty Cash Fund balance. Required adjustment: ₱{amountDelta:N2}, Available: ₱{audit.Buyer.PcfBalance:N2}");
+                ModelState.AddModelError("", $"Insufficient Petty Cash Fund balance. Required adjustment: ₱{amountDelta:N2}, Available: ₱{await _pcfFund.GetAvailableBalanceAsync(audit.Buyer):N2}");
                 await PopulateReviewLookupsAsync();
                 return View("Review", model);
             }
@@ -1130,7 +1134,7 @@ namespace AuditCkDayo.Controllers
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
-                audit.Buyer.PcfBalance -= amountDelta;
+                await _pcfFund.DebitAsync(audit.Buyer, amountDelta);
                 var oldAmount = audit.Amount;
 
                 audit.EstablishmentId = establishmentId;
@@ -1167,7 +1171,7 @@ namespace AuditCkDayo.Controllers
                         UserId = audit.BuyerId,
                         TransactionType = LedgerTransactionType.ManualAdjustment,
                         Amount = -amountDelta,
-                        ResultingBalance = audit.Buyer.PcfBalance,
+                        ResultingBalance = await _pcfFund.GetAvailableBalanceAsync(audit.Buyer),
                         Timestamp = DateTime.Now,
                         AssociatedRecordId = audit.Id,
                         CounterpartyUserId = userId == audit.BuyerId ? null : userId,
@@ -1224,14 +1228,15 @@ namespace AuditCkDayo.Controllers
                 audit.Status = AuditStatus.Cancelled;
                 audit.VerifiedById = userId;
                 audit.VerificationDate = DateTime.Now;
-                audit.Buyer.PcfBalance += audit.Amount;
+                await _pcfFund.CreditAsync(audit.Buyer, audit.Amount);
+                var voidBalance = await _pcfFund.GetAvailableBalanceAsync(audit.Buyer);
 
                 _context.PettyCashLedgers.Add(new PettyCashLedger
                 {
                     UserId = audit.BuyerId,
                     TransactionType = LedgerTransactionType.ReversalRefund,
                     Amount = audit.Amount,
-                    ResultingBalance = audit.Buyer.PcfBalance,
+                    ResultingBalance = voidBalance,
                     Timestamp = DateTime.Now,
                     AssociatedRecordId = audit.Id,
                     CounterpartyUserId = userId == audit.BuyerId ? null : userId,
@@ -1376,7 +1381,8 @@ namespace AuditCkDayo.Controllers
                 .Where(s => s.BuyerId == buyerId && s.Status == SurrenderStatus.Pending)
                 .SumAsync(s => s.DeclaredAmount);
 
-            await PopulateSurrenderLookupsAsync(buyer.PcfBalance, reserved, Math.Max(buyer.PcfBalance - reserved, 0m));
+            var availablePcf = await _pcfFund.GetAvailableBalanceAsync(buyer);
+            await PopulateSurrenderLookupsAsync(availablePcf, reserved, Math.Max(availablePcf - reserved, 0m));
 
             var requests = await _context.SurrenderRequests
                 .Where(s => s.BuyerId == buyerId)
@@ -1412,7 +1418,8 @@ namespace AuditCkDayo.Controllers
                 .Where(s => s.BuyerId == buyerId && s.Status == SurrenderStatus.Pending)
                 .SumAsync(s => s.DeclaredAmount);
 
-            var availableBalance = Math.Max(buyer.PcfBalance - reserved, 0m);
+            var availablePcf = await _pcfFund.GetAvailableBalanceAsync(buyer);
+            var availableBalance = Math.Max(availablePcf - reserved, 0m);
 
             var invalidAmount = amount <= 0 || amount > availableBalance;
             if (invalidAmount)
@@ -1422,7 +1429,7 @@ namespace AuditCkDayo.Controllers
 
             if (invalidAmount || !ModelState.IsValid)
             {
-                await PopulateSurrenderLookupsAsync(buyer.PcfBalance, reserved, availableBalance);
+                await PopulateSurrenderLookupsAsync(availablePcf, reserved, availableBalance);
 
                 var requests = await _context.SurrenderRequests
                     .Where(s => s.BuyerId == buyerId)
@@ -1565,8 +1572,8 @@ namespace AuditCkDayo.Controllers
                     request.ActionNotes = actionNotes;
                     request.ConfirmedAmount = request.DeclaredAmount;
 
-                    request.Buyer.PcfBalance -= request.DeclaredAmount;
-                    request.Buyer.DailyStartingFloat -= request.DeclaredAmount;
+                    await _pcfFund.DebitAsync(request.Buyer, request.DeclaredAmount);
+                    await _pcfFund.ResetFloatOnFullSurrenderAsync(request.Buyer);
 
                     var cashFlowDate = actionDate.Date;
                     var flow = await _context.TreasuryCashFlows
@@ -1590,6 +1597,7 @@ namespace AuditCkDayo.Controllers
                         TreasuryCashFlow = flow,
                         Direction = CashFlowDirection.In,
                         Category = CashFlowCategory.ChangePcf,
+                        EstablishmentId = request.Buyer.EstablishmentId,
                         RelatedUserId = request.BuyerId,
                         Amount = request.DeclaredAmount,
                         Notes = $"PCF change surrendered by {request.Buyer.Email}. Notes: {actionNotes}",
@@ -1604,7 +1612,7 @@ namespace AuditCkDayo.Controllers
                         UserId = request.BuyerId,
                         TransactionType = LedgerTransactionType.CashSurrender,
                         Amount = -request.DeclaredAmount,
-                        ResultingBalance = request.Buyer.PcfBalance,
+                        ResultingBalance = await _pcfFund.GetAvailableBalanceAsync(request.Buyer),
                         Timestamp = actionDate,
                         AssociatedRecordId = request.Id,
                         CounterpartyUserId = currentUserId,

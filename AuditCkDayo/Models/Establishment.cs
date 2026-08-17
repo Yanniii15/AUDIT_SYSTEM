@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace AuditCkDayo.Models
 {
@@ -16,6 +17,12 @@ namespace AuditCkDayo.Models
         public bool IsMiscellaneous { get; set; }
 
         public bool IsActive { get; set; } = true;
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal PcfBalance { get; set; } = 0.00m;
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal DailyStartingFloat { get; set; } = 0.00m;
 
         public virtual ICollection<AuditItem> AuditItems { get; set; } = new List<AuditItem>();
     }

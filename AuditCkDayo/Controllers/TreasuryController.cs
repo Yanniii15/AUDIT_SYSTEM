@@ -13,10 +13,12 @@ namespace AuditCkDayo.Controllers
     public class TreasuryController : Controller
     {
         private readonly AuditDbContext _context;
+        private readonly Services.SharedPcfFundService _pcfFund;
 
-        public TreasuryController(AuditDbContext context)
+        public TreasuryController(AuditDbContext context, Services.SharedPcfFundService? pcfFund = null)
         {
             _context = context;
+            _pcfFund = pcfFund ?? new Services.SharedPcfFundService(context);
         }
 
         [HttpGet]
@@ -205,15 +207,15 @@ namespace AuditCkDayo.Controllers
                 var receiver = await _context.Users.FirstOrDefaultAsync(u => u.Id == model.ReceiverUserId.Value && !u.IsDeleted);
                 if (receiver != null)
                 {
-                    receiver.PcfBalance += model.Amount;
-                    receiver.DailyStartingFloat += model.Amount;
+                    await _pcfFund.CreditAsync(receiver, model.Amount, adjustStartingFloat: true);
+                    var releaseBalance = await _pcfFund.GetAvailableBalanceAsync(receiver);
 
                     var ledger = new PettyCashLedger
                     {
                         UserId = receiver.Id,
                         TransactionType = LedgerTransactionType.VaultFunding,
                         Amount = model.Amount,
-                        ResultingBalance = receiver.PcfBalance,
+                        ResultingBalance = releaseBalance,
                         Timestamp = DateTime.Now,
                         Notes = $"PCF release from vault: {model.Purpose ?? "Funding"}"
                     };
