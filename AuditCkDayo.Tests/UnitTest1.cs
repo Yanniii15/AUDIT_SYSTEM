@@ -1303,6 +1303,9 @@ namespace AuditCkDayo.Tests
             {
                 await SeedDataAsync(context);
                 context.Users.Add(new User { Id = 8, Name = "Branch Staff", Email = "branch@test.com", PasswordHash = "hash", Role = UserRole.BranchStaff, PcfBalance = 500m, DailyStartingFloat = 500m, ManagerId = 2, EstablishmentId = 1 });
+                var branchStaffEst = context.Establishments.Single(e => e.Id == 1);
+                branchStaffEst.PcfBalance = 500m;
+                branchStaffEst.DailyStartingFloat = 500m;
                 context.PnlCategories.AddRange(
                     new PnlCategory { Id = 20, Name = "Beers", Section = PnlExpenseSection.COGS },
                     new PnlCategory { Id = 21, Name = "LPG", Section = PnlExpenseSection.OPEX });
