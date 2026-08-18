@@ -168,8 +168,14 @@ public class TreasuryAuditReportViewModel
 
     private static int EffectiveHandlerUserId(TreasuryCashFlow flow)
     {
-        var reported = flow.Entries.Select(e => e.ReportedByUserId).FirstOrDefault(id => id.HasValue);
-        return reported ?? flow.TreasuryUserId;
+        if (flow.Entries.Any()
+            && flow.Entries.All(e => e.ReportedByUserId.HasValue)
+            && flow.Entries.Select(e => e.ReportedByUserId).Distinct().Count() == 1)
+        {
+            return flow.Entries.Select(e => e.ReportedByUserId).First(e => e.HasValue)!.Value;
+        }
+
+        return flow.TreasuryUserId;
     }
 
     private static string GetCashInLabel(CashFlowEntry entry)
