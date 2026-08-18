@@ -35,6 +35,11 @@ public class ReportsController : Controller
             return Challenge();
         }
 
+        if (role == "Manager" && !filter.TreasuryHandlerId.HasValue)
+        {
+            filter.TreasuryHandlerId = userId;
+        }
+
         var auditQuery = BuildScopedAuditQuery(role, userId, currentUser);
         auditQuery = ApplyAuditFilters(auditQuery, filter);
 
@@ -539,7 +544,9 @@ public class ReportsController : Controller
         }
         if (filter.TreasuryHandlerId.HasValue)
         {
-            query = query.Where(flow => flow.TreasuryUserId == filter.TreasuryHandlerId.Value);
+            var handlerId = filter.TreasuryHandlerId.Value;
+            query = query.Where(flow => flow.TreasuryUserId == handlerId
+                || flow.Entries.Any(e => e.ReportedByUserId == handlerId));
         }
 
         return query;
