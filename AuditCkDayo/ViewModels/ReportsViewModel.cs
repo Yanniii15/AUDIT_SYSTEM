@@ -120,7 +120,7 @@ public class TreasuryAuditReportViewModel
         var cashInEntries = selectedFlows
             .SelectMany(flow => flow.Entries
                 .Where(entry => entry.Direction == CashFlowDirection.In
-                    && (!treasuryHandlerId.HasValue || EffectiveHandlerUserId(flow) == treasuryHandlerId.Value))
+                    && (!treasuryHandlerId.HasValue || flow.TreasuryUserId == treasuryHandlerId.Value))
                 .Select(entry => new { Flow = flow, Entry = entry, Label = GetCashInLabel(entry) }))
             .Where(item => !string.IsNullOrWhiteSpace(item.Label))
             .ToList();
@@ -150,7 +150,8 @@ public class TreasuryAuditReportViewModel
             .SelectMany(flow => flow.Entries
                 .Where(entry => entry.Direction == CashFlowDirection.Out
                     && (!treasuryHandlerId.HasValue
-                        || EffectiveHandlerUserId(flow) == treasuryHandlerId.Value))
+                        || flow.TreasuryUserId == treasuryHandlerId.Value
+                        || entry.ReportedByUserId == treasuryHandlerId.Value))
                 .Select(entry => new TreasuryAuditCashOutRowViewModel
                 {
                     Date = flow.CashFlowDate.Date,
@@ -164,18 +165,6 @@ public class TreasuryAuditReportViewModel
             .ToList();
 
         return report;
-    }
-
-    private static int EffectiveHandlerUserId(TreasuryCashFlow flow)
-    {
-        if (flow.Entries.Any()
-            && flow.Entries.All(e => e.ReportedByUserId.HasValue)
-            && flow.Entries.Select(e => e.ReportedByUserId).Distinct().Count() == 1)
-        {
-            return flow.Entries.Select(e => e.ReportedByUserId).First(e => e.HasValue)!.Value;
-        }
-
-        return flow.TreasuryUserId;
     }
 
     private static string GetCashInLabel(CashFlowEntry entry)
