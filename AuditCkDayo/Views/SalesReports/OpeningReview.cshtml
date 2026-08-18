@@ -126,11 +126,7 @@
                                 <input asp-for="BusinessDate" id="BusinessDate" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="date" required />
                                 <span asp-validation-for="BusinessDate" class="text-audit-error text-[11px]"></span>
                             </div>
-                            <div class="flex flex-col gap-space-2">
-                                <label asp-for="HandoverDate" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Handover Date</label>
-                                <input asp-for="HandoverDate" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="date" required />
-                                <span asp-validation-for="HandoverDate" class="text-audit-error text-[11px]"></span>
-                            </div>
+                            <input type="hidden" asp-for="HandoverDate" />
                             <div class="flex flex-col gap-space-2">
                                 <label asp-for="CashierName" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Cashier Name</label>
                                 <input asp-for="CashierName" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" placeholder="Cashier name" maxlength="100" />
@@ -149,11 +145,11 @@
                     <div class="rounded-xl border border-surface-border bg-surface-container-lowest p-space-4 space-y-space-4">
                         <div class="flex items-center gap-space-2 mb-space-1">
                             <span class="material-symbols-outlined text-primary text-[18px]">payments</span>
-                            <h2 class="font-label-caps text-on-surface uppercase tracking-wider text-[11px]">Opening Sales Totals</h2>
+                            <h2 class="font-label-caps text-on-surface uppercase tracking-wider text-[11px]">MAIN SALES</h2>
                         </div>
                         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-space-4">
                             <div class="flex flex-col gap-space-2">
-                                <label asp-for="OpeningGrossSales" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Opening Gross Sales (₱)</label>
+                                <label asp-for="OpeningGrossSales" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Daily Gross Sales (₱)</label>
                                 <input asp-for="OpeningGrossSales" id="OpeningGrossSales" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" min="0" step="0.01" required />
                                 <span asp-validation-for="OpeningGrossSales" class="text-audit-error text-[11px]"></span>
                             </div>

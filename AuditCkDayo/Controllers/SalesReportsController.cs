@@ -232,8 +232,8 @@ namespace AuditCkDayo.Controllers
             _context.SalesReports.Add(report);
             await _context.SaveChangesAsync();
 
-            TempData["Message"] = "Sales report uploaded. Review the values before confirming.";
-            return RedirectToAction(nameof(Review), new { id = report.Id });
+            TempData["Message"] = "Sales report uploaded. Fill in the opening daily sales.";
+            return RedirectToAction(nameof(OpeningReview), new { id = report.Id });
         }
 
         [HttpGet]
@@ -483,6 +483,11 @@ namespace AuditCkDayo.Controllers
                 report.DocumentRecord.ReviewStatus = DocumentReviewStatus.Confirmed;
                 report.DocumentRecord.ConfirmedByUserId = currentUserId.Value;
                 report.DocumentRecord.ConfirmedAt = DateTime.UtcNow;
+
+                if (model.ManagerCountedTotalCash > 0m)
+                {
+                    report.ConfirmedCashToHandover = model.ManagerCountedTotalCash - report.OpeningCashSales;
+                }
 
                 await PostConfirmedSalesReportToTreasuryAsync(report, currentUserId.Value);
                 await NotifyUploaderOfShortOverAsync(report);
@@ -755,6 +760,7 @@ namespace AuditCkDayo.Controllers
                 GrossSales = report.GrossSales,
                 CashOut = report.CashOut,
                 ConfirmedCashToHandover = report.ConfirmedCashToHandover,
+                ManagerCountedTotalCash = report.ConfirmedCashToHandover + report.OpeningCashSales,
                 GCashAmount = report.GCashAmount,
                 CreditAmount = report.CreditAmount,
                 OtherPaymentAmount = report.OtherPaymentAmount,

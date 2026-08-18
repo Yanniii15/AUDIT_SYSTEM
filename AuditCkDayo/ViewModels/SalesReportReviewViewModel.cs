@@ -32,6 +32,9 @@ namespace AuditCkDayo.ViewModels
         public decimal ConfirmedCashToHandover { get; set; }
 
         [Range(0, double.MaxValue)]
+        public decimal ManagerCountedTotalCash { get; set; }
+
+        [Range(0, double.MaxValue)]
         public decimal GCashAmount { get; set; }
 
         [Range(0, double.MaxValue)]
@@ -201,6 +204,26 @@ namespace AuditCkDayo.ViewModels
         }
         public decimal ShortOverAmount => ConfirmedCashToHandover - ExpectedCashToHandover;
         public string ShortOverLabel => ShortOverAmount < 0 ? "Short" : ShortOverAmount > 0 ? "Over" : "Balanced";
+
+        public decimal CombinedGrossSales => GrossSales + OpeningGrossSales;
+        public decimal CombinedFoodSales => FoodSales + OpeningFoodSales;
+        public decimal CombinedBeerSales => BeerSales + OpeningBeerSales;
+        public decimal CombinedBeverageSales => BeverageSales + OpeningBeverageSales;
+        public decimal CombinedOtherSales => OtherSales + OpeningOtherSales;
+        public decimal CombinedCashSales => CashSales + OpeningCashSales;
+        public decimal CombinedSeniorDiscount => SeniorDiscount + OpeningSeniorDiscount;
+        public decimal CombinedPwdDiscount => PwdDiscount + OpeningPwdDiscount;
+        public decimal CombinedLoyaltyCardDiscount => LoyaltyCardDiscount + OpeningLoyaltyCardDiscount;
+        public decimal CombinedGiftVoucherDiscount => GiftVoucherDiscount + OpeningGiftVoucherDiscount;
+        public decimal CombinedEmployeeTenPercentDiscount => EmployeeTenPercentDiscount + OpeningEmployeeTenPercentDiscount;
+        public decimal CombinedEmployeeFivePercentDiscount => EmployeeFivePercentDiscount + OpeningEmployeeFivePercentDiscount;
+        public decimal CombinedEaglesDiscount => EaglesDiscount + OpeningEaglesDiscount;
+        public decimal CombinedTotalDiscounts => TotalDiscounts + OpeningTotalDiscounts;
+        public decimal CombinedSalesShortageAmount => SalesShortageAmount + OpeningSalesShortageAmount;
+        public decimal CombinedSalesOverageAmount => SalesOverageAmount + OpeningSalesOverageAmount;
+        public decimal CombinedRestoPcf => RestoPcf + OpeningRestoPcf;
+        public decimal CombinedPcfFromSales => PcfFromSales + OpeningPcfFromSales;
+        public decimal CombinedChangeAmount => ChangeAmount + OpeningChangeAmount;
 
         public decimal OpeningTotalDiscounts => OpeningSeniorDiscount + OpeningPwdDiscount + OpeningLoyaltyCardDiscount + OpeningGiftVoucherDiscount + OpeningEmployeeTenPercentDiscount + OpeningEmployeeFivePercentDiscount + OpeningEaglesDiscount;
 

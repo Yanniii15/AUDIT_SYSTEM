@@ -4304,7 +4304,7 @@ namespace AuditCkDayo.Tests
             var result = await controller.Upload(1, new DateTime(2026, 8, 10), new DateTime(2026, 8, 11), "Cashier Main", images);
             
             var redirect = Assert.IsType<RedirectToActionResult>(result);
-            Assert.Equal(nameof(SalesReportsController.Review), redirect.ActionName);
+            Assert.Equal(nameof(SalesReportsController.OpeningReview), redirect.ActionName);
             
             // Retrieve from database to verify
             var report = await context.SalesReports.Include(r => r.DocumentRecord).OrderByDescending(r => r.Id).FirstAsync();

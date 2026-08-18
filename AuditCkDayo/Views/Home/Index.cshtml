@@ -738,7 +738,7 @@
                                 <p class="font-body-md font-semibold text-on-surface">@cashUser.Name</p>
                                 <p class="text-[11px] text-on-surface-variant">@cashUser.Role@if (cashUser.Establishment != null) { <text> • @cashUser.Establishment.Name</text> }</p>
                             </div>
-                            <span class="font-data-mono text-primary font-bold">₱@((cashUser.Role == AuditCkDayo.Models.UserRole.BranchStaff && cashUser.Establishment != null) ? cashUser.Establishment.PcfBalance : cashUser.PcfBalance).ToString("N2")</span>
+                            <span class="font-data-mono text-primary font-bold">₱@(((cashUser.Role == AuditCkDayo.Models.UserRole.BranchStaff && cashUser.Establishment != null) ? cashUser.Establishment.PcfBalance : cashUser.PcfBalance).ToString("N2"))</span>
                         </div>
                     </article>
                 }

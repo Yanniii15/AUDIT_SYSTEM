@@ -100,23 +100,12 @@
                             </div>
                         </div>
                         <div class="bg-surface-container-low rounded-xl p-space-4 border-l-4 border-primary shadow-sm flex flex-col justify-center">
-                            <span class="font-label-caps text-on-surface-variant uppercase text-[9px] tracking-wider">Total Cash to Handover</span>
+                            <span class="font-label-caps text-on-surface-variant uppercase text-[9px] tracking-wider">Combined Cash Sales (Opening + Closing)</span>
                             <div class="flex items-baseline gap-space-1 mt-1 font-body-md">
                                 <span class="text-primary font-bold text-[20px]">₱</span>
-                                <span class="font-data-mono text-primary font-bold text-[28px]" id="claimed-amount-display">@Model.ConfirmedCashToHandover.ToString("N2")</span>
-                                <span class="text-on-surface-variant text-[10px] font-label-caps uppercase ml-2">PHP</span>
+                                <span class="font-data-mono text-primary font-bold text-[28px]" id="claimed-amount-display">@Model.CombinedCashSales.ToString("N2")</span>
                             </div>
                         </div>
-                        @if (User.IsInRole("Manager") || User.IsInRole("Owner"))
-                        {
-                            <div class="bg-surface-container-low rounded-xl p-space-4 border-l-4 border-tertiary shadow-sm flex flex-col justify-center">
-                                <span class="font-label-caps text-on-surface-variant uppercase text-[9px] tracking-wider">Combined Cash Sales (Opening + Closing)</span>
-                                <div class="flex items-baseline gap-space-1 mt-1 font-body-md">
-                                    <span class="text-on-surface font-bold text-[18px]">₱</span>
-                                    <span class="font-data-mono text-on-surface font-bold text-[22px]">@((Model.OpeningCashSales + Model.CashSales).ToString("N2"))</span>
-                                </div>
-                            </div>
-                        }
                         @if (Model.CanConfirmToTreasury)
                         {
                         <div class="bg-surface-container-low rounded-xl p-space-4 border-l-4 @(Model.ShortOverAmount == 0m ? "border-audit-success" : "border-audit-error") shadow-sm flex flex-col justify-center" id="short-over-card">
@@ -177,32 +166,80 @@
                         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-space-4">
                             <div class="flex flex-col gap-space-2">
                                 <label asp-for="GrossSales" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Gross Sales (Opening + Closing) (₱)</label>
-                                <input asp-for="GrossSales" id="GrossSales" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" min="0" step="0.01" required />
+                                @if (Model.CanConfirmToTreasury)
+                                {
+                                    <input value="@Model.CombinedGrossSales.ToString("N2")" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" readonly />
+                                    <input type="hidden" asp-for="GrossSales" />
+                                }
+                                else
+                                {
+                                    <input asp-for="GrossSales" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" min="0" step="0.01" required />
+                                }
                                 <span asp-validation-for="GrossSales" class="text-audit-error text-[11px]"></span>
                             </div>
                             <div class="flex flex-col gap-space-2">
                                 <label asp-for="ClosingGrossSales" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Closing Gross Sales (₱)</label>
-                                <input asp-for="ClosingGrossSales" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" min="0" step="0.01" />
+                                @if (Model.CanConfirmToTreasury)
+                                {
+                                    <input value="@Model.ClosingGrossSales.ToString("N2")" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" readonly />
+                                    <input type="hidden" asp-for="ClosingGrossSales" />
+                                }
+                                else
+                                {
+                                    <input asp-for="ClosingGrossSales" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" min="0" step="0.01" />
+                                }
                                 <span asp-validation-for="ClosingGrossSales" class="text-audit-error text-[11px]"></span>
                             </div>
                             <div class="flex flex-col gap-space-2">
                                 <label asp-for="FoodSales" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Food Sales (₱)</label>
-                                <input asp-for="FoodSales" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" min="0" step="0.01" />
+                                @if (Model.CanConfirmToTreasury)
+                                {
+                                    <input value="@Model.CombinedFoodSales.ToString("N2")" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" readonly />
+                                    <input type="hidden" asp-for="FoodSales" />
+                                }
+                                else
+                                {
+                                    <input asp-for="FoodSales" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" min="0" step="0.01" />
+                                }
                                 <span asp-validation-for="FoodSales" class="text-audit-error text-[11px]"></span>
                             </div>
                             <div class="flex flex-col gap-space-2">
                                 <label asp-for="BeerSales" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Beer Sales (₱)</label>
-                                <input asp-for="BeerSales" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" min="0" step="0.01" />
+                                @if (Model.CanConfirmToTreasury)
+                                {
+                                    <input value="@Model.CombinedBeerSales.ToString("N2")" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" readonly />
+                                    <input type="hidden" asp-for="BeerSales" />
+                                }
+                                else
+                                {
+                                    <input asp-for="BeerSales" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" min="0" step="0.01" />
+                                }
                                 <span asp-validation-for="BeerSales" class="text-audit-error text-[11px]"></span>
                             </div>
                             <div class="flex flex-col gap-space-2">
                                 <label asp-for="BeverageSales" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Beverages Sales (₱)</label>
-                                <input asp-for="BeverageSales" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" min="0" step="0.01" />
+                                @if (Model.CanConfirmToTreasury)
+                                {
+                                    <input value="@Model.CombinedBeverageSales.ToString("N2")" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" readonly />
+                                    <input type="hidden" asp-for="BeverageSales" />
+                                }
+                                else
+                                {
+                                    <input asp-for="BeverageSales" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" min="0" step="0.01" />
+                                }
                                 <span asp-validation-for="BeverageSales" class="text-audit-error text-[11px]"></span>
                             </div>
                             <div class="flex flex-col gap-space-2">
                                 <label asp-for="OtherSales" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Other Sales (₱)</label>
-                                <input asp-for="OtherSales" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" min="0" step="0.01" />
+                                @if (Model.CanConfirmToTreasury)
+                                {
+                                    <input value="@Model.CombinedOtherSales.ToString("N2")" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" readonly />
+                                    <input type="hidden" asp-for="OtherSales" />
+                                }
+                                else
+                                {
+                                    <input asp-for="OtherSales" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" min="0" step="0.01" />
+                                }
                                 <span asp-validation-for="OtherSales" class="text-audit-error text-[11px]"></span>
                             </div>
                         </div>
@@ -217,9 +254,17 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-space-4">
                             <!-- Cash Sales -->
                             <div class="flex flex-col gap-space-2 md:col-span-2 border-b border-surface-border pb-space-3">
-                                <label asp-for="CashSales" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Cash Sales (₱)</label>
-                                <input asp-for="CashSales" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" min="0" step="0.01" />
-                                <span asp-validation-for="CashSales" class="text-audit-error text-[11px]"></span>
+                                <label asp-for="ManagerCountedTotalCash" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Total Counted Cash for the Day (₱)</label>
+                                @if (Model.CanConfirmToTreasury)
+                                {
+                                    <input asp-for="ManagerCountedTotalCash" id="CashSales" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" min="0" step="0.01" />
+                                    <span class="text-[10px] text-on-surface-variant">Total cash counted for the day (opening + closing) as physically counted. Drives the Short/Over notice and handover.</span>
+                                }
+                                else
+                                {
+                                    <input asp-for="CashSales" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" min="0" step="0.01" />
+                                }
+                                <span asp-validation-for="ManagerCountedTotalCash" class="text-audit-error text-[11px]"></span>
                             </div>
 
                             <!-- GCash Lines -->
@@ -331,37 +376,93 @@
                         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-space-4">
                             <div class="flex flex-col gap-space-2">
                                 <label asp-for="SeniorDiscount" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">SENIOR Discount (₱)</label>
-                                <input asp-for="SeniorDiscount" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" step="0.01" />
+                                @if (Model.CanConfirmToTreasury)
+                                {
+                                    <input value="@Model.CombinedSeniorDiscount.ToString("N2")" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" readonly />
+                                    <input type="hidden" asp-for="SeniorDiscount" />
+                                }
+                                else
+                                {
+                                    <input asp-for="SeniorDiscount" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" step="0.01" />
+                                }
                                 <span asp-validation-for="SeniorDiscount" class="text-audit-error text-[11px]"></span>
                             </div>
                             <div class="flex flex-col gap-space-2">
                                 <label asp-for="PwdDiscount" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">PWD Discount (₱)</label>
-                                <input asp-for="PwdDiscount" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" step="0.01" />
+                                @if (Model.CanConfirmToTreasury)
+                                {
+                                    <input value="@Model.CombinedPwdDiscount.ToString("N2")" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" readonly />
+                                    <input type="hidden" asp-for="PwdDiscount" />
+                                }
+                                else
+                                {
+                                    <input asp-for="PwdDiscount" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" step="0.01" />
+                                }
                                 <span asp-validation-for="PwdDiscount" class="text-audit-error text-[11px]"></span>
                             </div>
                             <div class="flex flex-col gap-space-2">
                                 <label asp-for="LoyaltyCardDiscount" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">LOYALTY CARD Discount (₱)</label>
-                                <input asp-for="LoyaltyCardDiscount" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" step="0.01" />
+                                @if (Model.CanConfirmToTreasury)
+                                {
+                                    <input value="@Model.CombinedLoyaltyCardDiscount.ToString("N2")" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" readonly />
+                                    <input type="hidden" asp-for="LoyaltyCardDiscount" />
+                                }
+                                else
+                                {
+                                    <input asp-for="LoyaltyCardDiscount" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" step="0.01" />
+                                }
                                 <span asp-validation-for="LoyaltyCardDiscount" class="text-audit-error text-[11px]"></span>
                             </div>
                             <div class="flex flex-col gap-space-2">
                                 <label asp-for="GiftVoucherDiscount" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">GIFT VOUCHER Discount (₱)</label>
-                                <input asp-for="GiftVoucherDiscount" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" step="0.01" />
+                                @if (Model.CanConfirmToTreasury)
+                                {
+                                    <input value="@Model.CombinedGiftVoucherDiscount.ToString("N2")" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" readonly />
+                                    <input type="hidden" asp-for="GiftVoucherDiscount" />
+                                }
+                                else
+                                {
+                                    <input asp-for="GiftVoucherDiscount" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" step="0.01" />
+                                }
                                 <span asp-validation-for="GiftVoucherDiscount" class="text-audit-error text-[11px]"></span>
                             </div>
                             <div class="flex flex-col gap-space-2">
                                 <label asp-for="EmployeeTenPercentDiscount" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">EMPLOYEE 10% Discount (₱)</label>
-                                <input asp-for="EmployeeTenPercentDiscount" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" step="0.01" />
+                                @if (Model.CanConfirmToTreasury)
+                                {
+                                    <input value="@Model.CombinedEmployeeTenPercentDiscount.ToString("N2")" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" readonly />
+                                    <input type="hidden" asp-for="EmployeeTenPercentDiscount" />
+                                }
+                                else
+                                {
+                                    <input asp-for="EmployeeTenPercentDiscount" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" step="0.01" />
+                                }
                                 <span asp-validation-for="EmployeeTenPercentDiscount" class="text-audit-error text-[11px]"></span>
                             </div>
                             <div class="flex flex-col gap-space-2">
                                 <label asp-for="EmployeeFivePercentDiscount" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">EMPLOYEE 5% Discount (₱)</label>
-                                <input asp-for="EmployeeFivePercentDiscount" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" step="0.01" />
+                                @if (Model.CanConfirmToTreasury)
+                                {
+                                    <input value="@Model.CombinedEmployeeFivePercentDiscount.ToString("N2")" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" readonly />
+                                    <input type="hidden" asp-for="EmployeeFivePercentDiscount" />
+                                }
+                                else
+                                {
+                                    <input asp-for="EmployeeFivePercentDiscount" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" step="0.01" />
+                                }
                                 <span asp-validation-for="EmployeeFivePercentDiscount" class="text-audit-error text-[11px]"></span>
                             </div>
                             <div class="flex flex-col gap-space-2">
                                 <label asp-for="EaglesDiscount" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Eagles 5% Discount (₱)</label>
-                                <input asp-for="EaglesDiscount" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" step="0.01" />
+                                @if (Model.CanConfirmToTreasury)
+                                {
+                                    <input value="@Model.CombinedEaglesDiscount.ToString("N2")" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" readonly />
+                                    <input type="hidden" asp-for="EaglesDiscount" />
+                                }
+                                else
+                                {
+                                    <input asp-for="EaglesDiscount" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" step="0.01" />
+                                }
                                 <span asp-validation-for="EaglesDiscount" class="text-audit-error text-[11px]"></span>
                             </div>
                         </div>
@@ -376,7 +477,15 @@
                         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-space-4">
                             <div class="flex flex-col gap-space-2">
                                 <label asp-for="SalesShortageAmount" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Shortage Amount (₱)</label>
-                                <input asp-for="SalesShortageAmount" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" step="0.01" />
+                                @if (Model.CanConfirmToTreasury)
+                                {
+                                    <input value="@Model.CombinedSalesShortageAmount.ToString("N2")" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" readonly />
+                                    <input type="hidden" asp-for="SalesShortageAmount" />
+                                }
+                                else
+                                {
+                                    <input asp-for="SalesShortageAmount" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" step="0.01" />
+                                }
                                 <span asp-validation-for="SalesShortageAmount" class="text-audit-error text-[11px]"></span>
                             </div>
                             <div class="flex flex-col gap-space-2 sm:col-span-2">
@@ -386,7 +495,15 @@
                             </div>
                             <div class="flex flex-col gap-space-2">
                                 <label asp-for="SalesOverageAmount" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Overage Amount (₱)</label>
-                                <input asp-for="SalesOverageAmount" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" step="0.01" />
+                                @if (Model.CanConfirmToTreasury)
+                                {
+                                    <input value="@Model.CombinedSalesOverageAmount.ToString("N2")" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" readonly />
+                                    <input type="hidden" asp-for="SalesOverageAmount" />
+                                }
+                                else
+                                {
+                                    <input asp-for="SalesOverageAmount" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" step="0.01" />
+                                }
                                 <span asp-validation-for="SalesOverageAmount" class="text-audit-error text-[11px]"></span>
                             </div>
                             <div class="flex flex-col gap-space-2 sm:col-span-2">
@@ -396,17 +513,41 @@
                             </div>
                             <div class="flex flex-col gap-space-2">
                                 <label asp-for="RestoPcf" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Resto PCF (₱)</label>
-                                <input asp-for="RestoPcf" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" step="0.01" />
+                                @if (Model.CanConfirmToTreasury)
+                                {
+                                    <input value="@Model.CombinedRestoPcf.ToString("N2")" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" readonly />
+                                    <input type="hidden" asp-for="RestoPcf" />
+                                }
+                                else
+                                {
+                                    <input asp-for="RestoPcf" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" step="0.01" />
+                                }
                                 <span asp-validation-for="RestoPcf" class="text-audit-error text-[11px]"></span>
                             </div>
                             <div class="flex flex-col gap-space-2">
                                 <label asp-for="PcfFromSales" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">PCF from Sales (₱)</label>
-                                <input asp-for="PcfFromSales" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" step="0.01" />
+                                @if (Model.CanConfirmToTreasury)
+                                {
+                                    <input value="@Model.CombinedPcfFromSales.ToString("N2")" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" readonly />
+                                    <input type="hidden" asp-for="PcfFromSales" />
+                                }
+                                else
+                                {
+                                    <input asp-for="PcfFromSales" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" step="0.01" />
+                                }
                                 <span asp-validation-for="PcfFromSales" class="text-audit-error text-[11px]"></span>
                             </div>
                             <div class="flex flex-col gap-space-2">
                                 <label asp-for="ChangeAmount" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Change Float (₱)</label>
-                                <input asp-for="ChangeAmount" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" step="0.01" />
+                                @if (Model.CanConfirmToTreasury)
+                                {
+                                    <input value="@Model.CombinedChangeAmount.ToString("N2")" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" readonly />
+                                    <input type="hidden" asp-for="ChangeAmount" />
+                                }
+                                else
+                                {
+                                    <input asp-for="ChangeAmount" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" step="0.01" />
+                                }
                                 <span asp-validation-for="ChangeAmount" class="text-audit-error text-[11px]"></span>
                             </div>
                         </div>
@@ -608,12 +749,16 @@
         if (displayVal) {
             displayVal.innerText = sum.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
-        updateShortOverNotice(sum);
+        updateShortOverNotice(canConfirmToTreasury ? sum + openingCashSales : sum);
     }
+
+    const canConfirmToTreasury = @(Model.CanConfirmToTreasury ? "true" : "false");
+    const openingCashSales = @(Model.OpeningCashSales.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
     const expectedBaseline = (() => {
         const f = document.getElementById('confirmedCashToHandover');
-        return f ? (parseFloat(f.value) || 0) : 0;
+        const closingExpected = f ? (parseFloat(f.value) || 0) : 0;
+        return canConfirmToTreasury ? closingExpected + openingCashSales : closingExpected;
     })();
 
     function updateShortOverNotice(countedCash) {
@@ -820,6 +965,8 @@
         });
 
         const isBranchStaff = @(User.IsInRole("BranchStaff") ? "true" : "false");
+        const canConfirmToTreasury = @(Model.CanConfirmToTreasury ? "true" : "false");
+        const openingCashSales = @(Model.OpeningCashSales.ToString(System.Globalization.CultureInfo.InvariantCulture));
         const cashSalesField = document.getElementById('CashSales');
         const syncCashSales = () => {
             const val = parseFloat(cashSalesField.value) || 0;
@@ -840,13 +987,14 @@
 
         ['GrossSales', 'CashOut', 'GCashAmount', 'CreditAmount', 'OtherPaymentAmount', 'confirmedCashToHandover'].forEach(id => {
             document.getElementById(id)?.addEventListener('input', () => {
-                const countedCash = parseFloat(document.getElementById('confirmedCashToHandover')?.value) || 0;
-                updateShortOverNotice(countedCash);
+                const closingCounted = parseFloat(document.getElementById('confirmedCashToHandover')?.value) || 0;
+                updateShortOverNotice(canConfirmToTreasury ? closingCounted + openingCashSales : closingCounted);
             });
         });
         calculateCollectionTotals();
         if (!isBranchStaff) {
-            updateShortOverNotice(parseFloat(document.getElementById('confirmedCashToHandover')?.value) || 0);
+            const closingCounted = parseFloat(document.getElementById('confirmedCashToHandover')?.value) || 0;
+            updateShortOverNotice(canConfirmToTreasury ? closingCounted + openingCashSales : closingCounted);
         }
         // Lightbox Modal Handlers
         const mainPreview = document.getElementById('main-preview');
