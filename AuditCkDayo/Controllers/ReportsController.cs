@@ -432,8 +432,9 @@ public class ReportsController : Controller
 
         if (role == "Manager")
         {
-            query = query.Where(flow => flow.TreasuryUserId == userId
-                || flow.Entries.Any(e => e.ReportedByUserId == userId));
+            query = query.Where(flow =>
+                flow.Entries.Any(e => e.ReportedByUserId == userId)
+                || (!flow.Entries.Any(e => e.ReportedByUserId.HasValue) && flow.TreasuryUserId == userId));
         }
         else if (role == "Buyer" || role == "BranchStaff")
         {
