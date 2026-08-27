@@ -200,9 +200,24 @@
                                     }
                                     @foreach (var entry in salesIn)
                                     {
-                                        <div class="flex justify-between items-center px-space-4 py-space-3 text-sm">
+                                        <div class="flex justify-between items-center px-space-4 py-space-3 text-sm group hover:bg-surface-container-high/40">
                                             <span class="text-on-surface font-medium">@(entry.Establishment?.Name ?? "General")</span>
-                                            <span class="font-data-mono text-primary font-bold">₱@entry.Amount.ToString("N2")</span>
+                                            <div class="flex items-center gap-2">
+                                                <span class="font-data-mono text-primary font-bold">₱@entry.Amount.ToString("N2")</span>
+                                                @if (Model.Status != TreasuryCashFlowStatus.Closed)
+                                                {
+                                                    <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <a asp-controller="Treasury" asp-action="EditEntry" asp-route-id="@entry.Id" class="text-xs text-secondary hover:underline">Edit</a>
+                                                        <span class="text-outline text-xs">|</span>
+                                                        <form asp-controller="Treasury" asp-action="DeleteEntry" method="post" class="inline" onsubmit="return confirm('Delete this entry?')">
+                                                            @Html.AntiForgeryToken()
+                                                            <input type="hidden" name="id" value="@entry.Id" />
+                                                            <input type="hidden" name="date" value="@Model.SelectedDate.ToString("yyyy-MM-dd")" />
+                                                            <button type="submit" class="text-xs text-red-600 hover:underline">Del</button>
+                                                        </form>
+                                                    </div>
+                                                }
+                                            </div>
                                         </div>
                                     }
                                     @if (!salesIn.Any())
@@ -221,9 +236,24 @@
                                     }
                                     @foreach (var entry in changeIn)
                                     {
-                                        <div class="flex justify-between items-center px-space-4 py-space-3 text-sm">
+                                        <div class="flex justify-between items-center px-space-4 py-space-3 text-sm group hover:bg-surface-container-high/40">
                                             <span class="text-on-surface font-medium">@(entry.Establishment?.Name ?? "General")</span>
-                                            <span class="font-data-mono text-primary font-bold">₱@entry.Amount.ToString("N2")</span>
+                                            <div class="flex items-center gap-2">
+                                                <span class="font-data-mono text-primary font-bold">₱@entry.Amount.ToString("N2")</span>
+                                                @if (Model.Status != TreasuryCashFlowStatus.Closed)
+                                                {
+                                                    <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <a asp-controller="Treasury" asp-action="EditEntry" asp-route-id="@entry.Id" class="text-xs text-secondary hover:underline">Edit</a>
+                                                        <span class="text-outline text-xs">|</span>
+                                                        <form asp-controller="Treasury" asp-action="DeleteEntry" method="post" class="inline" onsubmit="return confirm('Delete this entry?')">
+                                                            @Html.AntiForgeryToken()
+                                                            <input type="hidden" name="id" value="@entry.Id" />
+                                                            <input type="hidden" name="date" value="@Model.SelectedDate.ToString("yyyy-MM-dd")" />
+                                                            <button type="submit" class="text-xs text-red-600 hover:underline">Del</button>
+                                                        </form>
+                                                    </div>
+                                                }
+                                            </div>
                                         </div>
                                     }
                                     @if (!changeIn.Any())
@@ -242,9 +272,24 @@
                                     }
                                     @foreach (var entry in othersIn)
                                     {
-                                        <div class="flex justify-between items-center px-space-4 py-space-3 text-sm">
+                                        <div class="flex justify-between items-center px-space-4 py-space-3 text-sm group hover:bg-surface-container-high/40">
                                             <span class="text-on-surface font-medium">@(entry.Notes ?? entry.Category.ToString())</span>
-                                            <span class="font-data-mono text-primary font-bold">₱@entry.Amount.ToString("N2")</span>
+                                            <div class="flex items-center gap-2">
+                                                <span class="font-data-mono text-primary font-bold">₱@entry.Amount.ToString("N2")</span>
+                                                @if (Model.Status != TreasuryCashFlowStatus.Closed)
+                                                {
+                                                    <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <a asp-controller="Treasury" asp-action="EditEntry" asp-route-id="@entry.Id" class="text-xs text-secondary hover:underline">Edit</a>
+                                                        <span class="text-outline text-xs">|</span>
+                                                        <form asp-controller="Treasury" asp-action="DeleteEntry" method="post" class="inline" onsubmit="return confirm('Delete this entry?')">
+                                                            @Html.AntiForgeryToken()
+                                                            <input type="hidden" name="id" value="@entry.Id" />
+                                                            <input type="hidden" name="date" value="@Model.SelectedDate.ToString("yyyy-MM-dd")" />
+                                                            <button type="submit" class="text-xs text-red-600 hover:underline">Del</button>
+                                                        </form>
+                                                    </div>
+                                                }
+                                            </div>
                                         </div>
                                     }
                                     @if (!othersIn.Any())
@@ -271,11 +316,26 @@
                                     }
                                     @foreach (var entry in pcfOut)
                                     {
-                                        <div class="flex justify-between items-center px-space-4 py-space-3 text-sm">
+                                        <div class="flex justify-between items-center px-space-4 py-space-3 text-sm group hover:bg-surface-container-high/40">
                                             <span class="text-on-surface font-medium">
                                                 @(entry.Establishment?.Name ?? entry.RelatedUser?.Name ?? entry.Notes ?? "General")
                                             </span>
-                                            <span class="font-data-mono text-primary font-bold">₱@entry.Amount.ToString("N2")</span>
+                                            <div class="flex items-center gap-2">
+                                                <span class="font-data-mono text-primary font-bold">₱@entry.Amount.ToString("N2")</span>
+                                                @if (Model.Status != TreasuryCashFlowStatus.Closed)
+                                                {
+                                                    <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <a asp-controller="Treasury" asp-action="EditEntry" asp-route-id="@entry.Id" class="text-xs text-secondary hover:underline">Edit</a>
+                                                        <span class="text-outline text-xs">|</span>
+                                                        <form asp-controller="Treasury" asp-action="DeleteEntry" method="post" class="inline" onsubmit="return confirm('Delete this entry?')">
+                                                            @Html.AntiForgeryToken()
+                                                            <input type="hidden" name="id" value="@entry.Id" />
+                                                            <input type="hidden" name="date" value="@Model.SelectedDate.ToString("yyyy-MM-dd")" />
+                                                            <button type="submit" class="text-xs text-red-600 hover:underline">Del</button>
+                                                        </form>
+                                                    </div>
+                                                }
+                                            </div>
                                         </div>
                                     }
                                     @if (!pcfOut.Any())
@@ -294,7 +354,7 @@
                                     }
                                     @foreach (var entry in othersOut)
                                     {
-                                        <div class="flex justify-between items-center px-space-4 py-space-3 text-sm">
+                                        <div class="flex justify-between items-center px-space-4 py-space-3 text-sm group hover:bg-surface-container-high/40">
                                             <span class="text-on-surface font-medium">
                                                 @(entry.Notes ?? entry.Category.ToString())
                                                 @if (entry.Establishment != null)
@@ -302,7 +362,22 @@
                                                     <span class="text-xs text-on-surface-variant">(@entry.Establishment.Name)</span>
                                                 }
                                             </span>
-                                            <span class="font-data-mono text-primary font-bold">₱@entry.Amount.ToString("N2")</span>
+                                            <div class="flex items-center gap-2">
+                                                <span class="font-data-mono text-primary font-bold">₱@entry.Amount.ToString("N2")</span>
+                                                @if (Model.Status != TreasuryCashFlowStatus.Closed)
+                                                {
+                                                    <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <a asp-controller="Treasury" asp-action="EditEntry" asp-route-id="@entry.Id" class="text-xs text-secondary hover:underline">Edit</a>
+                                                        <span class="text-outline text-xs">|</span>
+                                                        <form asp-controller="Treasury" asp-action="DeleteEntry" method="post" class="inline" onsubmit="return confirm('Delete this entry?')">
+                                                            @Html.AntiForgeryToken()
+                                                            <input type="hidden" name="id" value="@entry.Id" />
+                                                            <input type="hidden" name="date" value="@Model.SelectedDate.ToString("yyyy-MM-dd")" />
+                                                            <button type="submit" class="text-xs text-red-600 hover:underline">Del</button>
+                                                        </form>
+                                                    </div>
+                                                }
+                                            </div>
                                         </div>
                                     }
                                     @if (!othersOut.Any())

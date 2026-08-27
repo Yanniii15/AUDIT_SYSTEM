@@ -234,6 +234,126 @@ namespace AuditCkDayo.Controllers
             return RedirectToAction(nameof(Index), "Treasury", new { date = model.ReleaseDate });
         }
 
+        [HttpGet]
+        public async Task<IActionResult> EditEntry(int id)
+        {
+            if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var currentUserId))
+            {
+                return Unauthorized();
+            }
+
+            var entry = await _context.CashFlowEntries
+                .Include(e => e.TreasuryCashFlow)
+                .FirstOrDefaultAsync(e => e.Id == id);
+
+            if (entry == null)
+            {
+                return NotFound();
+            }
+
+            if (entry.TreasuryCashFlow.Status == TreasuryCashFlowStatus.Closed)
+            {
+                TempData["Error"] = "This entry belongs to a closed/locked treasury day and cannot be edited.";
+                return RedirectToAction(nameof(Index), new { date = entry.TreasuryCashFlow.CashFlowDate });
+            }
+
+            PopulateManualCashFlowLookups();
+            ViewBag.FlowDate = entry.TreasuryCashFlow.CashFlowDate;
+            return View(entry);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> EditEntry(CashFlowEntry model, DateTime date)
+        {
+            if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var currentUserId))
+            {
+                return Unauthorized();
+            }
+
+            var entry = await _context.CashFlowEntries
+                .Include(e => e.TreasuryCashFlow)
+                .FirstOrDefaultAsync(e => e.Id == model.Id);
+
+            if (entry == null)
+            {
+                return NotFound();
+            }
+
+            if (entry.TreasuryCashFlow.Status == TreasuryCashFlowStatus.Closed)
+            {
+                TempData["Error"] = "Cannot modify a closed treasury day.";
+                return RedirectToAction(nameof(Index), new { date });
+            }
+
+            if (model.Amount <= 0m)
+            {
+                ModelState.AddModelError(nameof(CashFlowEntry.Amount), "Amount must be greater than zero.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                PopulateManualCashFlowLookups();
+                ViewBag.FlowDate = entry.TreasuryCashFlow.CashFlowDate;
+                return View(model);
+            }
+
+            entry.Category = model.Category;
+            entry.Amount = model.Amount;
+            entry.EstablishmentId = model.EstablishmentId;
+            entry.Notes = string.IsNullOrWhiteSpace(model.Notes) ? null : model.Notes.Trim();
+
+            entry.TreasuryCashFlow.RecomputeTotals();
+            await _context.SaveChangesAsync();
+
+            TempData["Message"] = "Treasury entry updated.";
+            return RedirectToAction(nameof(Index), new { date = entry.TreasuryCashFlow.CashFlowDate });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> DeleteEntry(int id, DateTime date)
+        {
+            if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var currentUserId))
+            {
+                return Unauthorized();
+            }
+
+            var entry = await _context.CashFlowEntries
+                .Include(e => e.TreasuryCashFlow)
+                .FirstOrDefaultAsync(e => e.Id == id);
+
+            if (entry == null)
+            {
+                return NotFound();
+            }
+
+            if (entry.TreasuryCashFlow.Status == TreasuryCashFlowStatus.Closed)
+            {
+                TempData["Error"] = "Cannot delete entries on a closed treasury day.";
+                return RedirectToAction(nameof(Index), new { date });
+            }
+
+            // Unlink any PcfReleases referencing this entry
+            var linkedReleases = await _context.PcfReleases
+                .Where(r => r.CashFlowEntryId == entry.Id)
+                .ToListAsync();
+            foreach (var release in linkedReleases)
+            {
+                release.CashFlowEntryId = null;
+            }
+            await _context.SaveChangesAsync();
+
+            _context.CashFlowEntries.Remove(entry);
+            await _context.SaveChangesAsync();
+
+            entry.TreasuryCashFlow.RecomputeTotals();
+            await _context.SaveChangesAsync();
+
+            TempData["Message"] = "Treasury entry deleted.";
+            return RedirectToAction(nameof(Index), new { date = entry.TreasuryCashFlow.CashFlowDate });
+        }
+
         private async Task PopulateReleasePcfLookupsAsync(PcfReleaseViewModel model)
         {
             var receiverUsers = await _context.Users

@@ -1,0 +1,79 @@
+@model AuditCkDayo.Models.CashFlowEntry
+@{
+    ViewData["Title"] = "Edit Treasury Entry";
+    var flowDate = ViewBag.FlowDate as DateTime? ?? DateTime.Today;
+}
+
+<div class="max-w-2xl mx-auto space-y-6">
+    <div>
+        <h1 class="font-headline-lg text-headline-lg text-on-surface">Edit Treasury Entry</h1>
+        <p class="text-on-surface-variant">Update cash flow details for @flowDate.ToString("MMMM dd, yyyy").</p>
+    </div>
+
+    <div class="rounded-xl border border-outline-variant bg-surface-container p-6 shadow-sm">
+        <form asp-controller="Treasury" asp-action="EditEntry" method="post" class="space-y-4">
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="Id" />
+            <input type="hidden" name="date" value="@flowDate.ToString("yyyy-MM-dd")" />
+
+            <div class="grid gap-4 sm:grid-cols-2">
+                <div>
+                    <label class="block text-sm font-medium text-on-surface">Direction</label>
+                    <input type="text" readonly value="@Model.Direction" class="mt-1 w-full rounded-lg border border-outline bg-surface-container-highest px-3 py-2 text-on-surface-variant cursor-not-allowed" />
+                </div>
+
+                <div>
+                    <label asp-for="Category" class="block text-sm font-medium text-on-surface">Category</label>
+                    <select asp-for="Category" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2 text-on-surface">
+                        @if (Model.Direction == CashFlowDirection.In)
+                        {
+                            <option value="@CashFlowCategory.Others">Others</option>
+                            <option value="@CashFlowCategory.Sales">Sales</option>
+                            <option value="@CashFlowCategory.ChangePcf">Change PCF</option>
+                            <option value="@CashFlowCategory.OwnerFunding">Owner Funding</option>
+                            <option value="@CashFlowCategory.CashSurrender">Cash Surrender</option>
+                        }
+                        else
+                        {
+                            <option value="@CashFlowCategory.Others">Others</option>
+                            <option value="@CashFlowCategory.PcfRelease">PCF</option>
+                            <option value="@CashFlowCategory.ChangePcf">Change PCF</option>
+                            <option value="@CashFlowCategory.Expense">Expense</option>
+                            <option value="@CashFlowCategory.Payroll">Payroll</option>
+                            <option value="@CashFlowCategory.Utilities">Utilities</option>
+                            <option value="@CashFlowCategory.Supplier">Supplier</option>
+                        }
+                    </select>
+                </div>
+
+                <div>
+                    <label asp-for="Amount" class="block text-sm font-medium text-on-surface">Amount</label>
+                    <input asp-for="Amount" type="number" min="0.01" step="0.01" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2 text-on-surface" />
+                    <span asp-validation-for="Amount" class="text-xs text-red-600"></span>
+                </div>
+
+                <div>
+                    <label asp-for="EstablishmentId" class="block text-sm font-medium text-on-surface">Establishment</label>
+                    <select asp-for="EstablishmentId" asp-items="ViewBag.CashFlowEstablishments" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2 text-on-surface">
+                        <option value="">— none —</option>
+                    </select>
+                </div>
+
+                <div class="sm:col-span-2">
+                    <label asp-for="Notes" class="block text-sm font-medium text-on-surface">Purpose / Remarks</label>
+                    <input asp-for="Notes" maxlength="255" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2 text-on-surface" />
+                    <span asp-validation-for="Notes" class="text-xs text-red-600"></span>
+                </div>
+            </div>
+
+            <div class="flex justify-end gap-3 pt-4 border-t border-outline-variant">
+                <a asp-controller="Treasury" asp-action="Index" asp-route-date="@flowDate.ToString("yyyy-MM-dd")" class="rounded-lg border border-outline px-4 py-2 text-sm font-semibold text-primary hover:bg-primary/10">
+                    Cancel
+                </a>
+                <button type="submit" class="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary shadow-sm hover:bg-primary/90">
+                    Save Changes
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
