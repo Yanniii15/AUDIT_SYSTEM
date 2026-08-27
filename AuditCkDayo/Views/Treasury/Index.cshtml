@@ -424,71 +424,73 @@
     </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha512-BNaRQnYcabqeeRYfyCRXXJQNLTvYFsTqVY75oTKtMJUYqAQCYiMXUF3gKDUM159CciVMp4vd37PjAlpMbpgT1w==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script>
-    (() => {
-        const category = document.getElementById('manual-cashout-category');
-        const purposeWrap = document.getElementById('manual-cashout-purpose-wrap');
-        const purpose = document.getElementById('manual-cashout-purpose');
-        const acrossEstablishments = document.getElementById('manual-cashout-across-establishments');
-        const syncPurpose = () => {
-            const isOthers = category?.value === '@CashFlowCategory.Others';
-            const appliesAcrossEstablishments = acrossEstablishments?.checked === true;
-            const estWrap = document.getElementById('manual-cashout-establishment-wrap');
-            const establishment = document.getElementById('ManualCashOut_EstablishmentId');
-            purposeWrap?.classList.toggle('hidden', !isOthers);
-            estWrap?.classList.toggle('opacity-50', appliesAcrossEstablishments);
-            if (establishment) {
-                establishment.disabled = appliesAcrossEstablishments;
-                if (appliesAcrossEstablishments) {
-                    establishment.value = '';
+@section Scripts {
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha512-BNaRQnYcabqeeRYfyCRXXJQNLTvYFsTqVY75oTKtMJUYqAQCYiMXUF3gKDUM159CciVMp4vd37PjAlpMbpgT1w==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script>
+        (() => {
+            const category = document.getElementById('manual-cashout-category');
+            const purposeWrap = document.getElementById('manual-cashout-purpose-wrap');
+            const purpose = document.getElementById('manual-cashout-purpose');
+            const acrossEstablishments = document.getElementById('manual-cashout-across-establishments');
+            const syncPurpose = () => {
+                const isOthers = category?.value === '@CashFlowCategory.Others';
+                const appliesAcrossEstablishments = acrossEstablishments?.checked === true;
+                const estWrap = document.getElementById('manual-cashout-establishment-wrap');
+                const establishment = document.getElementById('ManualCashOut_EstablishmentId');
+                purposeWrap?.classList.toggle('hidden', !isOthers);
+                estWrap?.classList.toggle('opacity-50', appliesAcrossEstablishments);
+                if (establishment) {
+                    establishment.disabled = appliesAcrossEstablishments;
+                    if (appliesAcrossEstablishments) {
+                        establishment.value = '';
+                    }
                 }
-            }
-            if (purpose) {
-                purpose.required = isOthers;
-                if (!isOthers) {
-                    purpose.value = '';
+                if (purpose) {
+                    purpose.required = isOthers;
+                    if (!isOthers) {
+                        purpose.value = '';
+                    }
                 }
-            }
-        };
-        category?.addEventListener('change', syncPurpose);
-        acrossEstablishments?.addEventListener('change', syncPurpose);
-        syncPurpose();
+            };
+            category?.addEventListener('change', syncPurpose);
+            acrossEstablishments?.addEventListener('change', syncPurpose);
+            syncPurpose();
 
-        // Image export trigger script
-        const exportBtn = document.getElementById('export-treasury-image-btn');
-        if (exportBtn) {
-            exportBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                const element = document.getElementById('treasury-capture-area');
-                if (!element) return;
+            // Image export trigger script
+            const exportBtn = document.getElementById('export-treasury-image-btn');
+            if (exportBtn) {
+                exportBtn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const element = document.getElementById('treasury-capture-area');
+                    if (!element) return;
 
-                // Temporarily enforce white background for snapshot capture
-                const originalBg = element.style.backgroundColor;
-                element.style.backgroundColor = '#ffffff';
+                    // Temporarily enforce white background for snapshot capture
+                    const originalBg = element.style.backgroundColor;
+                    element.style.backgroundColor = '#ffffff';
 
-                html2canvas(element, {
-                    scale: 2, // High resolution texts
-                    useCORS: true,
-                    allowTaint: true,
-                    logging: true,
-                    backgroundColor: '#ffffff'
-                }).then(canvas => {
-                    element.style.backgroundColor = originalBg;
+                    html2canvas(element, {
+                        scale: 2, // High resolution texts
+                        useCORS: true,
+                        allowTaint: true,
+                        logging: true,
+                        backgroundColor: '#ffffff'
+                    }).then(canvas => {
+                        element.style.backgroundColor = originalBg;
 
-                    const dateStr = '@Model.SelectedDate.ToString("yyyy-MM-dd")';
-                    const link = document.createElement('a');
-                    link.download = `Treasury_CashFlow_${dateStr}.jpg`;
-                    link.href = canvas.toDataURL('image/jpeg', 0.95);
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                }).catch(err => {
-                    console.error("Error generating image:", err);
-                    alert("Could not export treasury as image. Please try again.");
-                    element.style.backgroundColor = originalBg;
+                        const dateStr = '@Model.SelectedDate.ToString("yyyy-MM-dd")';
+                        const link = document.createElement('a');
+                        link.download = `Treasury_CashFlow_${dateStr}.jpg`;
+                        link.href = canvas.toDataURL('image/jpeg', 0.95);
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                    }).catch(err => {
+                        console.error("Error generating image:", err);
+                        alert("Could not export treasury as image. Please try again.");
+                        element.style.backgroundColor = originalBg;
+                    });
                 });
-            });
-        }
-    })();
-</script>
+            }
+        })();
+    </script>
+}
