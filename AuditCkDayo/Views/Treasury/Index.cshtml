@@ -11,14 +11,14 @@
     Closing balance: ₱@Model.ClosingBalance.ToString("N2").
 </div>
 
-<div class="space-y-6">
+<div id="treasury-capture-area" class="space-y-6 bg-surface p-4 rounded-xl">
     <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
             <h1 class="font-headline-lg text-headline-lg text-on-surface">Treasury Cash Flow</h1>
             <p class="text-on-surface-variant">Daily cash-in, cash-out, net cash flow, and closing balance.</p>
         </div>
 
-        <div class="flex flex-wrap gap-3">
+        <div class="flex flex-wrap gap-3" data-html2canvas-ignore="true">
             @if (Model.FlowId.HasValue && Model.Status == TreasuryCashFlowStatus.Closed)
             {
                 <span class="inline-flex items-center rounded-lg bg-surface-container-highest px-4 py-2 text-sm font-semibold text-on-surface-variant">
@@ -35,6 +35,10 @@
                     </button>
                 </form>
             }
+            <button id="export-treasury-image-btn" class="inline-flex items-center gap-2 rounded-lg bg-secondary px-4 py-2 text-sm font-semibold text-on-secondary shadow-sm hover:bg-secondary/90">
+                <span class="material-symbols-outlined text-[18px]">image</span>
+                Export Image
+            </button>
             <a asp-controller="Treasury" asp-action="ReleasePcf" class="inline-flex items-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary shadow-sm hover:bg-primary/90">
                 Release PCF
             </a>
@@ -44,7 +48,7 @@
         </div>
     </div>
 
-    <form asp-controller="Treasury" asp-action="Index" method="get" class="rounded-xl border border-outline-variant bg-surface-container p-4 shadow-sm">
+    <form asp-controller="Treasury" asp-action="Index" method="get" class="rounded-xl border border-outline-variant bg-surface-container p-4 shadow-sm" data-html2canvas-ignore="true">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
             <div>
                 <label for="date" class="block text-sm font-medium text-on-surface">Cash flow date</label>
@@ -79,7 +83,7 @@
         </div>
     </section>
 
-    <div class="grid gap-6 md:grid-cols-2">
+    <div class="grid gap-6 md:grid-cols-2" data-html2canvas-ignore="true">
         <!-- Record Cash In -->
         <section class="rounded-xl border border-outline-variant bg-surface-container p-4 shadow-sm">
             <div class="mb-4">
@@ -219,7 +223,7 @@
                                                 <span class="font-data-mono text-primary font-bold">₱@entry.Amount.ToString("N2")</span>
                                                 @if (Model.Status != TreasuryCashFlowStatus.Closed)
                                                 {
-                                                    <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" data-html2canvas-ignore="true">
                                                         <a asp-controller="Treasury" asp-action="EditEntry" asp-route-id="@entry.Id" class="text-xs text-secondary hover:underline">Edit</a>
                                                         <span class="text-outline text-xs">|</span>
                                                         <form asp-controller="Treasury" asp-action="DeleteEntry" method="post" class="inline" onsubmit="return confirm('Delete this entry?')">
@@ -268,7 +272,7 @@
                                                 <span class="font-data-mono text-primary font-bold">₱@entry.Amount.ToString("N2")</span>
                                                 @if (Model.Status != TreasuryCashFlowStatus.Closed)
                                                 {
-                                                    <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" data-html2canvas-ignore="true">
                                                         <a asp-controller="Treasury" asp-action="EditEntry" asp-route-id="@entry.Id" class="text-xs text-secondary hover:underline">Edit</a>
                                                         <span class="text-outline text-xs">|</span>
                                                         <form asp-controller="Treasury" asp-action="DeleteEntry" method="post" class="inline" onsubmit="return confirm('Delete this entry?')">
@@ -304,7 +308,7 @@
                                                 <span class="font-data-mono text-primary font-bold">₱@entry.Amount.ToString("N2")</span>
                                                 @if (Model.Status != TreasuryCashFlowStatus.Closed)
                                                 {
-                                                    <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" data-html2canvas-ignore="true">
                                                         <a asp-controller="Treasury" asp-action="EditEntry" asp-route-id="@entry.Id" class="text-xs text-secondary hover:underline">Edit</a>
                                                         <span class="text-outline text-xs">|</span>
                                                         <form asp-controller="Treasury" asp-action="DeleteEntry" method="post" class="inline" onsubmit="return confirm('Delete this entry?')">
@@ -350,7 +354,7 @@
                                                 <span class="font-data-mono text-primary font-bold">₱@entry.Amount.ToString("N2")</span>
                                                 @if (Model.Status != TreasuryCashFlowStatus.Closed)
                                                 {
-                                                    <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" data-html2canvas-ignore="true">
                                                         <a asp-controller="Treasury" asp-action="EditEntry" asp-route-id="@entry.Id" class="text-xs text-secondary hover:underline">Edit</a>
                                                         <span class="text-outline text-xs">|</span>
                                                         <form asp-controller="Treasury" asp-action="DeleteEntry" method="post" class="inline" onsubmit="return confirm('Delete this entry?')">
@@ -392,7 +396,7 @@
                                                 <span class="font-data-mono text-primary font-bold">₱@entry.Amount.ToString("N2")</span>
                                                 @if (Model.Status != TreasuryCashFlowStatus.Closed)
                                                 {
-                                                    <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity" data-html2canvas-ignore="true">
                                                         <a asp-controller="Treasury" asp-action="EditEntry" asp-route-id="@entry.Id" class="text-xs text-secondary hover:underline">Edit</a>
                                                         <span class="text-outline text-xs">|</span>
                                                         <form asp-controller="Treasury" asp-action="DeleteEntry" method="post" class="inline" onsubmit="return confirm('Delete this entry?')">
@@ -418,7 +422,9 @@
             </div>
         }
     </div>
+</div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha512-BNaRQnYcabqeeRYfyCRXXJQNLTvYFsTqVY75oTKtMJUYqAQCYiMXUF3gKDUM159CciVMp4vd37PjAlpMbpgT1w==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script>
     (() => {
         const category = document.getElementById('manual-cashout-category');
@@ -448,5 +454,37 @@
         category?.addEventListener('change', syncPurpose);
         acrossEstablishments?.addEventListener('change', syncPurpose);
         syncPurpose();
+
+        // Image export trigger script
+        const exportBtn = document.getElementById('export-treasury-image-btn');
+        if (exportBtn) {
+            exportBtn.addEventListener('click', () => {
+                const element = document.getElementById('treasury-capture-area');
+                if (!element) return;
+
+                // Temporarily enforce white background for snapshot capture
+                const originalBg = element.style.backgroundColor;
+                element.style.backgroundColor = '#ffffff';
+
+                html2canvas(element, {
+                    scale: 2, // High resolution texts
+                    useCORS: true,
+                    allowTaint: true,
+                    backgroundColor: '#ffffff'
+                }).then(canvas => {
+                    element.style.backgroundColor = originalBg;
+
+                    const dateStr = '@Model.SelectedDate.ToString("yyyy-MM-dd")';
+                    const link = document.createElement('a');
+                    link.download = `Treasury_CashFlow_${dateStr}.jpg`;
+                    link.href = canvas.toDataURL('image/jpeg', 0.95);
+                    link.click();
+                }).catch(err => {
+                    console.error("Error generating image:", err);
+                    alert("Could not export treasury as image. Please try again.");
+                    element.style.backgroundColor = originalBg;
+                });
+            });
+        }
     })();
 </script>
