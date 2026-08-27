@@ -25,7 +25,7 @@ namespace AuditCkDayo.Scripts
                 var ledger = new PettyCashLedger
                 {
                     UserId = buyer.Id,
-                    TransactionType = LedgerTransactionType.Adjustment,
+                    TransactionType = LedgerTransactionType.ManualAdjustment,
                     Amount = 0.00m,
                     ResultingBalance = 0.00m,
                     Timestamp = DateTime.Now,
