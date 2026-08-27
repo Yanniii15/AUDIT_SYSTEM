@@ -595,6 +595,18 @@ namespace AuditCkDayo.Scripts
                 {
                     flow.StartingBalance = day.StartingBalance;
                     flow.Status = TreasuryCashFlowStatus.Closed;
+
+                    // Unlink any PcfReleases referencing the entries we are about to delete
+                    var entryIds = flow.Entries.Select(e => e.Id).ToList();
+                    var linkedReleases = await context.PcfReleases
+                        .Where(r => r.CashFlowEntryId.HasValue && entryIds.Contains(r.CashFlowEntryId.Value))
+                        .ToListAsync();
+                    foreach (var release in linkedReleases)
+                    {
+                        release.CashFlowEntryId = null;
+                    }
+                    await context.SaveChangesAsync();
+
                     context.CashFlowEntries.RemoveRange(flow.Entries);
                     flow.Entries.Clear();
                     await context.SaveChangesAsync();
