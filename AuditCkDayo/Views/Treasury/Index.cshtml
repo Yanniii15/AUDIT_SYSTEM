@@ -201,7 +201,13 @@
                                     @foreach (var entry in salesIn)
                                     {
                                         <div class="flex justify-between items-center px-space-4 py-space-3 text-sm group hover:bg-surface-container-high/40">
-                                            <span class="text-on-surface font-medium">@(entry.Establishment?.Name ?? "General")</span>
+                                            <span class="text-on-surface font-medium">
+                                                @(entry.Establishment?.Name ?? "General")
+                                                @if (!string.IsNullOrEmpty(entry.Notes))
+                                                {
+                                                    <span class="text-xs text-on-surface-variant block mt-0.5">@entry.Notes</span>
+                                                }
+                                            </span>
                                             <div class="flex items-center gap-2">
                                                 <span class="font-data-mono text-primary font-bold">₱@entry.Amount.ToString("N2")</span>
                                                 @if (Model.Status != TreasuryCashFlowStatus.Closed)
@@ -237,7 +243,13 @@
                                     @foreach (var entry in changeIn)
                                     {
                                         <div class="flex justify-between items-center px-space-4 py-space-3 text-sm group hover:bg-surface-container-high/40">
-                                            <span class="text-on-surface font-medium">@(entry.Establishment?.Name ?? "General")</span>
+                                            <span class="text-on-surface font-medium">
+                                                @(entry.Establishment?.Name ?? "General")
+                                                @if (!string.IsNullOrEmpty(entry.Notes))
+                                                {
+                                                    <span class="text-xs text-on-surface-variant block mt-0.5">@entry.Notes</span>
+                                                }
+                                            </span>
                                             <div class="flex items-center gap-2">
                                                 <span class="font-data-mono text-primary font-bold">₱@entry.Amount.ToString("N2")</span>
                                                 @if (Model.Status != TreasuryCashFlowStatus.Closed)
