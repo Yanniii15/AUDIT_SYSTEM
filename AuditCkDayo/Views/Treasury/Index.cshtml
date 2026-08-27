@@ -458,7 +458,8 @@
         // Image export trigger script
         const exportBtn = document.getElementById('export-treasury-image-btn');
         if (exportBtn) {
-            exportBtn.addEventListener('click', () => {
+            exportBtn.addEventListener('click', (e) => {
+                e.preventDefault();
                 const element = document.getElementById('treasury-capture-area');
                 if (!element) return;
 
@@ -470,6 +471,7 @@
                     scale: 2, // High resolution texts
                     useCORS: true,
                     allowTaint: true,
+                    logging: true,
                     backgroundColor: '#ffffff'
                 }).then(canvas => {
                     element.style.backgroundColor = originalBg;
@@ -478,7 +480,9 @@
                     const link = document.createElement('a');
                     link.download = `Treasury_CashFlow_${dateStr}.jpg`;
                     link.href = canvas.toDataURL('image/jpeg', 0.95);
+                    document.body.appendChild(link);
                     link.click();
+                    document.body.removeChild(link);
                 }).catch(err => {
                     console.error("Error generating image:", err);
                     alert("Could not export treasury as image. Please try again.");
