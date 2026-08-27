@@ -4823,7 +4823,7 @@ namespace AuditCkDayo.Tests
                 .GetCustomAttributes(typeof(AuthorizeAttribute), inherit: false)
                 .Cast<AuthorizeAttribute>());
 
-            Assert.Equal("Owner,Manager", authorize.Roles);
+            Assert.Equal("Owner,Manager,Auditor", authorize.Roles);
         }
     }
 
