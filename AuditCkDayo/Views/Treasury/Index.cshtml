@@ -11,14 +11,149 @@
     Closing balance: ₱@Model.ClosingBalance.ToString("N2").
 </div>
 
-<div id="treasury-capture-area" class="space-y-6 bg-surface p-4 rounded-xl">
+<div id="treasury-capture-area" class="space-y-6 bg-white p-6 rounded-lg text-black font-sans relative" style="width: 800px; margin: 0 auto; color: #000000; background-color: #ffffff;">
+    <!-- Print-only spreadsheet style layout -->
+    <div class="border-2 border-black divide-y divide-black">
+        <!-- Title Header -->
+        <div class="text-center font-bold text-lg uppercase py-2 tracking-wider border-b border-black">
+            CKR - DAILY CASH FLOW
+        </div>
+
+        <!-- Date & Starting Balance Row -->
+        <div class="grid grid-cols-12 divide-x divide-black text-sm">
+            <div class="col-span-4 px-3 py-2 font-bold uppercase">DATE</div>
+            <div class="col-span-8 px-3 py-2 text-left">@Model.SelectedDate.ToString("MMMM dd, yyyy")</div>
+        </div>
+        <div class="grid grid-cols-12 divide-x divide-black text-sm">
+            <div class="col-span-4 px-3 py-2 font-bold uppercase">STARTING BALANCE</div>
+            <div class="col-span-8 px-3 py-2 font-bold text-left bg-yellow-100" style="background-color: #fef08a !important;">₱@Model.StartingBalance.ToString("N2")</div>
+        </div>
+
+        <!-- Double Columns Header -->
+        <div class="grid grid-cols-2 divide-x divide-black font-bold uppercase text-center bg-gray-100 text-sm border-t border-b border-black" style="background-color: #f3f4f6 !important;">
+            <div class="py-2">CASH IN</div>
+            <div class="py-2">CASH OUT</div>
+        </div>
+
+        <!-- Main Ledger Rows Container -->
+        <div class="grid grid-cols-2 divide-x divide-black text-[12px] min-h-[400px]">
+            
+            <!-- LEFT COLUMN: CASH IN -->
+            <div class="flex flex-col divide-y divide-gray-300">
+                <!-- Sales Group -->
+                <div class="bg-gray-50 font-bold uppercase px-3 py-1 border-b border-black" style="background-color: #f9fafb !important;">SALES</div>
+                @{ var printSales = Model.Entries.Where(e => e.Direction == CashFlowDirection.In && e.Category == CashFlowCategory.Sales).ToList(); }
+                @foreach (var entry in printSales)
+                {
+                    <div class="grid grid-cols-12 px-3 py-1">
+                        <div class="col-span-8 font-medium">@(entry.Establishment?.Name ?? "General")</div>
+                        <div class="col-span-4 text-right font-mono font-semibold">@entry.Amount.ToString("N2")</div>
+                    </div>
+                }
+                @if(!printSales.Any()) { <div class="px-3 py-1 text-gray-400 italic">No sales</div> }
+
+                <!-- Change PCF Group -->
+                <div class="bg-gray-50 font-bold uppercase px-3 py-1 border-t border-b border-black" style="background-color: #f9fafb !important;">CHANGE PCF</div>
+                @{ var printChangeIn = Model.Entries.Where(e => e.Direction == CashFlowDirection.In && e.Category == CashFlowCategory.ChangePcf).ToList(); }
+                @foreach (var entry in printChangeIn)
+                {
+                    <div class="grid grid-cols-12 px-3 py-1">
+                        <div class="col-span-8 font-medium">
+                            @if (entry.Establishment != null)
+                            {
+                                <span>@entry.Establishment.Name</span>
+                                @if (!string.IsNullOrEmpty(entry.Notes)) { <span class="text-[10px] text-gray-600 block">(@entry.Notes)</span> }
+                            }
+                            else
+                            {
+                                <span>@(entry.Notes ?? "General")</span>
+                            }
+                        </div>
+                        <div class="col-span-4 text-right font-mono font-semibold">@entry.Amount.ToString("N2")</div>
+                    </div>
+                }
+                @if(!printChangeIn.Any()) { <div class="px-3 py-1 text-gray-400 italic">No change PCF</div> }
+
+                <!-- Others Group -->
+                <div class="bg-gray-50 font-bold uppercase px-3 py-1 border-t border-b border-black" style="background-color: #f9fafb !important;">OTHERS</div>
+                @{ var printOthersIn = Model.Entries.Where(e => e.Direction == CashFlowDirection.In && e.Category != CashFlowCategory.Sales && e.Category != CashFlowCategory.ChangePcf).ToList(); }
+                @foreach (var entry in printOthersIn)
+                {
+                    <div class="grid grid-cols-12 px-3 py-1">
+                        <div class="col-span-8 font-medium">@(entry.Notes ?? entry.Category.ToString())</div>
+                        <div class="col-span-4 text-right font-mono font-semibold">@entry.Amount.ToString("N2")</div>
+                    </div>
+                }
+                @if(!printOthersIn.Any()) { <div class="px-3 py-1 text-gray-400 italic">No other cash-in</div> }
+            </div>
+
+            <!-- RIGHT COLUMN: CASH OUT -->
+            <div class="flex flex-col divide-y divide-gray-300">
+                <!-- PCF Releases -->
+                <div class="bg-gray-50 font-bold uppercase px-3 py-1 border-b border-black" style="background-color: #f9fafb !important;">PCF</div>
+                @{ var printPcfOut = Model.Entries.Where(e => e.Direction == CashFlowDirection.Out && e.Category == CashFlowCategory.PcfRelease).ToList(); }
+                @foreach (var entry in printPcfOut)
+                {
+                    <div class="grid grid-cols-12 px-3 py-1">
+                        <div class="col-span-8 font-medium">@(entry.Establishment?.Name ?? entry.RelatedUser?.Name ?? entry.Notes ?? "General")</div>
+                        <div class="col-span-4 text-right font-mono font-semibold">@entry.Amount.ToString("N2")</div>
+                    </div>
+                }
+                @if(!printPcfOut.Any()) { <div class="px-3 py-1 text-gray-400 italic">No PCF releases</div> }
+
+                <!-- Others Cash Out -->
+                <div class="bg-gray-50 font-bold uppercase px-3 py-1 border-t border-b border-black" style="background-color: #f9fafb !important;">OTHERS</div>
+                @{ var printOthersOut = Model.Entries.Where(e => e.Direction == CashFlowDirection.Out && e.Category != CashFlowCategory.PcfRelease).ToList(); }
+                @foreach (var entry in printOthersOut)
+                {
+                    <div class="grid grid-cols-12 px-3 py-1">
+                        <div class="col-span-8 font-medium">
+                            @(entry.Notes ?? entry.Category.ToString())
+                            @if (entry.Establishment != null)
+                            {
+                                <span class="text-[10px] text-gray-600 block">(@entry.Establishment.Name)</span>
+                            }
+                        </div>
+                        <div class="col-span-4 text-right font-mono font-semibold">@entry.Amount.ToString("N2")</div>
+                    </div>
+                }
+                @if(!printOthersOut.Any()) { <div class="px-3 py-1 text-gray-400 italic">No other cash-out</div> }
+            </div>
+
+        </div>
+
+        <!-- Totals Row -->
+        <div class="grid grid-cols-2 divide-x divide-black text-sm font-bold border-t-2 border-black bg-gray-100" style="background-color: #f3f4f6 !important;">
+            <div class="grid grid-cols-12 px-3 py-2">
+                <div class="col-span-8 uppercase">TOTAL CASH IN:</div>
+                <div class="col-span-4 text-right font-mono">₱@Model.TotalCashIn.ToString("N2")</div>
+            </div>
+            <div class="grid grid-cols-12 px-3 py-2">
+                <div class="col-span-8 uppercase">TOTAL CASH OUT:</div>
+                <div class="col-span-4 text-right font-mono">₱@Model.TotalCashOut.ToString("N2")</div>
+            </div>
+        </div>
+
+        <!-- Net Cash Flow & Closing Balance Row -->
+        <div class="grid grid-cols-12 divide-x divide-black text-sm border-t border-black">
+            <div class="col-span-4 px-3 py-2 font-bold uppercase">NET CASH FLOW</div>
+            <div class="col-span-8 px-3 py-2 font-bold text-left bg-yellow-100" style="background-color: #fef08a !important;">₱@Model.NetCashFlow.ToString("N2")</div>
+        </div>
+        <div class="grid grid-cols-12 divide-x divide-black text-sm">
+            <div class="col-span-4 px-3 py-2 font-bold uppercase">CLOSING BALANCE</div>
+            <div class="col-span-8 px-3 py-2 font-bold text-left bg-yellow-100" style="background-color: #fef08a !important;">₱@Model.ClosingBalance.ToString("N2")</div>
+        </div>
+    </div>
+</div>
+
+<div class="space-y-6 mt-6">
     <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
             <h1 class="font-headline-lg text-headline-lg text-on-surface">Treasury Cash Flow</h1>
             <p class="text-on-surface-variant">Daily cash-in, cash-out, net cash flow, and closing balance.</p>
         </div>
 
-        <div class="flex flex-wrap gap-3" data-html2canvas-ignore="true">
+        <div class="flex flex-wrap gap-3">
             @if (Model.FlowId.HasValue && Model.Status == TreasuryCashFlowStatus.Closed)
             {
                 <span class="inline-flex items-center rounded-lg bg-surface-container-highest px-4 py-2 text-sm font-semibold text-on-surface-variant">
@@ -48,7 +183,7 @@
         </div>
     </div>
 
-    <form asp-controller="Treasury" asp-action="Index" method="get" class="rounded-xl border border-outline-variant bg-surface-container p-4 shadow-sm" data-html2canvas-ignore="true">
+    <form asp-controller="Treasury" asp-action="Index" method="get" class="rounded-xl border border-outline-variant bg-surface-container p-4 shadow-sm">
         <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
             <div>
                 <label for="date" class="block text-sm font-medium text-on-surface">Cash flow date</label>
@@ -83,7 +218,7 @@
         </div>
     </section>
 
-    <div class="grid gap-6 md:grid-cols-2" data-html2canvas-ignore="true">
+    <div class="grid gap-6 md:grid-cols-2">
         <!-- Record Cash In -->
         <section class="rounded-xl border border-outline-variant bg-surface-container p-4 shadow-sm">
             <div class="mb-4">
