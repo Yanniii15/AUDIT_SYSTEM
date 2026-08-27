@@ -1321,7 +1321,7 @@ namespace AuditCkDayo.Controllers
                 if ((!string.IsNullOrEmpty(sessionUrl) && sessionUrl.Contains(safeFilename)) ||
                     sessionUrls.Any(u => u.Contains(safeFilename)))
                 {
-                    if (currentUserRole is "Owner" or "Buyer" or "Manager" or "BranchStaff" or "Admin")
+                    if (currentUserRole is "Owner" or "Buyer" or "Manager" or "BranchStaff" or "Admin" or "Auditor")
                     {
                         var fileBytes = await System.IO.File.ReadAllBytesAsync(filePath);
                         return File(fileBytes, GetMimeType(filePath));
@@ -1334,7 +1334,7 @@ namespace AuditCkDayo.Controllers
                     (!string.IsNullOrEmpty(d.ReceiptImageUrl) && d.ReceiptImageUrl.Contains(safeFilename)) ||
                     (d.ReceiptImageUrls != null && d.ReceiptImageUrls.Any(u => u.Contains(safeFilename)))))
                 {
-                    if (currentUserRole is "Owner" or "Buyer" or "Manager" or "BranchStaff" or "Admin")
+                    if (currentUserRole is "Owner" or "Buyer" or "Manager" or "BranchStaff" or "Admin" or "Auditor")
                     {
                         var fileBytes = await System.IO.File.ReadAllBytesAsync(filePath);
                         return File(fileBytes, GetMimeType(filePath));
@@ -1345,7 +1345,7 @@ namespace AuditCkDayo.Controllers
             }
 
             bool isAuthorized = false;
-            if (currentUserRole == "Owner")
+            if (currentUserRole == "Owner" || currentUserRole == "Auditor")
             {
                 isAuthorized = true;
             }
