@@ -264,29 +264,29 @@ namespace AuditCkDayo.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> EditEntry(CashFlowEntry model, DateTime date)
+        public async Task<IActionResult> EditEntry([FromForm] CashFlowEntry entry, DateTime date)
         {
             if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var currentUserId))
             {
                 return Unauthorized();
             }
 
-            var entry = await _context.CashFlowEntries
+            var dbEntry = await _context.CashFlowEntries
                 .Include(e => e.TreasuryCashFlow)
-                .FirstOrDefaultAsync(e => e.Id == model.Id);
+                .FirstOrDefaultAsync(e => e.Id == entry.Id);
 
-            if (entry == null)
+            if (dbEntry == null)
             {
                 return NotFound();
             }
 
-            if (entry.TreasuryCashFlow.Status == TreasuryCashFlowStatus.Closed)
+            if (dbEntry.TreasuryCashFlow.Status == TreasuryCashFlowStatus.Closed)
             {
                 TempData["Error"] = "Cannot modify a closed treasury day.";
                 return RedirectToAction(nameof(Index), new { date });
             }
 
-            if (model.Amount <= 0m)
+            if (entry.Amount <= 0m)
             {
                 ModelState.AddModelError(nameof(CashFlowEntry.Amount), "Amount must be greater than zero.");
             }
@@ -294,20 +294,20 @@ namespace AuditCkDayo.Controllers
             if (!ModelState.IsValid)
             {
                 PopulateManualCashFlowLookups();
-                ViewBag.FlowDate = entry.TreasuryCashFlow.CashFlowDate;
-                return View(model);
+                ViewBag.FlowDate = dbEntry.TreasuryCashFlow.CashFlowDate;
+                return View(entry);
             }
 
-            entry.Category = model.Category;
-            entry.Amount = model.Amount;
-            entry.EstablishmentId = model.EstablishmentId;
-            entry.Notes = string.IsNullOrWhiteSpace(model.Notes) ? null : model.Notes.Trim();
+            dbEntry.Category = entry.Category;
+            dbEntry.Amount = entry.Amount;
+            dbEntry.EstablishmentId = entry.EstablishmentId;
+            dbEntry.Notes = string.IsNullOrWhiteSpace(entry.Notes) ? null : entry.Notes.Trim();
 
-            entry.TreasuryCashFlow.RecomputeTotals();
+            dbEntry.TreasuryCashFlow.RecomputeTotals();
             await _context.SaveChangesAsync();
 
             TempData["Message"] = "Treasury entry updated.";
-            return RedirectToAction(nameof(Index), new { date = entry.TreasuryCashFlow.CashFlowDate });
+            return RedirectToAction(nameof(Index), new { date = dbEntry.TreasuryCashFlow.CashFlowDate });
         }
 
         [HttpPost]
