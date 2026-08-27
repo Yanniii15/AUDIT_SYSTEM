@@ -9,7 +9,7 @@ using AuditCkDayo.ViewModels;
 
 namespace AuditCkDayo.Controllers;
 
-[Authorize(Roles = "Owner,Manager")]
+[Authorize(Roles = "Owner,Manager,Auditor")]
 public class ReportsController : Controller
 {
     private readonly AuditDbContext _context;
