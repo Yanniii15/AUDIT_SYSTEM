@@ -9,7 +9,8 @@ namespace AuditCkDayo.Models
         Admin,
         Manager,
         Buyer,
-        BranchStaff
+        BranchStaff,
+        Auditor
     }
 
     public class User

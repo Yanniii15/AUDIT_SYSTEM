@@ -36,14 +36,14 @@ namespace AuditCkDayo.Controllers
         }
 
         [HttpGet]
-        [Authorize(Roles = "Buyer,Owner,Manager,BranchStaff,Admin")]
+        [Authorize(Roles = "Buyer,Owner,Manager,BranchStaff,Admin,Auditor")]
         public IActionResult Upload()
         {
             return View(GetPendingAuditDrafts());
         }
 
         [HttpPost]
-        [Authorize(Roles = "Buyer,Owner,Manager,BranchStaff,Admin")]
+        [Authorize(Roles = "Buyer,Owner,Manager,BranchStaff,Admin,Auditor")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ProcessUpload(List<IFormFile> receipts)
         {
@@ -140,7 +140,7 @@ namespace AuditCkDayo.Controllers
         }
 
         [HttpGet]
-        [Authorize(Roles = "Buyer,Owner,Manager,BranchStaff,Admin")]
+        [Authorize(Roles = "Buyer,Owner,Manager,BranchStaff,Admin,Auditor")]
         public async Task<IActionResult> Review()
         {
             var imageUrlsJson = HttpContext.Session.GetString("ReceiptImageUrls");
@@ -169,20 +169,41 @@ namespace AuditCkDayo.Controllers
         }
 
         [HttpPost]
-        [Authorize(Roles = "Buyer,Owner,Manager,BranchStaff,Admin")]
+        [Authorize(Roles = "Buyer,Owner,Manager,BranchStaff,Admin,Auditor")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> SubmitAudit(AuditSubmissionViewModel model)
         {
-            var buyerIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (string.IsNullOrEmpty(buyerIdString) || !int.TryParse(buyerIdString, out var buyerId))
+            var currentUserIdString = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(currentUserIdString) || !int.TryParse(currentUserIdString, out var currentUserId))
             {
                 return Challenge();
             }
 
-            var buyer = await _context.Users.FirstOrDefaultAsync(u => u.Id == buyerId && !u.IsDeleted);
-            if (buyer == null)
+            var currentUser = await _context.Users.FirstOrDefaultAsync(u => u.Id == currentUserId && !u.IsDeleted);
+            if (currentUser == null)
             {
                 return Challenge();
+            }
+
+            int targetBuyerId = currentUserId;
+            if (currentUser.Role == UserRole.Auditor)
+            {
+                if (!model.SelectedBuyerId.HasValue)
+                {
+                    ModelState.AddModelError("SelectedBuyerId", "Please select whose buyer this receipt is from.");
+                }
+                else
+                {
+                    targetBuyerId = model.SelectedBuyerId.Value;
+                }
+            }
+
+            var buyer = await _context.Users.FirstOrDefaultAsync(u => u.Id == targetBuyerId && !u.IsDeleted);
+            if (buyer == null)
+            {
+                ModelState.AddModelError("SelectedBuyerId", "The selected buyer does not exist.");
+                await PopulateReviewLookupsAsync();
+                return View("Review", model);
             }
 
             var selectedReviewerId = await ResolvePrivilegedReviewerIdAsync(model.SelectedReviewerId, buyer.Role, "SelectedReviewerId");
@@ -233,7 +254,9 @@ namespace AuditCkDayo.Controllers
                 }
             }
 
-            if (await _pcfFund.GetAvailableBalanceAsync(buyer) < model.Amount)
+            bool isAuditor = currentUser.Role == UserRole.Auditor;
+
+            if (!isAuditor && await _pcfFund.GetAvailableBalanceAsync(buyer) < model.Amount)
             {
                 ModelState.AddModelError("", $"Insufficient Petty Cash Fund balance. Required: ₱{model.Amount:N2}, Available: ₱{await _pcfFund.GetAvailableBalanceAsync(buyer):N2}");
                 await PopulateReviewLookupsAsync();
@@ -243,12 +266,15 @@ namespace AuditCkDayo.Controllers
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
-                // Deduct from the (shared) fund immediately
-                await _pcfFund.DebitAsync(buyer, model.Amount);
+                if (!isAuditor)
+                {
+                    // Deduct from the (shared) fund immediately
+                    await _pcfFund.DebitAsync(buyer, model.Amount);
+                }
 
                 var auditItem = new AuditItem
                 {
-                    BuyerId = buyerId,
+                    BuyerId = targetBuyerId,
                     EstablishmentId = model.EstablishmentId.Value,
                     Amount = model.Amount,
                     Description = model.Description,
@@ -316,7 +342,7 @@ namespace AuditCkDayo.Controllers
 
                 var ledger = new PettyCashLedger
                 {
-                    UserId = buyerId,
+                    UserId = targetBuyerId,
                     TransactionType = LedgerTransactionType.ExpenseDeduction,
                     Amount = -model.Amount,
                     ResultingBalance = await _pcfFund.GetAvailableBalanceAsync(buyer),
@@ -1957,6 +1983,14 @@ namespace AuditCkDayo.Controllers
                 .ToListAsync();
 
             ViewBag.ReviewerUsers = new SelectList(reviewers, "Id", "Name");
+
+            var buyers = await _context.Users
+                .AsNoTracking()
+                .Where(u => !u.IsDeleted && u.Role == UserRole.Buyer)
+                .OrderBy(u => u.Name)
+                .ToListAsync();
+
+            ViewBag.BuyerUsers = new SelectList(buyers, "Id", "Name");
         }
     }
 }

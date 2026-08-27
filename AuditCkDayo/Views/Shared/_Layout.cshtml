@@ -199,11 +199,14 @@
                     <span class="font-label-caps uppercase">New Audit</span>
                 </a>
 
-                <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary"
-                   asp-controller="Audits" asp-action="Surrender">
-                    <span class="material-symbols-outlined mr-space-3">payments</span>
-                    <span class="font-label-caps uppercase">Cash Surrender</span>
-                </a>
+                @if (!User.IsInRole("Auditor"))
+                {
+                    <a class="flex items-center px-space-4 py-space-3 rounded-xl transition-all group hover:bg-on-primary/5 text-primary-fixed-dim/70 hover:text-on-primary"
+                       asp-controller="Audits" asp-action="Surrender">
+                        <span class="material-symbols-outlined mr-space-3">payments</span>
+                        <span class="font-label-caps uppercase">Cash Surrender</span>
+                    </a>
+                }
 
 
                 @if (User.IsInRole("Manager"))

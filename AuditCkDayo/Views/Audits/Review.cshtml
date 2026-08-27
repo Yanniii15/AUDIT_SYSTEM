@@ -102,6 +102,17 @@
                     </div>
                 }
 
+                @if (User.IsInRole("Auditor"))
+                {
+                    <div class="flex flex-col gap-space-2">
+                        <label asp-for="SelectedBuyerId" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Associate Buyer / Submitter</label>
+                        <select asp-for="SelectedBuyerId" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface appearance-none cursor-pointer" asp-items="ViewBag.BuyerUsers" required>
+                            <option value="">-- Select Buyer --</option>
+                        </select>
+                        <span asp-validation-for="SelectedBuyerId" class="text-audit-error text-[11px]"></span>
+                    </div>
+                }
+
                 <!-- Establishment and Total Amount -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-space-6">
                     <div class="flex flex-col gap-space-2">
