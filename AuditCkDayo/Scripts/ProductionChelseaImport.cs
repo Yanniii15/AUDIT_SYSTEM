@@ -322,4 +322,20 @@ namespace AuditCkDayo.Scripts
             }
         }
     }
+
+    public class DailySheet
+    {
+        public DateTime Date { get; set; }
+        public decimal StartingBalance { get; set; }
+        public List<Entry> CashIn { get; set; } = new();
+        public List<Entry> CashOut { get; set; } = new();
+    }
+
+    public class Entry
+    {
+        public decimal Amount { get; set; }
+        public CashFlowCategory Category { get; set; }
+        public int? EstablishmentId { get; set; }
+        public string? Notes { get; set; }
+    }
 }
