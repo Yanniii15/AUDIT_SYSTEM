@@ -282,7 +282,7 @@ namespace AuditCkDayo.Controllers
                     SubmittedAt = DateTime.Now,
                     Notes = model.Notes,
                     ReceiptImageUrl = model.ReceiptImageUrls != null && model.ReceiptImageUrls.Count > 0 ? model.ReceiptImageUrls[0] : model.ReceiptImageUrl,
-                    Status = routesDirectlyToManager ? AuditStatus.AwaitingManagerApproval : AuditStatus.AwaitingBranchVerification,
+                    Status = isAuditor ? AuditStatus.Approved : (routesDirectlyToManager ? AuditStatus.AwaitingManagerApproval : AuditStatus.AwaitingBranchVerification),
                     AssignedReviewerId = selectedReviewerId
                 };
 
@@ -328,7 +328,7 @@ namespace AuditCkDayo.Controllers
                             Total = item.Total,
                             AssignedEstablishmentId = assignedBranchId,
                             CostCenterId = costCenterId,
-                            BranchVerificationStatus = routesDirectlyToManager ? BranchVerificationStatus.Verified : BranchVerificationStatus.Pending,
+                            BranchVerificationStatus = (isAuditor || routesDirectlyToManager) ? BranchVerificationStatus.Verified : BranchVerificationStatus.Pending,
                             AllocationNotes = item.AllocationNotes,
                             PnlCategoryId = pnlCategory?.Id,
                             PnlSection = pnlCategory?.Section ?? ResolveFallbackPnlSection(item),
@@ -353,63 +353,66 @@ namespace AuditCkDayo.Controllers
                 _context.PettyCashLedgers.Add(ledger);
                 await _context.SaveChangesAsync();
 
-                if (routesDirectlyToManager)
+                if (!isAuditor)
                 {
-                    var reviewerIds = selectedReviewerId.HasValue
-                        ? new List<int> { selectedReviewerId.Value }
-                        : await _context.Users
+                    if (routesDirectlyToManager)
+                    {
+                        var reviewerIds = selectedReviewerId.HasValue
+                            ? new List<int> { selectedReviewerId.Value }
+                            : await _context.Users
+                                .AsNoTracking()
+                                .Where(u => !u.IsDeleted
+                                    && (u.Role == UserRole.Owner || (buyer.ManagerId.HasValue && u.Id == buyer.ManagerId.Value)))
+                                .Select(u => u.Id)
+                                .ToListAsync();
+
+                        foreach (var reviewerId in reviewerIds)
+                        {
+                            _context.Notifications.Add(new Notification
+                            {
+                                UserId = reviewerId,
+                                Title = "Audit Awaiting Manager Approval",
+                                Message = $"A new other-destination audit of ₱{model.Amount:N2} from {buyer.Email} is awaiting manager approval.",
+                                Category = "AuditVerify",
+                                LinkUrl = Url.Action("VerifyList", "Audits") ?? "/Audits/VerifyList",
+                                CreatedAt = DateTime.UtcNow
+                            });
+                        }
+                    }
+                    else
+                    {
+                        var assignedBranchIds = auditItem.Details
+                            .Where(d => d.AssignedEstablishmentId.HasValue)
+                            .Select(d => d.AssignedEstablishmentId!.Value)
+                            .Distinct()
+                            .ToList();
+
+                        if (assignedBranchIds.Count == 0)
+                        {
+                            assignedBranchIds.Add(model.EstablishmentId.Value);
+                        }
+
+                        var branchStaffIds = await _context.Users
                             .AsNoTracking()
-                            .Where(u => !u.IsDeleted
-                                && (u.Role == UserRole.Owner || (buyer.ManagerId.HasValue && u.Id == buyer.ManagerId.Value)))
+                            .Where(u => u.Role == UserRole.BranchStaff
+                                && u.EstablishmentId.HasValue
+                                && assignedBranchIds.Contains(u.EstablishmentId.Value)
+                                && !u.IsDeleted)
                             .Select(u => u.Id)
                             .ToListAsync();
 
-                    foreach (var reviewerId in reviewerIds)
-                    {
-                        _context.Notifications.Add(new Notification
+                        foreach (var branchStaffId in branchStaffIds)
                         {
-                            UserId = reviewerId,
-                            Title = "Audit Awaiting Manager Approval",
-                            Message = $"A new other-destination audit of ₱{model.Amount:N2} from {buyer.Email} is awaiting manager approval.",
-                            Category = "AuditVerify",
-                            LinkUrl = Url.Action("VerifyList", "Audits") ?? "/Audits/VerifyList",
-                            CreatedAt = DateTime.UtcNow
-                        });
-                    }
-                }
-                else
-                {
-                    var assignedBranchIds = auditItem.Details
-                        .Where(d => d.AssignedEstablishmentId.HasValue)
-                        .Select(d => d.AssignedEstablishmentId!.Value)
-                        .Distinct()
-                        .ToList();
-
-                    if (assignedBranchIds.Count == 0)
-                    {
-                        assignedBranchIds.Add(model.EstablishmentId.Value);
-                    }
-
-                    var branchStaffIds = await _context.Users
-                        .AsNoTracking()
-                        .Where(u => u.Role == UserRole.BranchStaff
-                            && u.EstablishmentId.HasValue
-                            && assignedBranchIds.Contains(u.EstablishmentId.Value)
-                            && !u.IsDeleted)
-                        .Select(u => u.Id)
-                        .ToListAsync();
-
-                    foreach (var branchStaffId in branchStaffIds)
-                    {
-                        _context.Notifications.Add(new Notification
-                        {
-                            UserId = branchStaffId,
-                            Title = "Audit Awaiting Branch Verification",
-                            Message = $"A new audit of ₱{model.Amount:N2} from {buyer.Email} is awaiting branch verification.",
-                            Category = "BranchVerify",
-                            LinkUrl = Url.Action("BranchVerifyList", "Audits") ?? "/Audits/BranchVerifyList",
-                            CreatedAt = DateTime.UtcNow
-                        });
+                            _context.Notifications.Add(new Notification
+                            {
+                                UserId = branchStaffId,
+                                Title = "Audit Awaiting Branch Verification",
+                                Message = $"A new audit of ₱{model.Amount:N2} from {buyer.Email} is awaiting branch verification.",
+                                Category = "BranchVerify",
+                                LinkUrl = Url.Action("BranchVerifyList", "Audits") ?? "/Audits/BranchVerifyList",
+                                CreatedAt = DateTime.UtcNow
+                            });
+                        }
                     }
                 }
 
