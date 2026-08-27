@@ -1008,7 +1008,7 @@ namespace AuditCkDayo.Controllers
         }
 
         [HttpGet]
-        [Authorize(Roles = "Buyer,Owner,Manager,BranchStaff,Admin")]
+        [Authorize(Roles = "Buyer,Owner,Manager,BranchStaff,Admin,Auditor")]
         public async Task<IActionResult> Edit(int id)
         {
             var audit = await _context.AuditItems
@@ -1031,7 +1031,7 @@ namespace AuditCkDayo.Controllers
             }
             var role = User.FindFirst(ClaimTypes.Role)?.Value;
 
-            if (!IsPendingAuditStatus(audit.Status))
+            if (role != "Auditor" && !IsPendingAuditStatus(audit.Status))
             {
                 return BadRequest("Only pending audits can be edited.");
             }
@@ -1063,6 +1063,7 @@ namespace AuditCkDayo.Controllers
                 Notes = audit.Notes,
                 ReceiptImageUrl = audit.ReceiptImageUrl,
                 ReceiptImageUrls = imageUrls,
+                SelectedBuyerId = audit.BuyerId,
                 Items = audit.Details.Select(d => new OcrItemResult
                 {
                     Name = d.ItemName,
@@ -1084,7 +1085,7 @@ namespace AuditCkDayo.Controllers
         }
 
         [HttpPost]
-        [Authorize(Roles = "Buyer,Owner,Manager,BranchStaff,Admin")]
+        [Authorize(Roles = "Buyer,Owner,Manager,BranchStaff,Admin,Auditor")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(int id, AuditSubmissionViewModel model)
         {
@@ -1106,7 +1107,7 @@ namespace AuditCkDayo.Controllers
             }
             var role = User.FindFirst(ClaimTypes.Role)?.Value;
 
-            if (!IsPendingAuditStatus(audit.Status))
+            if (role != "Auditor" && !IsPendingAuditStatus(audit.Status))
             {
                 return BadRequest("Only pending audits can be edited.");
             }
@@ -1221,7 +1222,7 @@ namespace AuditCkDayo.Controllers
         }
 
         [HttpPost]
-        [Authorize(Roles = "Buyer,Owner,Manager,BranchStaff,Admin")]
+        [Authorize(Roles = "Buyer,Owner,Manager,BranchStaff,Admin,Auditor")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Void(int id)
         {
@@ -1241,7 +1242,7 @@ namespace AuditCkDayo.Controllers
             }
             var role = User.FindFirst(ClaimTypes.Role)?.Value;
 
-            if (!IsPendingAuditStatus(audit.Status))
+            if (role != "Auditor" && !IsPendingAuditStatus(audit.Status))
             {
                 return BadRequest("Only pending audits can be voided.");
             }
@@ -1786,6 +1787,11 @@ namespace AuditCkDayo.Controllers
 
         private static bool CanCorrectPendingAudit(AuditItem audit, int userId, string? role)
         {
+            if (role == "Auditor")
+            {
+                return true;
+            }
+
             if (!IsPendingAuditStatus(audit.Status))
             {
                 return false;

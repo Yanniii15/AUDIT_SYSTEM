@@ -242,6 +242,7 @@
                             {
                                 <tr class="hover:bg-surface-container-low/50 transition-colors cursor-pointer"
                                     onclick="openReportsViewer(this)"
+                                    data-id="@audit.Id"
                                     data-buyer="@audit.Buyer.Name"
                                     data-establishment="@audit.Establishment.Name"
                                     data-date="@audit.EntryDate.ToString("MMM dd, yyyy")"
@@ -287,6 +288,7 @@
 
                         <article class="bg-surface-container-lowest border border-surface-border rounded-xl p-space-4 flex flex-col gap-space-4 shadow-sm cursor-pointer hover:bg-surface-container-low/30 transition-colors"
                                  onclick="openReportsViewer(this)"
+                                 data-id="@audit.Id"
                                  data-buyer="@audit.Buyer.Name"
                                  data-establishment="@audit.Establishment.Name"
                                  data-date="@audit.EntryDate.ToString("MMM dd, yyyy")"
@@ -727,6 +729,22 @@
                         </table>
                     </div>
                 </div>
+                
+                @if (User.IsInRole("Auditor") || User.IsInRole("Owner") || User.IsInRole("Manager"))
+                {
+                    <div class="border-t border-surface-border pt-space-4 flex gap-space-3 justify-end">
+                        <a id="viewer-edit-btn" href="#" class="px-space-4 py-2 rounded-lg border border-primary/20 text-primary font-label-caps text-[11px] uppercase hover:bg-primary hover:text-on-primary transition-colors text-center flex-1">
+                            Edit Audit
+                        </a>
+                        <form id="viewer-delete-form" action="" method="post" onsubmit="return confirm('Are you sure you want to void this audit item?');" class="flex-1">
+                            @Html.AntiForgeryToken()
+                            <input type="hidden" name="id" id="viewer-delete-id" value="" />
+                            <button type="submit" class="w-full px-space-4 py-2 rounded-lg border border-error/20 text-error font-label-caps text-[11px] uppercase hover:bg-error hover:text-on-primary transition-colors text-center">
+                                Void / Delete
+                            </button>
+                        </form>
+                    </div>
+                }
             </aside>
         </section>
     </div>
@@ -779,6 +797,21 @@
         document.getElementById('viewer-notes').innerText = row.dataset.notes || "None";
         
         renderLineItems(document.getElementById('viewer-items-body'), details);
+
+        // Bind dynamic buttons targets
+        const auditId = row.dataset.id;
+        const editBtn = document.getElementById('viewer-edit-btn');
+        if (editBtn) {
+            editBtn.href = `/Audits/Edit/${auditId}`;
+        }
+        const deleteForm = document.getElementById('viewer-delete-form');
+        if (deleteForm) {
+            deleteForm.action = `/Audits/Void/${auditId}`;
+        }
+        const deleteIdInput = document.getElementById('viewer-delete-id');
+        if (deleteIdInput) {
+            deleteIdInput.value = auditId;
+        }
 
         document.getElementById('reportsViewerModal').classList.remove('hidden');
         document.body.classList.add('overflow-hidden');
