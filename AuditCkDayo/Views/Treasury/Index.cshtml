@@ -202,10 +202,17 @@
                                     {
                                         <div class="flex justify-between items-center px-space-4 py-space-3 text-sm group hover:bg-surface-container-high/40">
                                             <span class="text-on-surface font-medium">
-                                                @(entry.Establishment?.Name ?? "General")
-                                                @if (!string.IsNullOrEmpty(entry.Notes))
+                                                @if (entry.Establishment != null)
                                                 {
-                                                    <span class="text-xs text-on-surface-variant block mt-0.5">@entry.Notes</span>
+                                                    <span>@entry.Establishment.Name</span>
+                                                    @if (!string.IsNullOrEmpty(entry.Notes))
+                                                    {
+                                                        <span class="text-xs text-on-surface-variant block mt-0.5">@entry.Notes</span>
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    <span>@(entry.Notes ?? "General")</span>
                                                 }
                                             </span>
                                             <div class="flex items-center gap-2">
@@ -244,10 +251,17 @@
                                     {
                                         <div class="flex justify-between items-center px-space-4 py-space-3 text-sm group hover:bg-surface-container-high/40">
                                             <span class="text-on-surface font-medium">
-                                                @(entry.Establishment?.Name ?? "General")
-                                                @if (!string.IsNullOrEmpty(entry.Notes))
+                                                @if (entry.Establishment != null)
                                                 {
-                                                    <span class="text-xs text-on-surface-variant block mt-0.5">@entry.Notes</span>
+                                                    <span>@entry.Establishment.Name</span>
+                                                    @if (!string.IsNullOrEmpty(entry.Notes))
+                                                    {
+                                                        <span class="text-xs text-on-surface-variant block mt-0.5">@entry.Notes</span>
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    <span>@(entry.Notes ?? "General")</span>
                                                 }
                                             </span>
                                             <div class="flex items-center gap-2">
