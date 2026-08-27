@@ -3933,6 +3933,9 @@ namespace AuditCkDayo.Tests
         {
             using var context = new AuditDbContext(_options);
             var report = await SeedDraftSalesReportAsync(context);
+            report.OpeningGrossSales = 500m;
+            report.OpeningCashSales = 100m;
+            await context.SaveChangesAsync();
             var controller = CreateController(context, 2, "BranchStaff"); // Staff member has access to branch 1
 
             var model = BuildReviewModel(report, 4788m); // Cash Sales 4788m
@@ -4301,7 +4304,7 @@ namespace AuditCkDayo.Tests
             var result = await controller.Upload(1, new DateTime(2026, 8, 10), new DateTime(2026, 8, 11), "Cashier Main", images);
             
             var redirect = Assert.IsType<RedirectToActionResult>(result);
-            Assert.Equal(nameof(SalesReportsController.Review), redirect.ActionName);
+            Assert.Equal(nameof(SalesReportsController.OpeningReview), redirect.ActionName);
             
             // Retrieve from database to verify
             var report = await context.SalesReports.Include(r => r.DocumentRecord).OrderByDescending(r => r.Id).FirstAsync();
@@ -5371,6 +5374,109 @@ namespace AuditCkDayo.Tests
                 var savedAudit = await context.AuditItems.FindAsync(1);
                 Assert.Equal(AuditStatus.Approved, savedAudit.Status);
             }
+        }
+    }
+
+    public class SalesReportsControllerTests : IDisposable
+    {
+        private readonly SqliteConnection _connection;
+        private readonly DbContextOptions<AuditDbContext> _options;
+
+        public SalesReportsControllerTests()
+        {
+            _connection = new SqliteConnection("Filename=:memory:");
+            _connection.Open();
+
+            _options = new DbContextOptionsBuilder<AuditDbContext>()
+                .UseSqlite(_connection)
+                .Options;
+
+            using (var context = new AuditDbContext(_options))
+            {
+                context.Database.EnsureCreated();
+            }
+        }
+
+        public void Dispose()
+        {
+            _connection.Dispose();
+        }
+
+        private async Task SeedDataAsync(AuditDbContext context)
+        {
+            var establishment = new Establishment { Id = 1, Name = "Test Branch 1", IsOperatingBranch = true, IsActive = true };
+            context.Establishments.Add(establishment);
+
+            var owner = new User { Id = 1, Name = "Owner", Email = "owner@test.com", PasswordHash = "hash", Role = UserRole.Owner };
+            context.Users.Add(owner);
+
+            var document = new DocumentRecord
+            {
+                DocumentType = DocumentType.DailySalesReport,
+                UploadedByUserId = 1,
+                ImageUrl = "/sales/main.jpg",
+                OcrStatus = OcrStatus.NotStarted,
+                ReviewStatus = DocumentReviewStatus.Draft
+            };
+            context.DocumentRecords.Add(document);
+            await context.SaveChangesAsync();
+
+            var report = new SalesReport
+            {
+                Id = 1,
+                EstablishmentId = 1,
+                DocumentRecordId = document.Id,
+                BusinessDate = new DateTime(2026, 8, 13),
+                HandoverDate = new DateTime(2026, 8, 13),
+                Status = SalesReportStatus.Draft
+            };
+            context.SalesReports.Add(report);
+            await context.SaveChangesAsync();
+        }
+
+        private SalesReportsController CreateSalesReportsController(AuditDbContext context, int currentUserId, string currentUserRole)
+        {
+            var claims = new List<Claim>
+            {
+                new Claim(ClaimTypes.NameIdentifier, currentUserId.ToString()),
+                new Claim(ClaimTypes.Role, currentUserRole)
+            };
+            var identity = new ClaimsIdentity(claims, "TestAuth");
+            var principal = new ClaimsPrincipal(identity);
+
+            var httpContext = new DefaultHttpContext { User = principal };
+            var tempDataProvider = new FakeTempDataProvider();
+            var tempData = new TempDataDictionary(httpContext, tempDataProvider);
+
+            return new SalesReportsController(context, new UsersControllerTests.FakeOcrService())
+            {
+                ControllerContext = new ControllerContext
+                {
+                    HttpContext = httpContext
+                },
+                TempData = tempData
+            };
+        }
+
+        [Fact]
+        public async Task OpeningReview_ReturnsOpeningModel()
+        {
+            using (var context = new AuditDbContext(_options))
+            {
+                await SeedDataAsync(context);
+                var controller = CreateSalesReportsController(context, 1, "Owner");
+                var result = await controller.OpeningReview(1);
+                var view = Assert.IsType<ViewResult>(result);
+                var model = Assert.IsType<SalesReportReviewViewModel>(view.Model);
+                Assert.Equal(SalesReportSection.Opening, model.ReportSection);
+            }
+        }
+
+        [Fact]
+        public void CombinedCashSales_IsSumOfOpeningAndClosing()
+        {
+            var model = new SalesReportReviewViewModel { OpeningCashSales = 300m, CashSales = 500m };
+            Assert.Equal(800m, model.OpeningCashSales + model.CashSales);
         }
     }
 }

@@ -8,11 +8,91 @@
     @if (Model.Any())
     {
         var first = Model.First();
-        <text>First report: Branch @first.Establishment.Name, Business Date @first.BusinessDate.ToString("MMM d, yyyy"), Cash to handover ₱@first.ConfirmedCashToHandover.ToString("N2").</text>
+        <text>First report: Branch @first.Establishment.Name, Business Date @first.BusinessDate.ToString("MMM d, yyyy"), Cash to handover ₱@first.TotalConfirmedCashToHandover.ToString("N2").</text>
     }
 </div>
 
-<div class="space-y-6">
+@if (ViewBag.IsBranchStaff == true)
+{
+    <div class="space-y-6">
+        <div class="flex flex-col gap-space-2 max-w-3xl">
+            <div class="flex items-center gap-space-2 text-primary">
+                <span class="material-symbols-outlined text-[20px]">receipt_long</span>
+                <span class="font-label-caps uppercase tracking-widest text-on-surface-variant">Daily Sales</span>
+            </div>
+            <h1 class="font-headline-lg text-headline-lg text-on-surface">Daily Sales</h1>
+            <p class="font-body-md text-on-surface-variant leading-relaxed">
+                Add your establishment's opening and closing daily sales.
+            </p>
+        </div>
+
+        <div class="bg-surface-container-lowest rounded-xl shadow-sm border border-surface-border overflow-hidden">
+            <div class="bg-primary px-space-6 py-space-4 flex flex-wrap gap-space-4 justify-between items-center">
+                <div class="flex items-center gap-space-4">
+                    <span class="text-on-primary font-label-caps uppercase tracking-tighter text-[11px]">Daily Sales Records</span>
+                    <span class="text-on-primary/70 text-[10px] font-label-caps uppercase tracking-wider hidden sm:inline">Last 30 days</span>
+                </div>
+                <a asp-action="Upload" class="inline-flex items-center justify-center gap-space-2 rounded-lg bg-on-primary/10 text-on-primary border border-on-primary/20 px-space-4 py-2 font-label-caps uppercase tracking-wider text-[11px] hover:bg-on-primary/20 transition-all">
+                    <span class="material-symbols-outlined text-[18px]">upload_file</span>
+                    Upload Daily Sales Report
+                </a>
+            </div>
+            <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse" style="min-width: 760px;">
+                <thead class="hidden lg:table-header-group">
+                    <tr class="bg-surface-container-low border-b border-surface-border">
+                        <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px]">Business Date</th>
+                        <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px]">Opening</th>
+                        <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px]">Closing</th>
+                        <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] text-right">Combined Cash Sales</th>
+                        <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-surface-border">
+                    @foreach (var report in Model)
+                    {
+                        <tr class="hover:bg-surface-container-low/30 transition-colors">
+                            <td class="px-space-4 py-space-3 font-data-mono text-on-surface">@report.BusinessDate.ToString("MMM d, yyyy")</td>
+                            <td class="px-space-4 py-space-3">
+                                @if (report.OpeningCashSales > 0m)
+                                {
+                                    <span class="text-audit-success font-body-md text-[12px]">Saved</span>
+                                }
+                                else
+                                {
+                                    <span class="text-on-surface-variant font-body-md text-[12px]">Not set</span>
+                                }
+                            </td>
+                            <td class="px-space-4 py-space-3">
+                                @if (report.CashSales > 0m || report.Status == SalesReportStatus.PendingManagerVerification || report.Status == SalesReportStatus.Confirmed)
+                                {
+                                    <span class="text-audit-success font-body-md text-[12px]">Saved</span>
+                                }
+                                else
+                                {
+                                    <span class="text-on-surface-variant font-body-md text-[12px]">Not set</span>
+                                }
+                            </td>
+                            <td class="px-space-4 py-space-3 text-right font-data-mono text-primary font-bold">₱@report.TotalConfirmedCashToHandover.ToString("N2")</td>
+                            <td class="px-space-4 py-space-3 text-right">
+                                <a asp-controller="SalesReports" asp-action="OpeningReview" asp-route-id="@report.Id" class="px-3 py-1.5 rounded-lg border border-primary/20 text-primary font-label-caps text-[10px] uppercase hover:bg-primary hover:text-on-primary transition-colors">Add Opening</a>
+                                <a asp-controller="SalesReports" asp-action="Review" asp-route-id="@report.Id" class="px-3 py-1.5 rounded-lg border border-primary/20 text-primary font-label-caps text-[10px] uppercase hover:bg-primary hover:text-on-primary transition-colors">Add Closing Daily Sales</a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            </div>
+            @if (!Model.Any())
+            {
+                <div class="p-space-8 text-center text-on-surface-variant font-body-md">No daily sales records yet.</div>
+            }
+        </div>
+    </div>
+}
+else
+{
+    <div class="space-y-6">
     <div class="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-space-4">
         <div class="flex flex-col gap-space-2 max-w-3xl">
             <div class="flex items-center gap-space-2 text-primary">
@@ -91,7 +171,7 @@
                                     </div>
                                 </td>
                                 <td class="px-space-5 py-space-4 text-right font-data-mono text-primary font-bold text-[14px]">
-                                    ₱@report.ConfirmedCashToHandover.ToString("N2")
+                                    ₱@report.TotalConfirmedCashToHandover.ToString("N2")
                                 </td>
                                 <td class="px-space-5 py-space-4">
                                     <span class="inline-flex items-center gap-1.5 rounded-full border border-audit-pending/35 bg-audit-pending/8 px-3 py-1 text-[10px] font-label-caps uppercase tracking-wider text-audit-pending font-semibold shadow-sm">
@@ -113,3 +193,4 @@
         }
     </section>
 </div>
+}

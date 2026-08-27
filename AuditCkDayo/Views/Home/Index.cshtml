@@ -304,8 +304,8 @@
                                     <td class="px-space-6 py-space-4"><span class="font-body-md text-on-surface">@report.BusinessDate.ToString("MMM dd, yyyy")</span></td>
                                     <td class="px-space-6 py-space-4"><span class="font-body-md font-semibold text-on-surface">@report.Establishment.Name</span></td>
                                     <td class="px-space-6 py-space-4"><span class="font-body-md text-on-surface-variant">@(string.IsNullOrWhiteSpace(report.CashierName) ? "—" : report.CashierName)</span></td>
-                                    <td class="px-space-6 py-space-4 text-right"><span class="font-data-mono text-primary font-bold">₱@report.GrossSales.ToString("N2")</span></td>
-                                    <td class="px-space-6 py-space-4 text-right"><span class="font-data-mono text-on-surface">₱@report.ConfirmedCashToHandover.ToString("N2")</span></td>
+                                    <td class="px-space-6 py-space-4 text-right"><span class="font-data-mono text-primary font-bold">₱@report.TotalGrossSales.ToString("N2")</span></td>
+                                    <td class="px-space-6 py-space-4 text-right"><span class="font-data-mono text-on-surface">₱@report.TotalConfirmedCashToHandover.ToString("N2")</span></td>
                                     <td class="px-space-6 py-space-4 text-center">
                                         <span class="px-space-3 py-1 bg-audit-pending/10 text-audit-pending border-audit-pending/20 rounded-full text-[10px] font-label-caps uppercase border">Pending Manager Verification</span>
                                     </td>
@@ -343,11 +343,11 @@
                             <div class="grid grid-cols-2 gap-space-3">
                                 <div class="bg-surface-container-low rounded-lg p-space-3 border border-surface-border">
                                     <div class="text-[9px] uppercase font-bold text-on-surface-variant tracking-wider mb-1">Gross Sales</div>
-                                    <div class="font-data-mono text-primary font-bold">₱@report.GrossSales.ToString("N2")</div>
+                                    <div class="font-data-mono text-primary font-bold">₱@report.TotalGrossSales.ToString("N2")</div>
                                 </div>
                                 <div class="bg-surface-container-low rounded-lg p-space-3 border border-surface-border">
                                     <div class="text-[9px] uppercase font-bold text-on-surface-variant tracking-wider mb-1">Cash Handover</div>
-                                    <div class="font-data-mono text-on-surface">₱@report.ConfirmedCashToHandover.ToString("N2")</div>
+                                    <div class="font-data-mono text-on-surface">₱@report.TotalConfirmedCashToHandover.ToString("N2")</div>
                                 </div>
                             </div>
                             <div class="flex justify-between items-center pt-space-3 border-t border-surface-border border-dashed">
@@ -562,7 +562,7 @@
                                         <span class="font-body-md text-on-surface">@report.BusinessDate.ToString("MMM dd, yyyy")</span>
                                     </td>
                                     <td class="px-space-6 py-space-4 text-right">
-                                        <span class="font-data-mono text-primary font-bold">₱@report.GrossSales.ToString("N2")</span>
+                                        <span class="font-data-mono text-primary font-bold">₱@report.TotalGrossSales.ToString("N2")</span>
                                     </td>
                                     <td class="px-space-6 py-space-4 text-center">
                                         <span class="px-space-3 py-1 @salesStatusBg rounded-full text-[10px] font-label-caps uppercase border">@report.Status</span>
@@ -701,7 +701,7 @@
                             <div class="flex justify-between items-end pt-space-3 border-t border-surface-border border-dashed">
                                 <div>
                                     <div class="text-[10px] text-on-surface-variant uppercase mb-1">Gross Sales</div>
-                                    <div class="font-data-mono text-primary font-bold text-[16px]">₱@report.GrossSales.ToString("N2")</div>
+                                    <div class="font-data-mono text-primary font-bold text-[16px]">₱@report.TotalGrossSales.ToString("N2")</div>
                                 </div>
                                 <div class="flex flex-col items-end gap-space-2">
                                     <span class="font-data-mono text-on-surface-variant text-[12px]">#DSR-@report.Id</span>
@@ -738,7 +738,7 @@
                                 <p class="font-body-md font-semibold text-on-surface">@cashUser.Name</p>
                                 <p class="text-[11px] text-on-surface-variant">@cashUser.Role@if (cashUser.Establishment != null) { <text> • @cashUser.Establishment.Name</text> }</p>
                             </div>
-                            <span class="font-data-mono text-primary font-bold">₱@((cashUser.Role == AuditCkDayo.Models.UserRole.BranchStaff && cashUser.Establishment != null) ? cashUser.Establishment.PcfBalance : cashUser.PcfBalance).ToString("N2")</span>
+                            <span class="font-data-mono text-primary font-bold">₱@(((cashUser.Role == AuditCkDayo.Models.UserRole.BranchStaff && cashUser.Establishment != null) ? cashUser.Establishment.PcfBalance : cashUser.PcfBalance).ToString("N2"))</span>
                         </div>
                     </article>
                 }

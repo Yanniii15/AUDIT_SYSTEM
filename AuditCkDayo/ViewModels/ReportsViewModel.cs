@@ -349,7 +349,7 @@ public class PnlReportViewModel
             BranchName = establishmentId.HasValue
                 ? confirmedSales.Select(report => report.Establishment?.Name).Concat(approvedAudits.Select(audit => audit.Establishment?.Name)).FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)) ?? "Selected Branch"
                 : "All Branches",
-            TotalSales = confirmedSales.Sum(report => report.GrossSales)
+            TotalSales = confirmedSales.Sum(report => report.TotalGrossSales)
         };
 
         model.Categories = approvedDetails
@@ -389,7 +389,7 @@ public class PnlReportViewModel
                 return new PnlBranchTotalViewModel
                 {
                     BranchName = branchName,
-                    Sales = branchSales.Sum(report => report.GrossSales),
+                    Sales = branchSales.Sum(report => report.TotalGrossSales),
                     Cogs = branchDetails.Where(detail => ResolvePnlSection(detail) == PnlExpenseSection.COGS).Sum(detail => detail.Total),
                     Opex = branchDetails.Where(detail => ResolvePnlSection(detail) == PnlExpenseSection.OPEX).Sum(detail => detail.Total),
                     MonthlyFixedCost = branchDetails.Where(detail => ResolvePnlSection(detail) == PnlExpenseSection.MonthlyFixedCost).Sum(detail => detail.Total),

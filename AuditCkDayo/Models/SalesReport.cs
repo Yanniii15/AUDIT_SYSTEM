@@ -14,6 +14,12 @@ namespace AuditCkDayo.Models
         Adjusted
     }
 
+    public enum SalesReportSection
+    {
+        Closing = 0,
+        Opening = 1
+    }
+
     public class SalesReport
     {
         [Key]
@@ -171,6 +177,87 @@ namespace AuditCkDayo.Models
 
         [Column(TypeName = "decimal(12,2)")]
         public decimal ChangeAmount { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal OpeningGrossSales { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal OpeningCashSales { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal OpeningFoodSales { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal OpeningBeerSales { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal OpeningBeverageSales { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal OpeningOtherSales { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal OpeningSeniorDiscount { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal OpeningPwdDiscount { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal OpeningLoyaltyCardDiscount { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal OpeningGiftVoucherDiscount { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal OpeningEmployeeTenPercentDiscount { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal OpeningEmployeeFivePercentDiscount { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal OpeningEaglesDiscount { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal OpeningSalesShortageAmount { get; set; }
+
+        [MaxLength(255)]
+        public string? OpeningSalesShortageReason { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal OpeningSalesOverageAmount { get; set; }
+
+        [MaxLength(255)]
+        public string? OpeningSalesOverageReason { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal OpeningRestoPcf { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal OpeningPcfFromSales { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal OpeningChangeAmount { get; set; }
+
+        [MaxLength(50)]
+        public string? OpeningReceiptNumberStart { get; set; }
+
+        [MaxLength(50)]
+        public string? OpeningReceiptNumberEnd { get; set; }
+
+        [MaxLength(100)]
+        public string? OpeningWitnessName { get; set; }
+
+        [MaxLength(255)]
+        public string? OpeningNotes { get; set; }
+
+        [NotMapped]
+        public decimal TotalGrossSales => GrossSales + OpeningGrossSales;
+
+        [NotMapped]
+        public decimal TotalCashSales => CashSales + OpeningCashSales;
+
+        [NotMapped]
+        public decimal TotalConfirmedCashToHandover => ConfirmedCashToHandover + OpeningCashSales;
 
         public virtual ICollection<SalesReportLine> Lines { get; set; } = new List<SalesReportLine>();
 

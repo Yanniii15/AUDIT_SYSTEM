@@ -34,5 +34,7 @@ namespace AuditCkDayo.Models
         public string? Label { get; set; }
 
         public int SortOrder { get; set; }
+
+        public SalesReportSection Section { get; set; } = SalesReportSection.Closing;
     }
 }

@@ -31,9 +31,35 @@ namespace AuditCkDayo.Controllers
         [HttpGet]
         public async Task<IActionResult> Index()
         {
-            if (IsBranchStaff())
+            var isBranchStaff = IsBranchStaff();
+            if (isBranchStaff)
             {
-                return RedirectToAction(nameof(Upload));
+                var staffUserId = GetCurrentUserId();
+                var assignedEstablishmentId = staffUserId.HasValue
+                    ? await _context.Users
+                        .AsNoTracking()
+                        .Where(u => u.Id == staffUserId.Value && u.Role == UserRole.BranchStaff && !u.IsDeleted)
+                        .Select(u => u.EstablishmentId)
+                        .FirstOrDefaultAsync()
+                    : null;
+
+                if (!assignedEstablishmentId.HasValue)
+                {
+                    return View(new List<SalesReport>());
+                }
+
+                var staffReports = await _context.SalesReports
+                    .AsNoTracking()
+                    .Include(r => r.DocumentRecord)
+                    .Include(r => r.Establishment)
+                    .Where(r => r.EstablishmentId == assignedEstablishmentId.Value)
+                    .Where(r => r.BusinessDate >= DateTime.Today.AddDays(-30))
+                    .OrderByDescending(r => r.BusinessDate)
+                    .ThenByDescending(r => r.Id)
+                    .ToListAsync();
+
+                ViewBag.IsBranchStaff = true;
+                return View(staffReports);
             }
 
             var query = _context.SalesReports
@@ -206,8 +232,8 @@ namespace AuditCkDayo.Controllers
             _context.SalesReports.Add(report);
             await _context.SaveChangesAsync();
 
-            TempData["Message"] = "Sales report uploaded. Review the values before confirming.";
-            return RedirectToAction(nameof(Review), new { id = report.Id });
+            TempData["Message"] = "Sales report uploaded. Fill in the opening daily sales.";
+            return RedirectToAction(nameof(OpeningReview), new { id = report.Id });
         }
 
         [HttpGet]
@@ -232,6 +258,32 @@ namespace AuditCkDayo.Controllers
 
             await PopulateEstablishments(report.EstablishmentId);
             return View(BuildReviewModel(report));
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> OpeningReview(int id)
+        {
+            var report = await _context.SalesReports
+                .AsNoTracking()
+                .Include(r => r.DocumentRecord)
+                .Include(r => r.CashBreakdownLines)
+                .Include(r => r.Lines)
+                .FirstOrDefaultAsync(r => r.Id == id);
+
+            if (report == null)
+            {
+                return NotFound();
+            }
+
+            if (await CurrentUserCannotAccessAsync(report.EstablishmentId))
+            {
+                return Forbid();
+            }
+
+            await PopulateEstablishments(report.EstablishmentId);
+            var model = BuildReviewModel(report);
+            model.ReportSection = SalesReportSection.Opening;
+            return View("OpeningReview", model);
         }
 
         [HttpPost]
@@ -286,8 +338,8 @@ namespace AuditCkDayo.Controllers
 
             ApplyReviewModel(report, model);
 
-            _context.CashBreakdownLines.RemoveRange(report.CashBreakdownLines);
-            report.CashBreakdownLines.Clear();
+            _context.CashBreakdownLines.RemoveRange(report.CashBreakdownLines.Where(b => b.Section == SalesReportSection.Closing).ToList());
+            report.CashBreakdownLines.Where(b => b.Section == SalesReportSection.Closing).ToList().ForEach(b => report.CashBreakdownLines.Remove(b));
             if (model.Items != null)
             {
                 foreach (var item in model.Items)
@@ -296,6 +348,7 @@ namespace AuditCkDayo.Controllers
                     {
                         OwnerType = CashBreakdownOwnerType.SalesReport,
                         OwnerId = report.Id,
+                        Section = SalesReportSection.Closing,
                         Denomination = item.Denomination,
                         Quantity = item.Quantity,
                         Total = item.Denomination * item.Quantity
@@ -303,8 +356,8 @@ namespace AuditCkDayo.Controllers
                 }
             }
 
-            _context.SalesReportLines.RemoveRange(report.Lines);
-            report.Lines.Clear();
+            _context.SalesReportLines.RemoveRange(report.Lines.Where(l => l.Section == SalesReportSection.Closing).ToList());
+            report.Lines.Where(l => l.Section == SalesReportSection.Closing).ToList().ForEach(l => report.Lines.Remove(l));
 
             int sortOrder = 0;
             if (model.GCashLines != null)
@@ -316,6 +369,7 @@ namespace AuditCkDayo.Controllers
                         report.Lines.Add(new SalesReportLine
                         {
                             LineType = SalesReportLineType.GCash,
+                            Section = SalesReportSection.Closing,
                             Amount = line.Amount,
                             Label = line.Label,
                             SortOrder = sortOrder++
@@ -333,6 +387,7 @@ namespace AuditCkDayo.Controllers
                         report.Lines.Add(new SalesReportLine
                         {
                             LineType = SalesReportLineType.BankTransfer,
+                            Section = SalesReportSection.Closing,
                             Amount = line.Amount,
                             Label = line.Label,
                             SortOrder = sortOrder++
@@ -350,6 +405,7 @@ namespace AuditCkDayo.Controllers
                         report.Lines.Add(new SalesReportLine
                         {
                             LineType = SalesReportLineType.Card,
+                            Section = SalesReportSection.Closing,
                             Amount = line.Amount,
                             Label = line.Label,
                             SortOrder = sortOrder++
@@ -367,6 +423,7 @@ namespace AuditCkDayo.Controllers
                         report.Lines.Add(new SalesReportLine
                         {
                             LineType = SalesReportLineType.Credit,
+                            Section = SalesReportSection.Closing,
                             Amount = line.Amount,
                             Label = line.Label,
                             SortOrder = sortOrder++
@@ -384,6 +441,7 @@ namespace AuditCkDayo.Controllers
                         report.Lines.Add(new SalesReportLine
                         {
                             LineType = SalesReportLineType.RunawayCustomer,
+                            Section = SalesReportSection.Closing,
                             Amount = line.Amount,
                             Label = line.Label,
                             SortOrder = sortOrder++
@@ -401,6 +459,7 @@ namespace AuditCkDayo.Controllers
                         report.Lines.Add(new SalesReportLine
                         {
                             LineType = SalesReportLineType.ExpenseFromSales,
+                            Section = SalesReportSection.Closing,
                             Amount = line.Amount,
                             Label = line.Label,
                             SortOrder = sortOrder++
@@ -425,6 +484,11 @@ namespace AuditCkDayo.Controllers
                 report.DocumentRecord.ConfirmedByUserId = currentUserId.Value;
                 report.DocumentRecord.ConfirmedAt = DateTime.UtcNow;
 
+                if (model.ManagerCountedTotalCash > 0m)
+                {
+                    report.ConfirmedCashToHandover = model.ManagerCountedTotalCash - report.OpeningCashSales;
+                }
+
                 await PostConfirmedSalesReportToTreasuryAsync(report, currentUserId.Value);
                 await NotifyUploaderOfShortOverAsync(report);
 
@@ -432,6 +496,14 @@ namespace AuditCkDayo.Controllers
             }
             else if (isSubmitForVerificationAction)
             {
+                if (report.OpeningCashSales == 0m && report.OpeningGrossSales == 0m)
+                {
+                    ModelState.AddModelError(string.Empty, "Add the opening sales section before submitting this daily sales report.");
+                    TempData["Error"] = "Add the opening daily sales before submitting for manager verification.";
+                    await _context.SaveChangesAsync();
+                    return View(BuildReviewModel(report));
+                }
+
                 report.Status = SalesReportStatus.PendingManagerVerification;
                 report.DocumentRecord.ReviewStatus = DocumentReviewStatus.PendingManagerVerification;
                 report.ConfirmedByUserId = null;
@@ -455,6 +527,73 @@ namespace AuditCkDayo.Controllers
 
             await _context.SaveChangesAsync();
             return RedirectToAction(nameof(Review), new { id = report.Id });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> OpeningReview(SalesReportReviewViewModel model, string actionType)
+        {
+            if (!model.SalesReportId.HasValue)
+            {
+                return NotFound();
+            }
+
+            var report = await _context.SalesReports
+                .Include(r => r.DocumentRecord)
+                .Include(r => r.CashBreakdownLines)
+                .Include(r => r.Lines)
+                .FirstOrDefaultAsync(r => r.Id == model.SalesReportId.Value && r.DocumentRecordId == model.DocumentRecordId);
+
+            if (report == null)
+            {
+                return NotFound();
+            }
+
+            if (await CurrentUserCannotAccessAsync(report.EstablishmentId) || await CurrentUserCannotAccessAsync(model.EstablishmentId))
+            {
+                return Forbid();
+            }
+
+            await PopulateEstablishments(model.EstablishmentId);
+            model.ReportSection = SalesReportSection.Opening;
+            PopulateReviewUiState(model, report);
+
+            if (!await IsValidOperatingBranchAsync(model.EstablishmentId))
+            {
+                ModelState.AddModelError(nameof(model.EstablishmentId), "Select an active operating branch.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                return View("OpeningReview", model);
+            }
+
+            var requestedConfirmAction = string.Equals(actionType, "Confirm", StringComparison.OrdinalIgnoreCase);
+            var canConfirmToTreasury = CanConfirmSalesReportToTreasury();
+            var isConfirmAction = requestedConfirmAction && canConfirmToTreasury;
+            var isSubmitForVerificationAction = string.Equals(actionType, "SubmitForVerification", StringComparison.OrdinalIgnoreCase)
+                || (requestedConfirmAction && !canConfirmToTreasury);
+            if (!isConfirmAction && (report.Status == SalesReportStatus.Confirmed || report.DocumentRecord.ReviewStatus == DocumentReviewStatus.Confirmed))
+            {
+                ModelState.AddModelError(string.Empty, "Confirmed sales reports cannot be saved as drafts.");
+                TempData["Error"] = "Confirmed sales reports cannot be saved as drafts.";
+                return View("OpeningReview", BuildReviewModel(report));
+            }
+
+            ApplyOpeningModel(report, model);
+            ApplyOpeningLines(report, model);
+
+            report.Status = SalesReportStatus.Draft;
+            report.DocumentRecord.ReviewStatus = DocumentReviewStatus.Draft;
+            report.ConfirmedByUserId = null;
+            report.ConfirmedAt = null;
+            report.DocumentRecord.ConfirmedByUserId = null;
+            report.DocumentRecord.ConfirmedAt = null;
+
+            TempData["Message"] = "Opening sales draft saved.";
+
+            await _context.SaveChangesAsync();
+            return RedirectToAction(nameof(OpeningReview), new { id = report.Id });
         }
 
         [HttpGet("SalesReports/Image/{fileName}")]
@@ -553,7 +692,7 @@ namespace AuditCkDayo.Controllers
             entry.Category = CashFlowCategory.Sales;
             entry.EstablishmentId = report.EstablishmentId;
             entry.SourceDocumentId = report.DocumentRecordId;
-            entry.Amount = report.ConfirmedCashToHandover;
+            entry.Amount = report.TotalConfirmedCashToHandover;
             entry.Notes = $"Sales handover for {report.BusinessDate:yyyy-MM-dd}";
             entry.ConfirmedByUserId = currentUserId;
 
@@ -621,6 +760,7 @@ namespace AuditCkDayo.Controllers
                 GrossSales = report.GrossSales,
                 CashOut = report.CashOut,
                 ConfirmedCashToHandover = report.ConfirmedCashToHandover,
+                ManagerCountedTotalCash = report.ConfirmedCashToHandover + report.OpeningCashSales,
                 GCashAmount = report.GCashAmount,
                 CreditAmount = report.CreditAmount,
                 OtherPaymentAmount = report.OtherPaymentAmount,
@@ -645,6 +785,30 @@ namespace AuditCkDayo.Controllers
                 RestoPcf = report.RestoPcf,
                 PcfFromSales = report.PcfFromSales,
                 ChangeAmount = report.ChangeAmount,
+                OpeningGrossSales = report.OpeningGrossSales,
+                OpeningCashSales = report.OpeningCashSales,
+                OpeningFoodSales = report.OpeningFoodSales,
+                OpeningBeerSales = report.OpeningBeerSales,
+                OpeningBeverageSales = report.OpeningBeverageSales,
+                OpeningOtherSales = report.OpeningOtherSales,
+                OpeningSeniorDiscount = report.OpeningSeniorDiscount,
+                OpeningPwdDiscount = report.OpeningPwdDiscount,
+                OpeningLoyaltyCardDiscount = report.OpeningLoyaltyCardDiscount,
+                OpeningGiftVoucherDiscount = report.OpeningGiftVoucherDiscount,
+                OpeningEmployeeTenPercentDiscount = report.OpeningEmployeeTenPercentDiscount,
+                OpeningEmployeeFivePercentDiscount = report.OpeningEmployeeFivePercentDiscount,
+                OpeningEaglesDiscount = report.OpeningEaglesDiscount,
+                OpeningSalesShortageAmount = report.OpeningSalesShortageAmount,
+                OpeningSalesShortageReason = report.OpeningSalesShortageReason,
+                OpeningSalesOverageAmount = report.OpeningSalesOverageAmount,
+                OpeningSalesOverageReason = report.OpeningSalesOverageReason,
+                OpeningRestoPcf = report.OpeningRestoPcf,
+                OpeningPcfFromSales = report.OpeningPcfFromSales,
+                OpeningChangeAmount = report.OpeningChangeAmount,
+                OpeningReceiptNumberStart = report.OpeningReceiptNumberStart,
+                OpeningReceiptNumberEnd = report.OpeningReceiptNumberEnd,
+                OpeningWitnessName = report.OpeningWitnessName,
+                OpeningNotes = report.OpeningNotes,
 
                 ReceiptNumberStart = report.ReceiptNumberStart,
                 ReceiptNumberEnd = report.ReceiptNumberEnd,
@@ -669,6 +833,32 @@ namespace AuditCkDayo.Controllers
                         SortOrder = line.SortOrder
                     };
 
+                    if (line.Section == SalesReportSection.Opening)
+                    {
+                        switch (line.LineType)
+                        {
+                            case SalesReportLineType.GCash:
+                                model.OpeningGCashLines.Add(lineVm);
+                                break;
+                            case SalesReportLineType.BankTransfer:
+                                model.OpeningBankTransferLines.Add(lineVm);
+                                break;
+                            case SalesReportLineType.Card:
+                                model.OpeningCardLines.Add(lineVm);
+                                break;
+                            case SalesReportLineType.Credit:
+                                model.OpeningCreditLines.Add(lineVm);
+                                break;
+                            case SalesReportLineType.RunawayCustomer:
+                                model.OpeningRunawayCustomerLines.Add(lineVm);
+                                break;
+                            case SalesReportLineType.ExpenseFromSales:
+                                model.OpeningExpenseFromSalesLines.Add(lineVm);
+                                break;
+                        }
+                        continue;
+                    }
+
                     switch (line.LineType)
                     {
                         case SalesReportLineType.GCash:
@@ -690,6 +880,20 @@ namespace AuditCkDayo.Controllers
                             model.ExpenseFromSalesLines.Add(lineVm);
                             break;
                     }
+                }
+            }
+
+            if (report.CashBreakdownLines != null)
+            {
+                foreach (var b in report.CashBreakdownLines.Where(b => b.Section == SalesReportSection.Opening))
+                {
+                    model.OpeningItems.Add(new CashBreakdownLineViewModel
+                    {
+                        Id = b.Id,
+                        Denomination = b.Denomination,
+                        Quantity = b.Quantity,
+                        Total = b.Total
+                    });
                 }
             }
 
@@ -754,6 +958,93 @@ namespace AuditCkDayo.Controllers
             report.ReceiptNumberEnd = model.ReceiptNumberEnd;
             report.WitnessName = model.WitnessName;
             report.Notes = model.Notes;
+        }
+
+        private static void ApplyOpeningModel(SalesReport report, SalesReportReviewViewModel model)
+        {
+            report.EstablishmentId = model.EstablishmentId;
+            report.CashierName = model.CashierName;
+            report.BusinessDate = model.BusinessDate.Date;
+            report.HandoverDate = model.HandoverDate.Date;
+            report.OpeningGrossSales = model.OpeningGrossSales;
+            report.OpeningCashSales = model.OpeningCashSales;
+            report.OpeningFoodSales = model.OpeningFoodSales;
+            report.OpeningBeerSales = model.OpeningBeerSales;
+            report.OpeningBeverageSales = model.OpeningBeverageSales;
+            report.OpeningOtherSales = model.OpeningOtherSales;
+            report.OpeningSeniorDiscount = model.OpeningSeniorDiscount;
+            report.OpeningPwdDiscount = model.OpeningPwdDiscount;
+            report.OpeningLoyaltyCardDiscount = model.OpeningLoyaltyCardDiscount;
+            report.OpeningGiftVoucherDiscount = model.OpeningGiftVoucherDiscount;
+            report.OpeningEmployeeTenPercentDiscount = model.OpeningEmployeeTenPercentDiscount;
+            report.OpeningEmployeeFivePercentDiscount = model.OpeningEmployeeFivePercentDiscount;
+            report.OpeningEaglesDiscount = model.OpeningEaglesDiscount;
+            report.OpeningSalesShortageAmount = model.OpeningSalesShortageAmount;
+            report.OpeningSalesShortageReason = model.OpeningSalesShortageReason;
+            report.OpeningSalesOverageAmount = model.OpeningSalesOverageAmount;
+            report.OpeningSalesOverageReason = model.OpeningSalesOverageReason;
+            report.OpeningRestoPcf = model.OpeningRestoPcf;
+            report.OpeningPcfFromSales = model.OpeningPcfFromSales;
+            report.OpeningChangeAmount = model.OpeningChangeAmount;
+            report.OpeningReceiptNumberStart = model.OpeningReceiptNumberStart;
+            report.OpeningReceiptNumberEnd = model.OpeningReceiptNumberEnd;
+            report.OpeningWitnessName = model.OpeningWitnessName;
+            report.OpeningNotes = model.OpeningNotes;
+        }
+
+        private void ApplyOpeningLines(SalesReport report, SalesReportReviewViewModel model)
+        {
+            _context.SalesReportLines.RemoveRange(report.Lines.Where(l => l.Section == SalesReportSection.Opening).ToList());
+            report.Lines.Where(l => l.Section == SalesReportSection.Opening).ToList().ForEach(l => report.Lines.Remove(l));
+
+            _context.CashBreakdownLines.RemoveRange(report.CashBreakdownLines.Where(b => b.Section == SalesReportSection.Opening).ToList());
+            report.CashBreakdownLines.Where(b => b.Section == SalesReportSection.Opening).ToList().ForEach(b => report.CashBreakdownLines.Remove(b));
+
+            int sortOrder = 0;
+            AddOpeningLines(model.OpeningGCashLines, SalesReportLineType.GCash, report, ref sortOrder);
+            AddOpeningLines(model.OpeningBankTransferLines, SalesReportLineType.BankTransfer, report, ref sortOrder);
+            AddOpeningLines(model.OpeningCardLines, SalesReportLineType.Card, report, ref sortOrder);
+            AddOpeningLines(model.OpeningCreditLines, SalesReportLineType.Credit, report, ref sortOrder);
+            AddOpeningLines(model.OpeningRunawayCustomerLines, SalesReportLineType.RunawayCustomer, report, ref sortOrder);
+            AddOpeningLines(model.OpeningExpenseFromSalesLines, SalesReportLineType.ExpenseFromSales, report, ref sortOrder);
+
+            if (model.OpeningItems != null)
+            {
+                foreach (var item in model.OpeningItems)
+                {
+                    report.CashBreakdownLines.Add(new CashBreakdownLine
+                    {
+                        OwnerType = CashBreakdownOwnerType.SalesReport,
+                        OwnerId = report.Id,
+                        Section = SalesReportSection.Opening,
+                        Denomination = item.Denomination,
+                        Quantity = item.Quantity,
+                        Total = item.Denomination * item.Quantity
+                    });
+                }
+            }
+        }
+
+        private static void AddOpeningLines(List<SalesReportLineViewModel>? lines, SalesReportLineType lineType, SalesReport report, ref int sortOrder)
+        {
+            if (lines == null)
+            {
+                return;
+            }
+            foreach (var line in lines)
+            {
+                if (line.Amount > 0m || !string.IsNullOrWhiteSpace(line.Label))
+                {
+                    report.Lines.Add(new SalesReportLine
+                    {
+                        LineType = lineType,
+                        Section = SalesReportSection.Opening,
+                        Amount = line.Amount,
+                        Label = line.Label,
+                        SortOrder = sortOrder++
+                    });
+                }
+            }
         }
 
         private int? GetCurrentUserId()
