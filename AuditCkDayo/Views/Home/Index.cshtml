@@ -151,7 +151,7 @@
                                                (item.Status == AuditCkDayo.Models.AuditStatus.Rejected ? "bg-audit-error/10 text-audit-error border-audit-error/20" :
                                                "bg-audit-pending/10 text-audit-pending border-audit-pending/20");
                                 var isPending = item.Status == AuditCkDayo.Models.AuditStatus.AwaitingBranchVerification || item.Status == AuditCkDayo.Models.AuditStatus.AwaitingManagerApproval || item.Status == AuditCkDayo.Models.AuditStatus.Pending;
-                                var canCorrect = isPending && item.BuyerId == currentUser.Id;
+                                var canCorrect = (isPending && item.BuyerId == currentUser.Id) || (currentUser.Role == AuditCkDayo.Models.UserRole.Auditor);
 
 
                                 <tr class="hover:bg-surface-container-low/30 transition-colors">
@@ -200,7 +200,7 @@
                                        (item.Status == AuditCkDayo.Models.AuditStatus.Rejected ? "bg-audit-error/10 text-audit-error border-audit-error/20" :
                                        "bg-audit-pending/10 text-audit-pending border-audit-pending/20");
                         var isPending = item.Status == AuditCkDayo.Models.AuditStatus.AwaitingBranchVerification || item.Status == AuditCkDayo.Models.AuditStatus.AwaitingManagerApproval || item.Status == AuditCkDayo.Models.AuditStatus.Pending;
-                        var canCorrect = isPending && item.BuyerId == currentUser.Id;
+                        var canCorrect = (isPending && item.BuyerId == currentUser.Id) || (currentUser.Role == AuditCkDayo.Models.UserRole.Auditor);
 
 
                         <article class="bg-surface-container-lowest border border-surface-border rounded-xl p-space-4 flex flex-col gap-space-4 shadow-sm">
