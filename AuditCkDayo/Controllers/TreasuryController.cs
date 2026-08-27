@@ -291,6 +291,9 @@ namespace AuditCkDayo.Controllers
                 ModelState.AddModelError(nameof(CashFlowEntry.Amount), "Amount must be greater than zero.");
             }
 
+            ModelState.Remove(nameof(CashFlowEntry.TreasuryCashFlow));
+            ModelState.Remove(nameof(CashFlowEntry.CreatedByUser));
+
             if (!ModelState.IsValid)
             {
                 PopulateManualCashFlowLookups();
