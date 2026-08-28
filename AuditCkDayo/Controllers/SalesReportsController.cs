@@ -90,8 +90,7 @@ namespace AuditCkDayo.Controllers
             return View(pendingReports);
         }
 
-        [HttpGet]
-        public async Task<IActionResult> Upload(int? reportId, string? section)
+        public async Task<IActionResult> Upload(int? reportId = null, string? section = null)
         {
             if (reportId.HasValue)
             {
@@ -331,9 +330,7 @@ namespace AuditCkDayo.Controllers
             return View("OpeningReview", model);
         }
 
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Review(SalesReportReviewViewModel model, string actionType, List<IFormFile>? closingLogBookImages)
+        public async Task<IActionResult> Review(SalesReportReviewViewModel model, string actionType, List<IFormFile>? closingLogBookImages = null)
         {
             if (!model.SalesReportId.HasValue)
             {
