@@ -591,31 +591,176 @@
             acrossEstablishments?.addEventListener('change', syncPurpose);
             syncPurpose();
 
-            // Image export trigger script
+            // Image export trigger script (Dynamic Offscreen Layout Rendering)
             const exportBtn = document.getElementById('export-treasury-image-btn');
             if (exportBtn) {
                 exportBtn.addEventListener('click', (e) => {
                     e.preventDefault();
-                    const element = document.getElementById('treasury-capture-area');
-                    if (!element) return;
 
-                    // Clone the pre-rendered template element
-                    const clone = element.cloneNode(true);
-                    
-                    // Set styles on clone wrapper to ensure visibility during canvas rendering offscreen
-                    clone.style.position = 'fixed';
-                    clone.style.top = '-9999px';
-                    clone.style.left = '-9999px';
-                    clone.style.display = 'block';
-                    clone.classList.remove('hidden');
+                    // Create offscreen container dynamically
+                    const reportContainer = document.createElement('div');
+                    reportContainer.style.position = 'fixed';
+                    reportContainer.style.top = '-9999px';
+                    reportContainer.style.left = '-9999px';
+                    reportContainer.style.width = '800px';
+                    reportContainer.style.background = '#ffffff';
+                    reportContainer.style.padding = '24px';
+                    reportContainer.style.fontFamily = "system-ui, -apple-system, sans-serif";
+                    reportContainer.style.color = '#000000';
+                    reportContainer.style.boxSizing = 'border-box';
 
-                    document.body.appendChild(clone);
+                    // Locate and scrap ledger data elements from the visible screen
+                    const salesItems = [];
+                    const changeInItems = [];
+                    const otherInItems = [];
+                    const pcfOutItems = [];
+                    const otherOutItems = [];
 
-                    html2canvas(clone, {
-                        scale: 2, // High resolution texts
+                    // Scrape CASH IN (left side lists)
+                    const leftColHeader = document.querySelector('h3.text-green-700');
+                    if (leftColHeader) {
+                        const leftCol = leftColHeader.closest('div').parentElement;
+                        leftCol.querySelectorAll('h4').forEach(header => {
+                            const title = header.innerText.toUpperCase();
+                            const box = header.nextElementSibling;
+                            if (!box) return;
+                            box.querySelectorAll('.flex.justify-between').forEach(row => {
+                                const labelEl = row.querySelector('.text-on-surface');
+                                const amountEl = row.querySelector('.font-data-mono');
+                                if (labelEl && amountEl) {
+                                    let labelText = labelEl.innerText.replace(/Edit\s*\|\s*Del/g, '').replace(/\s+/g, ' ').trim();
+                                    const amountVal = amountEl.innerText.replace('₱', '').trim();
+                                    if (title.includes('SALES')) {
+                                        salesItems.push({ name: labelText, amount: amountVal });
+                                    } else if (title.includes('CHANGE PCF')) {
+                                        changeInItems.push({ name: labelText, amount: amountVal });
+                                    } else if (title.includes('OTHERS')) {
+                                        otherInItems.push({ name: labelText, amount: amountVal });
+                                    }
+                                }
+                            });
+                        });
+                    }
+
+                    // Scrape CASH OUT (right side lists)
+                    const rightColHeader = document.querySelector('h3.text-red-700');
+                    if (rightColHeader) {
+                        const rightCol = rightColHeader.closest('div').parentElement;
+                        rightCol.querySelectorAll('h4').forEach(header => {
+                            const title = header.innerText.toUpperCase();
+                            const box = header.nextElementSibling;
+                            if (!box) return;
+                            box.querySelectorAll('.flex.justify-between').forEach(row => {
+                                const labelEl = row.querySelector('.text-on-surface');
+                                const amountEl = row.querySelector('.font-data-mono');
+                                if (labelEl && amountEl) {
+                                    let labelText = labelEl.innerText.replace(/Edit\s*\|\s*Del/g, '').replace(/\s+/g, ' ').trim();
+                                    const amountVal = amountEl.innerText.replace('₱', '').trim();
+                                    if (title.includes('PCF')) {
+                                        pcfOutItems.push({ name: labelText, amount: amountVal });
+                                    } else if (title.includes('OTHERS')) {
+                                        otherOutItems.push({ name: labelText, amount: amountVal });
+                                    }
+                                }
+                            });
+                        });
+                    }
+
+                    // Helper to render dynamic rows inside the report image layout
+                    const renderRows = (items, emptyMsg) => {
+                        if (items.length === 0) {
+                            return `<div style="padding: 6px 12px; color: #94a3b8; font-style: italic; border-bottom: 1px solid #e2e8f0; font-size: 12px;">${emptyMsg}</div>`;
+                        }
+                        return items.map(item => `
+                            <div style="display: flex; justify-content: space-between; padding: 6px 12px; border-bottom: 1px dashed #e2e8f0; font-size: 13px;">
+                                <span style="font-weight: 500;">${item.name}</span>
+                                <span style="font-family: monospace; font-weight: 600;">₱ ${item.amount}</span>
+                            </div>
+                        `).join('');
+                    };
+
+                    reportContainer.innerHTML = `
+                        <div style="border: 2px solid #000000; font-family: system-ui, -apple-system, sans-serif; background-color: #ffffff;">
+                            <!-- Header -->
+                            <div style="text-align: center; font-weight: 800; font-size: 18px; padding: 12px; border-bottom: 2px solid #000000; letter-spacing: 0.05em;">
+                                CKR - DAILY CASH FLOW
+                            </div>
+
+                            <!-- Meta details -->
+                            <div style="border-bottom: 1px solid #000000;">
+                                <div style="display: flex; border-bottom: 1px solid #000000; font-size: 13px;">
+                                    <div style="width: 200px; font-weight: bold; padding: 8px 12px; border-right: 1px solid #000000; background: #f8fafc; text-transform: uppercase;">Date</div>
+                                    <div style="padding: 8px 12px;">@Model.SelectedDate.ToString("MMMM dd, yyyy")</div>
+                                </div>
+                                <div style="display: flex; font-size: 13px;">
+                                    <div style="width: 200px; font-weight: bold; padding: 8px 12px; border-right: 1px solid #000000; background: #f8fafc; text-transform: uppercase;">Starting Balance</div>
+                                    <div style="padding: 8px 12px; font-weight: 700; background: #fef08a;">₱ @Model.StartingBalance.ToString("N2")</div>
+                                </div>
+                            </div>
+
+                            <!-- Columns Header -->
+                            <div style="display: flex; border-top: 1px solid #000000; border-bottom: 2px solid #000000; background: #f1f5f9; text-align: center; font-weight: bold; font-size: 13px;">
+                                <div style="flex: 1; padding: 8px 0; border-right: 2px solid #000000;">CASH IN</div>
+                                <div style="flex: 1; padding: 8px 0;">CASH OUT</div>
+                            </div>
+
+                            <!-- Ledger Contents -->
+                            <div style="display: flex; min-height: 350px;">
+                                <!-- Left side (Cash In) -->
+                                <div style="flex: 1; border-right: 2px solid #000000; display: flex; flex-direction: column;">
+                                    <div style="background: #f8fafc; font-weight: bold; font-size: 11px; padding: 4px 12px; border-bottom: 1px solid #000000; text-transform: uppercase;">Sales</div>
+                                    ${renderRows(salesItems, 'No sales')}
+
+                                    <div style="background: #f8fafc; font-weight: bold; font-size: 11px; padding: 4px 12px; border-top: 1px solid #000000; border-bottom: 1px solid #000000; text-transform: uppercase;">Change PCF</div>
+                                    ${renderRows(changeInItems, 'No change PCF')}
+
+                                    <div style="background: #f8fafc; font-weight: bold; font-size: 11px; padding: 4px 12px; border-top: 1px solid #000000; border-bottom: 1px solid #000000; text-transform: uppercase;">Others</div>
+                                    ${renderRows(otherInItems, 'No other cash-in')}
+                                </div>
+
+                                <!-- Right side (Cash Out) -->
+                                <div style="flex: 1; display: flex; flex-direction: column;">
+                                    <div style="background: #f8fafc; font-weight: bold; font-size: 11px; padding: 4px 12px; border-bottom: 1px solid #000000; text-transform: uppercase;">PCF</div>
+                                    ${renderRows(pcfOutItems, 'No PCF releases')}
+
+                                    <div style="background: #f8fafc; font-weight: bold; font-size: 11px; padding: 4px 12px; border-top: 1px solid #000000; border-bottom: 1px solid #000000; text-transform: uppercase;">Others</div>
+                                    ${renderRows(otherOutItems, 'No other cash-out')}
+                                </div>
+                            </div>
+
+                            <!-- Totals -->
+                            <div style="display: flex; border-top: 2px solid #000000; background: #f8fafc; font-weight: bold; font-size: 13px;">
+                                <div style="flex: 1; display: flex; justify-content: space-between; padding: 8px 12px; border-right: 2px solid #000000;">
+                                    <span>TOTAL CASH IN:</span>
+                                    <span style="font-family: monospace;">₱ @Model.TotalCashIn.ToString("N2")</span>
+                                </div>
+                                <div style="flex: 1; display: flex; justify-content: space-between; padding: 8px 12px;">
+                                    <span>TOTAL CASH OUT:</span>
+                                    <span style="font-family: monospace;">₱ @Model.TotalCashOut.ToString("N2")</span>
+                                </div>
+                            </div>
+
+                            <!-- Summary balances -->
+                            <div style="border-top: 1px solid #000000; font-size: 13px;">
+                                <div style="display: flex; border-bottom: 1px solid #000000;">
+                                    <div style="width: 200px; font-weight: bold; padding: 8px 12px; border-right: 1px solid #000000; background: #f8fafc; text-transform: uppercase;">Net Cash Flow</div>
+                                    <div style="padding: 8px 12px; font-weight: 700; background: #fef08a;">₱ @Model.NetCashFlow.ToString("N2")</div>
+                                </div>
+                                <div style="display: flex;">
+                                    <div style="width: 200px; font-weight: bold; padding: 8px 12px; border-right: 1px solid #000000; background: #f8fafc; text-transform: uppercase;">Closing Balance</div>
+                                    <div style="padding: 8px 12px; font-weight: 700; background: #fef08a;">₱ @Model.ClosingBalance.ToString("N2")</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+
+                    document.body.appendChild(reportContainer);
+
+                    html2canvas(reportContainer, {
+                        backgroundColor: '#ffffff',
+                        scale: 2, // High resolution rendering
                         useCORS: true,
-                        allowTaint: true,
-                        backgroundColor: '#ffffff'
+                        allowTaint: true
                     }).then(canvas => {
                         const dateStr = '@Model.SelectedDate.ToString("yyyy-MM-dd")';
                         const link = document.createElement('a');
@@ -624,12 +769,12 @@
                         document.body.appendChild(link);
                         link.click();
                         document.body.removeChild(link);
-                        document.body.removeChild(clone);
+                        document.body.removeChild(reportContainer);
                     }).catch(err => {
-                        console.error("Error generating image:", err);
-                        alert("Could not export treasury as image. Please try again.");
-                        if (clone.parentNode) {
-                            document.body.removeChild(clone);
+                        console.error("Export failed:", err);
+                        alert("Could not export treasury. Please try again.");
+                        if (reportContainer.parentNode) {
+                            document.body.removeChild(reportContainer);
                         }
                     });
                 });
