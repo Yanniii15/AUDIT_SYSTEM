@@ -1063,7 +1063,6 @@
         reportContainer.style.width = '600px';
         reportContainer.style.background = '#f8fafc';
         reportContainer.style.padding = '32px';
-        reportContainer.style.fontFamily = "'Inter', system-ui, -apple-system, sans-serif";
         reportContainer.style.color = '#0f172a';
         reportContainer.style.boxSizing = 'border-box';
 
@@ -1080,9 +1079,91 @@
         const otherVal = isOpening ? "@Model.OpeningOtherSales.ToString("N2")" : "@Model.OtherSales.ToString("N2")";
 
         const cashVal = isOpening ? "@Model.OpeningCashSales.ToString("N2")" : "@Model.CashSales.ToString("N2")";
-        const gcashVal = isOpening ? "@Model.OpeningTotalGCash.ToString("N2")" : "@Model.TotalGCash.ToString("N2")";
-        const transferVal = isOpening ? "@Model.OpeningTotalBankTransfer.ToString("N2")" : "@Model.TotalBankTransfer.ToString("N2")";
-        const cardCreditVal = isOpening ? "@Model.OpeningTotalCredit.ToString("N2")" : "@Model.TotalCredit.ToString("N2")";
+        
+        // Detailed collection list items compiled server-side
+        const gcashItems = [];
+        @foreach (var line in Model.GCashLines)
+        {
+            @:if (!isOpening) {
+            @:    gcashItems.push({ label: "@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(line.Label ?? "GCash Line"))", amount: "@line.Amount.ToString("N2")" });
+            @:}
+        }
+        @foreach (var line in Model.OpeningGCashLines)
+        {
+            @:if (isOpening) {
+            @:    gcashItems.push({ label: "@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(line.Label ?? "GCash Line"))", amount: "@line.Amount.ToString("N2")" });
+            @:}
+        }
+
+        const bankItems = [];
+        @foreach (var line in Model.BankTransferLines)
+        {
+            @:if (!isOpening) {
+            @:    bankItems.push({ label: "@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(line.Label ?? "Bank Transfer"))", amount: "@line.Amount.ToString("N2")" });
+            @:}
+        }
+        @foreach (var line in Model.OpeningBankTransferLines)
+        {
+            @:if (isOpening) {
+            @:    bankItems.push({ label: "@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(line.Label ?? "Bank Transfer"))", amount: "@line.Amount.ToString("N2")" });
+            @:}
+        }
+
+        const cardItems = [];
+        @foreach (var line in Model.CardLines)
+        {
+            @:if (!isOpening) {
+            @:    cardItems.push({ label: "@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(line.Label ?? "Card"))", amount: "@line.Amount.ToString("N2")" });
+            @:}
+        }
+        @foreach (var line in Model.OpeningCardLines)
+        {
+            @:if (isOpening) {
+            @:    cardItems.push({ label: "@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(line.Label ?? "Card"))", amount: "@line.Amount.ToString("N2")" });
+            @:}
+        }
+
+        const creditItems = [];
+        @foreach (var line in Model.CreditLines)
+        {
+            @:if (!isOpening) {
+            @:    creditItems.push({ label: "@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(line.Label ?? "Credit"))", amount: "@line.Amount.ToString("N2")" });
+            @:}
+        }
+        @foreach (var line in Model.OpeningCreditLines)
+        {
+            @:if (isOpening) {
+            @:    creditItems.push({ label: "@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(line.Label ?? "Credit"))", amount: "@line.Amount.ToString("N2")" });
+            @:}
+        }
+
+        const runawayItems = [];
+        @foreach (var line in Model.RunawayCustomerLines)
+        {
+            @:if (!isOpening) {
+            @:    runawayItems.push({ label: "@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(line.Label ?? "Run-away"))", amount: "@line.Amount.ToString("N2")" });
+            @:}
+        }
+        @foreach (var line in Model.OpeningRunawayCustomerLines)
+        {
+            @:if (isOpening) {
+            @:    runawayItems.push({ label: "@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(line.Label ?? "Run-away"))", amount: "@line.Amount.ToString("N2")" });
+            @:}
+        }
+
+        const expenseItems = [];
+        @foreach (var line in Model.ExpenseFromSalesLines)
+        {
+            @:if (!isOpening) {
+            @:    expenseItems.push({ label: "@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(line.Label ?? "Expense"))", amount: "@line.Amount.ToString("N2")" });
+            @:}
+        }
+        @foreach (var line in Model.OpeningExpenseFromSalesLines)
+        {
+            @:if (isOpening) {
+            @:    expenseItems.push({ label: "@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(line.Label ?? "Expense"))", amount: "@line.Amount.ToString("N2")" });
+            @:}
+        }
 
         const discountVal = isOpening ? "@Model.OpeningTotalDiscounts.ToString("N2")" : "@Model.TotalDiscounts.ToString("N2")";
         const runawayVal = isOpening ? "@Model.OpeningTotalRunawayCustomer.ToString("N2")" : "@Model.TotalRunawayCustomer.ToString("N2")";
@@ -1093,99 +1174,112 @@
         const shortageVal = isOpening ? "@Model.OpeningSalesShortageAmount.ToString("N2")" : "@Model.SalesShortageAmount.ToString("N2")";
         const overageVal = isOpening ? "@Model.OpeningSalesOverageAmount.ToString("N2")" : "@Model.SalesOverageAmount.ToString("N2")";
 
+        // Mappings for totals
+        const gcashVal = isOpening ? "@Model.OpeningTotalGCash.ToString("N2")" : "@Model.TotalGCash.ToString("N2")";
+        const transferVal = isOpening ? "@Model.OpeningTotalBankTransfer.ToString("N2")" : "@Model.TotalBankTransfer.ToString("N2")";
+        const cardCreditVal = isOpening ? "@Model.OpeningTotalCredit.ToString("N2")" : "@Model.TotalCredit.ToString("N2")";
+
+        const renderDetailedLines = (label, list, sumVal) => {
+            let html = `
+                <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px; font-weight: bold; background-color: #f8fafc; padding: 4px 8px; border-radius: 6px; margin-top: 8px;">
+                    <span>${label}</span>
+                    <span style="font-family: monospace; color: #041632;">₱ ${sumVal}</span>
+                </div>
+            `;
+            if (list.length > 0) {
+                list.forEach(item => {
+                    html += `
+                        <div style="display: flex; justify-content: space-between; padding-left: 20px; font-size: 12px; color: #475569; padding-bottom: 2px;">
+                            <span>↳ ${item.label}</span>
+                            <span style="font-family: monospace;">₱ ${item.amount}</span>
+                        </div>
+                    `;
+                });
+            }
+            return html;
+        };
+
         reportContainer.innerHTML = `
             <div style="margin-bottom: 24px;">
-                <h1 style="font-size: 24px; font-weight: 800; color: #041632; margin: 0; text-transform: uppercase; letter-spacing: -0.02em;">${sectionTitle}</h1>
-                <p style="font-size: 13px; color: #64748b; margin: 6px 0 0 0; font-weight: 500;">
+                <h1 style="font-size: 26px; font-weight: 900; color: #041632; margin: 0; text-transform: uppercase; letter-spacing: -0.02em;">${sectionTitle}</h1>
+                <p style="font-size: 13px; color: #64748b; margin: 6px 0 0 0; font-weight: 600;">
                     @Model.BusinessDate.ToString("MMMM d, yyyy") • @Model.BusinessDate.ToString("dddd") | Cashier: ${cashierVal}
                 </p>
             </div>
 
             <!-- SALES SUMMARY SECTION -->
             <div style="background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05); margin-bottom: 20px; overflow: hidden;">
-                <div style="background: #3B5B92; padding: 12px 16px; color: #ffffff; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">
+                <div style="background: #3B5B92; padding: 12px 16px; color: #ffffff; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;">
                     SALES SUMMARY
                 </div>
                 <div style="padding: 16px; font-size: 13px; color: #334155; line-height: 2.2;">
-                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;">
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px; font-weight: bold;">
                         <span>Daily Gross Sales (Opening + Closing)</span>
                         <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">₱ ${combinedGross}</strong>
                     </div>
                     <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;">
                         <span>${isOpening ? 'Opening' : 'Closing'} Gross Sales</span>
-                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">₱ ${grossVal}</strong>
+                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px; font-weight: 700;">₱ ${grossVal}</strong>
                     </div>
                     <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;">
                         <span>Food Sales</span>
-                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">₱ ${foodVal}</strong>
+                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px; font-weight: 700;">₱ ${foodVal}</strong>
                     </div>
                     <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;">
                         <span>Beer Sales</span>
-                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">₱ ${beerVal}</strong>
+                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px; font-weight: 700;">₱ ${beerVal}</strong>
                     </div>
                     <div style="display: flex; justify-content: space-between;">
                         <span>Beverages Sales</span>
-                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">₱ ${bevVal}</strong>
+                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px; font-weight: 700;">₱ ${bevVal}</strong>
                     </div>
                 </div>
             </div>
 
             <!-- COLLECTION & PAYMENTS SECTION -->
             <div style="background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05); margin-bottom: 20px; overflow: hidden;">
-                <div style="background: #3B5B92; padding: 12px 16px; color: #ffffff; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">
+                <div style="background: #3B5B92; padding: 12px 16px; color: #ffffff; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;">
                     COLLECTION & PAYMENTS
                 </div>
                 <div style="padding: 16px; font-size: 13px; color: #334155; line-height: 2.2;">
-                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;">
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; font-weight: bold;">
                         <span>Cash Sales</span>
                         <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">₱ ${cashVal}</strong>
                     </div>
-                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;">
-                        <span>G-Cash Sales</span>
-                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">₱ ${gcashVal}</strong>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;">
-                        <span>Bank Transfers</span>
-                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">₱ ${transferVal}</strong>
-                    </div>
-                    <div style="display: flex; justify-content: space-between;">
-                        <span>Card / Credit</span>
-                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">₱ ${cardCreditVal}</strong>
-                    </div>
+                    
+                    ${renderDetailedLines('G-Cash Sales', gcashItems, gcashVal)}
+                    ${renderDetailedLines('Bank Transfers', bankItems, transferVal)}
+                    ${renderDetailedLines('Card & Credit Payments', [...cardItems, ...creditItems], cardCreditVal)}
                 </div>
             </div>
 
             <!-- DEDUCTIONS & EXPENSES SECTION -->
             <div style="background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05); margin-bottom: 24px; overflow: hidden;">
-                <div style="background: #475569; padding: 12px 16px; color: #ffffff; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">
+                <div style="background: #475569; padding: 12px 16px; color: #ffffff; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;">
                     DEDUCTIONS & EXPENSES
                 </div>
                 <div style="padding: 16px; font-size: 13px; color: #334155; line-height: 2.2;">
                     <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;">
                         <span>Discounts / Vouchers</span>
-                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">₱ ${discountVal}</strong>
+                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px; font-weight: 700;">₱ ${discountVal}</strong>
                     </div>
-                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;">
-                        <span>Run-away Customer</span>
-                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">₱ ${runawayVal}</strong>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;">
-                        <span>Expenses from Sales</span>
-                        <strong style="font-family: monospace; color: #b91c1c; font-size: 14px;">-₱ ${expensesVal}</strong>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;">
+
+                    ${renderDetailedLines('Run-away Customers', runawayItems, runawayVal)}
+                    ${renderDetailedLines('Expenses from Sales', expenseItems, expensesVal)}
+
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px; margin-top: 8px;">
                         <span>Resto PCF / PCF from Sales</span>
-                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">₱ ${restoPcfVal} / ₱ ${pcfFromSalesVal}</strong>
+                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px; font-weight: 700;">₱ ${restoPcfVal} / ₱ ${pcfFromSalesVal}</strong>
                     </div>
                     <div style="display: flex; justify-content: space-between;">
                         <span>Shortage / Overage</span>
-                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">-₱ ${shortageVal} / +₱ ${overageVal}</strong>
+                        <strong style="font-family: monospace; color: #b91c1c; font-size: 14px; font-weight: 700;">-₱ ${shortageVal} / +₱ ${overageVal}</strong>
                     </div>
                 </div>
             </div>
 
             <!-- FOOTER NOTICE -->
-            <div style="text-align: center; font-size: 11px; color: #94a3b8; font-weight: 500;">
+            <div style="text-align: center; font-size: 11px; color: #94a3b8; font-weight: 600;">
                 Verified Report - @DateTime.Today.ToString("MMMM d, yyyy")
             </div>
         `;
