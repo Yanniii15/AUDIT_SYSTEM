@@ -745,12 +745,7 @@ namespace AuditCkDayo.Controllers
 
             if (flow == null)
             {
-                var previousDayFlow = await _context.TreasuryCashFlows
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(f => f.CashFlowDate == handoverDate.AddDays(-1) && f.TreasuryUserId == currentUserId);
-                decimal startingBalance = previousDayFlow != null && previousDayFlow.Status == TreasuryCashFlowStatus.Closed
-                    ? previousDayFlow.ClosingBalance
-                    : 0m;
+                decimal startingBalance = await GetCarryForwardStartingBalanceAsync(handoverDate, currentUserId);
 
                 flow = new TreasuryCashFlow
                 {
@@ -806,6 +801,18 @@ namespace AuditCkDayo.Controllers
             previousFlow?.RecomputeTotals();
             flow.RecomputeTotals();
         }
+        private async Task<decimal> GetCarryForwardStartingBalanceAsync(DateTime cashFlowDate, int treasuryUserId)
+        {
+            return await _context.TreasuryCashFlows
+                .AsNoTracking()
+                .Where(f => f.TreasuryUserId == treasuryUserId
+                    && f.Status == TreasuryCashFlowStatus.Closed
+                    && f.CashFlowDate < cashFlowDate.Date)
+                .OrderByDescending(f => f.CashFlowDate)
+                .Select(f => f.ClosingBalance)
+                .FirstOrDefaultAsync();
+        }
+
 
         private async Task NotifyUploaderOfShortOverAsync(SalesReport report)
         {

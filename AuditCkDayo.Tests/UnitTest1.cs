@@ -1688,6 +1688,47 @@ namespace AuditCkDayo.Tests
         }
 
         [Fact]
+        public async Task ActionSurrender_CarriesForwardLatestClosedFlowAcrossNoActivityGap()
+        {
+            using (var context = new AuditDbContext(_options))
+            {
+                await SeedDataAsync(context);
+                context.SurrenderRequests.Add(new SurrenderRequest
+                {
+                    BuyerId = 3,
+                    DeclaredAmount = 100m,
+                    Status = SurrenderStatus.Pending,
+                    RequestDate = DateTime.UtcNow.AddDays(-2)
+                });
+                context.TreasuryCashFlows.Add(new TreasuryCashFlow
+                {
+                    TreasuryUserId = 2,
+                    CashFlowDate = DateTime.UtcNow.Date.AddDays(-2),
+                    StartingBalance = 500m,
+                    TotalCashIn = 100m,
+                    TotalCashOut = 200m,
+                    NetCashFlow = 600m,
+                    ClosingBalance = 400m,
+                    Status = TreasuryCashFlowStatus.Closed
+                });
+                await context.SaveChangesAsync();
+
+                var controller = CreateController(context, 2, "Manager");
+                var requestId = await context.SurrenderRequests.Select(s => s.Id).SingleAsync();
+
+                var result = await controller.ActionSurrender(requestId, "Confirm", "received cash");
+
+                Assert.IsType<RedirectToActionResult>(result);
+                var flow = await context.TreasuryCashFlows
+                    .Include(f => f.Entries)
+                    .SingleAsync(f => f.CashFlowDate == DateTime.UtcNow.Date && f.TreasuryUserId == 2);
+                Assert.Equal(400m, flow.StartingBalance);
+                Assert.Equal(500m, flow.NetCashFlow);
+                Assert.Equal(500m, flow.ClosingBalance);
+            }
+        }
+
+        [Fact]
         public async Task GoogleGeminiOcrService_IntegratesWithRealApiSuccessfully()
         {
             // Load API key from user secrets or environment
@@ -2578,12 +2619,14 @@ namespace AuditCkDayo.Tests
                 Assert.Empty(model.Entries);
                 Assert.Equal(400m, model.StartingBalance);
                 Assert.Equal(0m, model.TotalCashOut);
+                Assert.Equal(400m, model.NetCashFlow);
+                Assert.Equal(400m, model.ClosingBalance);
                 Assert.Equal(cashFlowCountBefore, context.TreasuryCashFlows.Count());
             }
         }
 
         [Fact]
-        public void Index_DoesNotCarryAcrossGapWhenImmediatePreviousDayHasNoFlow()
+        public void Index_CarriesForwardLatestClosedFlowAcrossNoActivityGap()
         {
             using (var context = new AuditDbContext(_options))
             {
@@ -2612,9 +2655,53 @@ namespace AuditCkDayo.Tests
                 var model = Assert.IsType<TreasuryCashFlowViewModel>(viewResult.Model);
 
                 Assert.Null(model.FlowId);
-                Assert.Equal(0m, model.StartingBalance);
+                Assert.Equal(400m, model.StartingBalance);
+                Assert.Equal(400m, model.NetCashFlow);
+                Assert.Equal(400m, model.ClosingBalance);
             }
         }
+        [Fact]
+        public async Task RecordCashIn_CarriesForwardLatestClosedFlowAcrossNoActivityGap()
+        {
+            var cashInDate = new DateTime(2026, 8, 12);
+            using (var context = new AuditDbContext(_options))
+            {
+                context.Users.Add(new User { Id = 1, Name = "Treasury Owner", Email = "gap-cashin-owner@test.com", PasswordHash = "hash", Role = UserRole.Owner, IsTreasury = true });
+                context.TreasuryCashFlows.Add(new TreasuryCashFlow
+                {
+                    TreasuryUserId = 1,
+                    CashFlowDate = new DateTime(2026, 8, 9),
+                    StartingBalance = 500m,
+                    TotalCashIn = 100m,
+                    TotalCashOut = 200m,
+                    NetCashFlow = 600m,
+                    ClosingBalance = 400m,
+                    Status = TreasuryCashFlowStatus.Closed
+                });
+                context.SaveChanges();
+            }
+
+            using (var context = new AuditDbContext(_options))
+            {
+                var controller = CreateController(context);
+                var model = new ManualCashInViewModel
+                {
+                    CashInDate = cashInDate,
+                    Category = CashFlowCategory.Sales,
+                    Amount = 1500m,
+                    Purpose = "Store Sales August 12"
+                };
+
+                var result = await controller.RecordCashIn(model);
+                Assert.IsType<RedirectToActionResult>(result);
+
+                var flow = context.TreasuryCashFlows.Include(f => f.Entries).Single(f => f.CashFlowDate == cashInDate.Date);
+                Assert.Equal(400m, flow.StartingBalance);
+                Assert.Equal(1900m, flow.NetCashFlow);
+                Assert.Equal(1900m, flow.ClosingBalance);
+            }
+        }
+
 
         [Fact]
         public async Task CloseTreasury_MarksOpenFlowAsClosedAndRecomputesTotals()
@@ -3807,6 +3894,18 @@ namespace AuditCkDayo.Tests
         {
             using var context = new AuditDbContext(_options);
             var report = await SeedDraftSalesReportAsync(context);
+            context.TreasuryCashFlows.Add(new TreasuryCashFlow
+            {
+                TreasuryUserId = 1,
+                CashFlowDate = new DateTime(2026, 8, 8),
+                StartingBalance = 500m,
+                TotalCashIn = 100m,
+                TotalCashOut = 200m,
+                NetCashFlow = 600m,
+                ClosingBalance = 400m,
+                Status = TreasuryCashFlowStatus.Closed
+            });
+            await context.SaveChangesAsync();
 
             var firstController = CreateController(context);
             var firstModel = BuildReviewModel(report, 1250m);
@@ -3827,10 +3926,11 @@ namespace AuditCkDayo.Tests
                 .Include(f => f.Entries)
                 .AsNoTracking()
                 .SingleAsync(f => f.CashFlowDate == firstModel.HandoverDate.Date);
+            Assert.Equal(400m, firstFlow.StartingBalance);
             Assert.Equal(1250m, firstFlow.TotalCashIn);
             Assert.Equal(0m, firstFlow.TotalCashOut);
-            Assert.Equal(1250m, firstFlow.NetCashFlow);
-            Assert.Equal(1250m, firstFlow.ClosingBalance);
+            Assert.Equal(1650m, firstFlow.NetCashFlow);
+            Assert.Equal(1650m, firstFlow.ClosingBalance);
             Assert.Single(firstFlow.Entries);
 
             context.ChangeTracker.Clear();
@@ -3856,10 +3956,11 @@ namespace AuditCkDayo.Tests
                 .Include(f => f.Entries)
                 .AsNoTracking()
                 .SingleAsync(f => f.CashFlowDate == secondModel.HandoverDate.Date);
+            Assert.Equal(400m, updatedFlow.StartingBalance);
             Assert.Equal(1750m, updatedFlow.TotalCashIn);
             Assert.Equal(0m, updatedFlow.TotalCashOut);
-            Assert.Equal(1750m, updatedFlow.NetCashFlow);
-            Assert.Equal(1750m, updatedFlow.ClosingBalance);
+            Assert.Equal(2150m, updatedFlow.NetCashFlow);
+            Assert.Equal(2150m, updatedFlow.ClosingBalance);
             Assert.Single(updatedFlow.Entries);
 
             var savedReport = await context.SalesReports.AsNoTracking().SingleAsync();

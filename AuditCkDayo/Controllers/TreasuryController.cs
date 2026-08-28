@@ -42,13 +42,18 @@ namespace AuditCkDayo.Controllers
 
             if (flow == null)
             {
-                var previousDayFlow = _context.TreasuryCashFlows
-                    .AsNoTracking()
-                    .FirstOrDefault(f => f.CashFlowDate == selectedDate.AddDays(-1) && f.TreasuryUserId == currentUserId);
-                var startingBalance = ResolveCarryForwardStartingBalance(previousDayFlow);
+                var startingBalance = GetCarryForwardStartingBalance(selectedDate, currentUserId);
 
                 PopulateManualCashFlowLookups();
-                return View(new TreasuryCashFlowViewModel { SelectedDate = selectedDate, StartingBalance = startingBalance });
+                return View(new TreasuryCashFlowViewModel
+                {
+                    SelectedDate = selectedDate,
+                    StartingBalance = startingBalance,
+                    TotalCashIn = 0m,
+                    TotalCashOut = 0m,
+                    NetCashFlow = startingBalance,
+                    ClosingBalance = startingBalance
+                });
             }
 
             flow.RecomputeTotals();
@@ -171,10 +176,7 @@ namespace AuditCkDayo.Controllers
 
             if (flow == null)
             {
-                var previousDayFlow = await _context.TreasuryCashFlows
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(f => f.CashFlowDate == model.ReleaseDate.AddDays(-1) && f.TreasuryUserId == currentUserId);
-                var startingBalance = ResolveCarryForwardStartingBalance(previousDayFlow);
+                var startingBalance = await GetCarryForwardStartingBalanceAsync(model.ReleaseDate, currentUserId);
 
                 flow = new TreasuryCashFlow
                 {
@@ -638,10 +640,7 @@ namespace AuditCkDayo.Controllers
                 return flow;
             }
 
-            var previousDayFlow = await _context.TreasuryCashFlows
-                .AsNoTracking()
-                .FirstOrDefaultAsync(f => f.CashFlowDate == cashFlowDate.AddDays(-1) && f.TreasuryUserId == treasuryUserId);
-            var startingBalance = ResolveCarryForwardStartingBalance(previousDayFlow);
+            var startingBalance = await GetCarryForwardStartingBalanceAsync(cashFlowDate, treasuryUserId);
 
             flow = new TreasuryCashFlow
             {
@@ -707,11 +706,28 @@ namespace AuditCkDayo.Controllers
             ViewBag.PcfReleases = new SelectList(availablePcfReleases, "Id", "Display", model.PcfReleaseId);
         }
 
-        private static decimal ResolveCarryForwardStartingBalance(TreasuryCashFlow? previousDayFlow)
+        private decimal GetCarryForwardStartingBalance(DateTime cashFlowDate, int treasuryUserId)
         {
-            return previousDayFlow != null && previousDayFlow.Status == TreasuryCashFlowStatus.Closed
-                ? previousDayFlow.ClosingBalance
-                : 0m;
+            return _context.TreasuryCashFlows
+                .AsNoTracking()
+                .Where(f => f.TreasuryUserId == treasuryUserId
+                    && f.Status == TreasuryCashFlowStatus.Closed
+                    && f.CashFlowDate < cashFlowDate.Date)
+                .OrderByDescending(f => f.CashFlowDate)
+                .Select(f => f.ClosingBalance)
+                .FirstOrDefault();
+        }
+
+        private async Task<decimal> GetCarryForwardStartingBalanceAsync(DateTime cashFlowDate, int treasuryUserId)
+        {
+            return await _context.TreasuryCashFlows
+                .AsNoTracking()
+                .Where(f => f.TreasuryUserId == treasuryUserId
+                    && f.Status == TreasuryCashFlowStatus.Closed
+                    && f.CashFlowDate < cashFlowDate.Date)
+                .OrderByDescending(f => f.CashFlowDate)
+                .Select(f => f.ClosingBalance)
+                .FirstOrDefaultAsync();
         }
 
         private static DateTime GetToday()

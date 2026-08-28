@@ -1608,15 +1608,17 @@ namespace AuditCkDayo.Controllers
                     var cashFlowDate = actionDate.Date;
                     var flow = await _context.TreasuryCashFlows
                         .Include(f => f.Entries)
-                        .FirstOrDefaultAsync(f => f.CashFlowDate == cashFlowDate);
+                        .FirstOrDefaultAsync(f => f.CashFlowDate == cashFlowDate && f.TreasuryUserId == currentUserId);
 
                     if (flow == null)
                     {
+                        var startingBalance = await GetCarryForwardStartingBalanceAsync(cashFlowDate, currentUserId);
+
                         flow = new TreasuryCashFlow
                         {
                             TreasuryUserId = currentUserId,
                             CashFlowDate = cashFlowDate,
-                            StartingBalance = 0m,
+                            StartingBalance = startingBalance,
                             Status = TreasuryCashFlowStatus.Open
                         };
                         _context.TreasuryCashFlows.Add(flow);
@@ -2001,5 +2003,17 @@ namespace AuditCkDayo.Controllers
 
             ViewBag.BuyerUsers = new SelectList(buyers, "Id", "Name");
         }
+        private async Task<decimal> GetCarryForwardStartingBalanceAsync(DateTime cashFlowDate, int treasuryUserId)
+        {
+            return await _context.TreasuryCashFlows
+                .AsNoTracking()
+                .Where(f => f.TreasuryUserId == treasuryUserId
+                    && f.Status == TreasuryCashFlowStatus.Closed
+                    && f.CashFlowDate < cashFlowDate.Date)
+                .OrderByDescending(f => f.CashFlowDate)
+                .Select(f => f.ClosingBalance)
+                .FirstOrDefaultAsync();
+        }
+
     }
 }
