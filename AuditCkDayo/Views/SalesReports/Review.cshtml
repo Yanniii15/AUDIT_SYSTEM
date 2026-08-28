@@ -1067,7 +1067,11 @@
         reportContainer.style.boxSizing = 'border-box';
 
         const isOpening = section === 'opening';
-        const sectionTitle = isOpening ? 'OPENING MAIN SALES' : 'CLOSING MAIN SALES';
+        const selectEl = document.getElementById('EstablishmentId');
+        const estName = selectEl && selectEl.options[selectEl.selectedIndex] && selectEl.options[selectEl.selectedIndex].text !== "Select branch..." 
+            ? selectEl.options[selectEl.selectedIndex].text.toUpperCase() 
+            : "MAIN";
+        const sectionTitle = isOpening ? `OPENING ${estName} SALES` : `CLOSING ${estName} SALES`;
         const cashierVal = "@(Model.CashierName ?? "N/A")";
 
         // Mappings
@@ -1201,8 +1205,8 @@
 
         reportContainer.innerHTML = `
             <div style="margin-bottom: 24px;">
-                <h1 style="font-size: 26px; font-weight: 900; color: #041632; margin: 0; text-transform: uppercase; letter-spacing: -0.02em;">${sectionTitle}</h1>
-                <p style="font-size: 13px; color: #64748b; margin: 6px 0 0 0; font-weight: 600;">
+                <h1 style="font-size: 32px; font-weight: 900; color: #041632; margin: 0; text-transform: uppercase; letter-spacing: -0.02em; font-family: 'Inter', sans-serif; font-style: normal; font-weight: 900;">${sectionTitle}</h1>
+                <p style="font-size: 14px; color: #475569; margin: 6px 0 0 0; font-weight: 700;">
                     @Model.BusinessDate.ToString("MMMM d, yyyy") • @Model.BusinessDate.ToString("dddd") | Cashier: ${cashierVal}
                 </p>
             </div>
