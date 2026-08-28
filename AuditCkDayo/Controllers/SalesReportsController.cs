@@ -589,7 +589,11 @@ namespace AuditCkDayo.Controllers
             }
             else if (isSubmitForVerificationAction)
             {
-                if (report.OpeningCashSales == 0m && report.OpeningGrossSales == 0m)
+                // Retrieve the establishment details to check the name
+                var establishment = report.Establishment ?? await _context.Establishments.FindAsync(report.EstablishmentId);
+                var isDayo = establishment != null && string.Equals(establishment.Name, "Dayo", StringComparison.OrdinalIgnoreCase);
+
+                if (!isDayo && report.OpeningCashSales == 0m && report.OpeningGrossSales == 0m)
                 {
                     ModelState.AddModelError(string.Empty, "Add the opening sales section before submitting this daily sales report.");
                     TempData["Error"] = "Add the opening daily sales before submitting for manager verification.";
