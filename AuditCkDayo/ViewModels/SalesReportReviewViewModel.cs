@@ -205,6 +205,10 @@ namespace AuditCkDayo.ViewModels
         public decimal ShortOverAmount => ConfirmedCashToHandover - ExpectedCashToHandover;
         public string ShortOverLabel => ShortOverAmount < 0 ? "Short" : ShortOverAmount > 0 ? "Over" : "Balanced";
 
+        public decimal CombinedExpectedCashToHandover => ExpectedCashToHandover + OpeningExpectedCashToHandover;
+        public decimal CombinedShortOverAmount => ConfirmedCashToHandover - CombinedExpectedCashToHandover;
+        public string CombinedShortOverLabel => CombinedShortOverAmount < 0 ? "Short" : CombinedShortOverAmount > 0 ? "Over" : "Balanced";
+
         public decimal CombinedGrossSales => GrossSales + OpeningGrossSales;
         public decimal CombinedFoodSales => FoodSales + OpeningFoodSales;
         public decimal CombinedBeerSales => BeerSales + OpeningBeerSales;
@@ -253,6 +257,7 @@ namespace AuditCkDayo.ViewModels
         public string? Notes { get; set; }
         public string ImageUrl { get; set; } = string.Empty;
         public List<string>? ImageUrls { get; set; }
+        public List<string>? ClosingImageUrls { get; set; }
         public SalesReportStatus Status { get; set; } = SalesReportStatus.Draft;
         public DocumentReviewStatus ReviewStatus { get; set; } = DocumentReviewStatus.Draft;
         public bool CanConfirmToTreasury { get; set; }

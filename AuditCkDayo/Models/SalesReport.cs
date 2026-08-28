@@ -92,6 +92,7 @@ namespace AuditCkDayo.Models
         public DateTime? ConfirmedAt { get; set; }
 
         public string? ImageUrlsJson { get; set; }
+        public string? ClosingImageUrlsJson { get; set; }
 
         [NotMapped]
         public List<string> ImageUrls
@@ -116,6 +117,27 @@ namespace AuditCkDayo.Models
                 }
             }
             set => ImageUrlsJson = System.Text.Json.JsonSerializer.Serialize(value);
+        }
+
+        [NotMapped]
+        public List<string> ClosingImageUrls
+        {
+            get
+            {
+                if (string.IsNullOrEmpty(ClosingImageUrlsJson))
+                {
+                    return new List<string>();
+                }
+                try
+                {
+                    return System.Text.Json.JsonSerializer.Deserialize<List<string>>(ClosingImageUrlsJson) ?? new List<string>();
+                }
+                catch
+                {
+                    return new List<string>();
+                }
+            }
+            set => ClosingImageUrlsJson = System.Text.Json.JsonSerializer.Serialize(value);
         }
 
         [Column(TypeName = "decimal(12,2)")]

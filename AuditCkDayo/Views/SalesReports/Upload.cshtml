@@ -47,39 +47,66 @@
             {
                 <div class="flex flex-col gap-space-2 md:col-span-2">
                     <span class="font-label-caps uppercase tracking-wider text-on-surface-variant text-[11px]">Operating Branch</span>
-                    <input id="establishmentId" name="establishmentId" type="hidden" value="@selectedEstablishment.Value" />
+                    <input id="establishmentId" name="establishmentId" type="hidden" value="@(ViewBag.PreselectedEstablishmentId ?? selectedEstablishment.Value)" />
                     <div class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md text-on-surface">
                         @selectedEstablishment.Text
                     </div>
                     <span class="text-on-surface-variant text-[11px]">Assigned operating branch</span>
-                </div>
+                 </div>
             }
             else
             {
                 <label class="flex flex-col gap-space-2 md:col-span-2">
                     <span class="font-label-caps uppercase tracking-wider text-on-surface-variant text-[11px]">Operating Branch</span>
-                    <select id="establishmentId" name="establishmentId" asp-items="establishments" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" required>
+                    <select id="establishmentId" name="establishmentId" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" required>
                         <option value="">Select branch...</option>
+                        @foreach (var item in establishments)
+                        {
+                            if (ViewBag.PreselectedEstablishmentId != null && item.Value == ViewBag.PreselectedEstablishmentId.ToString())
+                            {
+                                <option value="@item.Value" selected>@item.Text</option>
+                            }
+                            else
+                            {
+                                <option value="@item.Value">@item.Text</option>
+                            }
+                        }
                     </select>
                     <span class="text-audit-error text-[11px]" data-valmsg-for="establishmentId"></span>
                 </label>
             }
 
+            <label class="flex flex-col gap-space-2 md:col-span-2">
+                <span class="font-label-caps uppercase tracking-wider text-on-surface-variant text-[11px]">Report Section</span>
+                <select id="reportSection" name="reportSection" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" required>
+                    @if (ViewBag.PreselectedSection != null && (int)ViewBag.PreselectedSection == 0)
+                    {
+                        <option value="1">Opening Daily Sales Log Book</option>
+                        <option value="0" selected>Closing Daily Sales Log Book</option>
+                    }
+                    else
+                    {
+                        <option value="1" selected>Opening Daily Sales Log Book</option>
+                        <option value="0">Closing Daily Sales Log Book</option>
+                    }
+                </select>
+            </label>
+
             <label class="flex flex-col gap-space-2">
                 <span class="font-label-caps uppercase tracking-wider text-on-surface-variant text-[11px]">Business Date</span>
-                <input id="businessDate" name="businessDate" type="date" value="@today" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" required />
+                <input id="businessDate" name="businessDate" type="date" value="@(ViewBag.PreselectedBusinessDate ?? today)" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" required />
                 <span class="text-audit-error text-[11px]" data-valmsg-for="businessDate"></span>
             </label>
 
             <label class="flex flex-col gap-space-2">
                 <span class="font-label-caps uppercase tracking-wider text-on-surface-variant text-[11px]">Handover Date</span>
-                <input id="handoverDate" name="handoverDate" type="date" value="@today" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" required />
+                <input id="handoverDate" name="handoverDate" type="date" value="@(ViewBag.PreselectedHandoverDate ?? today)" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" required />
                 <span class="text-audit-error text-[11px]" data-valmsg-for="handoverDate"></span>
             </label>
 
             <label class="flex flex-col gap-space-2 md:col-span-2">
                 <span class="font-label-caps uppercase tracking-wider text-on-surface-variant text-[11px]">Cashier Name</span>
-                <input id="cashierName" name="cashierName" maxlength="100" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" placeholder="Cashier or branch staff name" />
+                <input id="cashierName" name="cashierName" value="@ViewBag.PreselectedCashierName" maxlength="100" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" placeholder="Cashier or branch staff name" />
             </label>
 
             <div class="flex flex-col gap-space-2 md:col-span-2">
@@ -330,6 +357,7 @@
         formData.append('businessDate', document.getElementById('businessDate').value);
         formData.append('handoverDate', document.getElementById('handoverDate').value);
         formData.append('cashierName', document.getElementById('cashierName').value);
+        formData.append('reportSection', document.getElementById('reportSection').value);
 
         for (let i = 0; i < fileItems.length; i++) {
             const rotatedFile = await getRotatedFile(fileItems[i]);

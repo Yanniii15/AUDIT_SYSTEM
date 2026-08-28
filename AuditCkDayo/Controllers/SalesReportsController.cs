@@ -91,15 +91,31 @@ namespace AuditCkDayo.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> Upload()
+        public async Task<IActionResult> Upload(int? reportId, string? section)
         {
-            await PopulateEstablishments();
+            if (reportId.HasValue)
+            {
+                var report = await _context.SalesReports
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(r => r.Id == reportId.Value);
+
+                if (report != null)
+                {
+                    ViewBag.PreselectedEstablishmentId = report.EstablishmentId;
+                    ViewBag.PreselectedBusinessDate = report.BusinessDate.ToString("yyyy-MM-dd");
+                    ViewBag.PreselectedHandoverDate = report.HandoverDate.ToString("yyyy-MM-dd");
+                    ViewBag.PreselectedCashierName = report.CashierName;
+                    ViewBag.PreselectedSection = string.Equals(section, "Closing", StringComparison.OrdinalIgnoreCase) ? 0 : 1;
+                }
+            }
+
+            await PopulateEstablishments(ViewBag.PreselectedEstablishmentId as int?);
             return View();
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Upload(int establishmentId, DateTime businessDate, DateTime handoverDate, string? cashierName, List<IFormFile>? reportImages)
+        public async Task<IActionResult> Upload(int establishmentId, DateTime businessDate, DateTime handoverDate, string? cashierName, List<IFormFile>? reportImages, int reportSection = 1)
         {
             var currentUserId = GetCurrentUserId();
             if (!currentUserId.HasValue)
@@ -171,16 +187,32 @@ namespace AuditCkDayo.Controllers
                 await using (var fileStream = new FileStream(filePath, FileMode.CreateNew))
                 {
                     await reportImage.CopyToAsync(fileStream);
-                 }
+                }
                 savedUrls.Add($"/SalesReports/Image/{generatedFileName}");
             }
 
-            // Primary image for compatibility
-            var firstImagePath = Path.Combine(uploadsFolder, Path.GetFileName(savedUrls[0]));
+            // Check if there is an existing report for this branch and date
+            var existingReport = await _context.SalesReports
+                .Include(r => r.DocumentRecord)
+                .FirstOrDefaultAsync(r => r.EstablishmentId == establishmentId && r.BusinessDate.Date == businessDate.Date);
 
-            SalesReportOcrResult? ocrResult = null;
-            var ocrStatus = OcrStatus.Failed;
-            string? ocrRawJson = null;
+            if (reportSection == 0 && existingReport != null)
+            {
+                // Uploading closing log books onto an existing opening report
+                var currentUrls = existingReport.ClosingImageUrls ?? new List<string>();
+                foreach (var url in savedUrls)
+                {
+                    if (!currentUrls.Contains(url))
+                    {
+                        currentUrls.Add(url);
+                    }
+                }
+                existingReport.ClosingImageUrls = currentUrls;
+                await _context.SaveChangesAsync();
+
+                TempData["Message"] = "Closing log books uploaded successfully. Fill in closing daily sales.";
+                return RedirectToAction(nameof(Review), new { id = existingReport.Id });
+            }
 
             var document = new DocumentRecord
             {
@@ -188,51 +220,54 @@ namespace AuditCkDayo.Controllers
                 UploadedByUserId = currentUserId.Value,
                 UploadedAt = DateTime.UtcNow,
                 ImageUrl = savedUrls[0],
-                OcrRawJson = ocrRawJson,
-                OcrStatus = ocrStatus,
+                OcrStatus = OcrStatus.Failed,
                 ReviewStatus = DocumentReviewStatus.Draft
             };
 
             _context.DocumentRecords.Add(document);
             await _context.SaveChangesAsync();
 
-            var report = new SalesReport
+            var report = existingReport;
+            if (report == null)
             {
-                DocumentRecordId = document.Id,
-                EstablishmentId = establishmentId,
-                CashierName = string.IsNullOrWhiteSpace(ocrResult?.CashierName) ? cashierName : ocrResult.CashierName,
-                BusinessDate = (ocrResult?.BusinessDate ?? businessDate).Date,
-                HandoverDate = handoverDate.Date,
-                GrossSales = ocrResult?.GrossSales ?? 0m,
-                CashOut = ocrResult?.CashOut ?? 0m,
-                ConfirmedCashToHandover = ocrResult?.ConfirmedCashToHandover ?? 0m,
-                GCashAmount = ocrResult?.GCashAmount ?? 0m,
-                CreditAmount = ocrResult?.CreditAmount ?? 0m,
-                OtherPaymentAmount = ocrResult?.OtherPaymentAmount ?? 0m,
-                ReceiptNumberStart = ocrResult?.ReceiptNumberStart,
-                ReceiptNumberEnd = ocrResult?.ReceiptNumberEnd,
-                WitnessName = ocrResult?.WitnessName,
-                Status = SalesReportStatus.Draft
-            };
-            report.ImageUrls = savedUrls;
-            if (ocrResult?.Denominations != null)
-            {
-                foreach (var denom in ocrResult.Denominations)
+                report = new SalesReport
                 {
-                    report.CashBreakdownLines.Add(new CashBreakdownLine
-                    {
-                        OwnerType = CashBreakdownOwnerType.SalesReport,
-                        Denomination = denom.Denomination,
-                        Quantity = denom.Quantity,
-                        Total = denom.Denomination * denom.Quantity
-                    });
+                    DocumentRecordId = document.Id,
+                    EstablishmentId = establishmentId,
+                    CashierName = cashierName,
+                    BusinessDate = businessDate.Date,
+                    HandoverDate = handoverDate.Date,
+                    Status = SalesReportStatus.Draft
+                };
+                _context.SalesReports.Add(report);
+            }
+            else
+            {
+                report.DocumentRecordId = document.Id;
+                report.HandoverDate = handoverDate.Date;
+                if (!string.IsNullOrEmpty(cashierName))
+                {
+                    report.CashierName = cashierName;
                 }
             }
 
-            _context.SalesReports.Add(report);
+            if (reportSection == 0)
+            {
+                report.ClosingImageUrls = savedUrls;
+            }
+            else
+            {
+                report.ImageUrls = savedUrls;
+            }
             await _context.SaveChangesAsync();
 
-            TempData["Message"] = "Sales report uploaded. Fill in the opening daily sales.";
+            if (reportSection == 0)
+            {
+                TempData["Message"] = "Closing sales report uploaded. Fill in closing daily sales.";
+                return RedirectToAction(nameof(Review), new { id = report.Id });
+            }
+
+            TempData["Message"] = "Opening sales report uploaded. Fill in opening daily sales.";
             return RedirectToAction(nameof(OpeningReview), new { id = report.Id });
         }
 
@@ -257,7 +292,17 @@ namespace AuditCkDayo.Controllers
             }
 
             await PopulateEstablishments(report.EstablishmentId);
-            return View(BuildReviewModel(report));
+            var model = BuildReviewModel(report);
+            var currentRole = User.FindFirstValue(ClaimTypes.Role);
+            var isManager = string.Equals(currentRole, UserRole.Manager.ToString(), StringComparison.OrdinalIgnoreCase)
+                         || string.Equals(currentRole, UserRole.Owner.ToString(), StringComparison.OrdinalIgnoreCase)
+                         || string.Equals(currentRole, UserRole.Admin.ToString(), StringComparison.OrdinalIgnoreCase);
+
+            if (isManager)
+            {
+                return View("ReviewManager", model);
+            }
+            return View(model);
         }
 
         [HttpGet]
@@ -288,7 +333,7 @@ namespace AuditCkDayo.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Review(SalesReportReviewViewModel model, string actionType)
+        public async Task<IActionResult> Review(SalesReportReviewViewModel model, string actionType, List<IFormFile>? closingLogBookImages)
         {
             if (!model.SalesReportId.HasValue)
             {
@@ -314,6 +359,42 @@ namespace AuditCkDayo.Controllers
             await PopulateEstablishments(model.EstablishmentId);
             PopulateReviewUiState(model, report);
 
+            // Process closing log book images upload if provided
+            if (closingLogBookImages != null && closingLogBookImages.Count > 0)
+            {
+                var uploadsFolder = GetUploadsFolder();
+                Directory.CreateDirectory(uploadsFolder);
+                var currentUrls = report.ImageUrls ?? new List<string>();
+
+                foreach (var file in closingLogBookImages)
+                {
+                    if (file.Length > 0)
+                    {
+                        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+                        if (!AllowedImageExtensions.Contains(ext))
+                        {
+                            ModelState.AddModelError(string.Empty, $"Invalid file format: {file.FileName}. Please upload PNG, JPG, JPEG, or WEBP.");
+                            continue;
+                        }
+
+                        var generatedFileName = $"{Guid.NewGuid():N}{ext}";
+                        var filePath = Path.Combine(uploadsFolder, generatedFileName);
+
+                        await using (var fileStream = new FileStream(filePath, FileMode.CreateNew))
+                        {
+                            await file.CopyToAsync(fileStream);
+                        }
+
+                        var newUrl = $"/SalesReports/Image/{generatedFileName}";
+                        if (!currentUrls.Contains(newUrl))
+                        {
+                            currentUrls.Add(newUrl);
+                        }
+                    }
+                }
+                report.ImageUrls = currentUrls;
+            }
+
             if (!await IsValidOperatingBranchAsync(model.EstablishmentId))
             {
                 ModelState.AddModelError(nameof(model.EstablishmentId), "Select an active operating branch.");
@@ -321,6 +402,13 @@ namespace AuditCkDayo.Controllers
 
             if (!ModelState.IsValid)
             {
+                var role = User.FindFirstValue(ClaimTypes.Role);
+                if (string.Equals(role, UserRole.Manager.ToString(), StringComparison.OrdinalIgnoreCase)
+                 || string.Equals(role, UserRole.Owner.ToString(), StringComparison.OrdinalIgnoreCase)
+                 || string.Equals(role, UserRole.Admin.ToString(), StringComparison.OrdinalIgnoreCase))
+                {
+                    return View("ReviewManager", model);
+                }
                 return View(model);
             }
 
@@ -333,7 +421,15 @@ namespace AuditCkDayo.Controllers
             {
                 ModelState.AddModelError(string.Empty, "Confirmed sales reports cannot be saved as drafts.");
                 TempData["Error"] = "Confirmed sales reports cannot be saved as drafts.";
-                return View(BuildReviewModel(report));
+                var errorModel = BuildReviewModel(report);
+                var role = User.FindFirstValue(ClaimTypes.Role);
+                if (string.Equals(role, UserRole.Manager.ToString(), StringComparison.OrdinalIgnoreCase)
+                 || string.Equals(role, UserRole.Owner.ToString(), StringComparison.OrdinalIgnoreCase)
+                 || string.Equals(role, UserRole.Admin.ToString(), StringComparison.OrdinalIgnoreCase))
+                {
+                    return View("ReviewManager", errorModel);
+                }
+                return View(errorModel);
             }
 
             ApplyReviewModel(report, model);
@@ -484,9 +580,9 @@ namespace AuditCkDayo.Controllers
                 report.DocumentRecord.ConfirmedByUserId = currentUserId.Value;
                 report.DocumentRecord.ConfirmedAt = DateTime.UtcNow;
 
-                if (model.ManagerCountedTotalCash > 0m)
+                if (model.ConfirmedCashToHandover > 0m)
                 {
-                    report.ConfirmedCashToHandover = model.ManagerCountedTotalCash - report.OpeningCashSales;
+                    report.ConfirmedCashToHandover = model.ConfirmedCashToHandover;
                 }
 
                 await PostConfirmedSalesReportToTreasuryAsync(report, currentUserId.Value);
@@ -501,7 +597,15 @@ namespace AuditCkDayo.Controllers
                     ModelState.AddModelError(string.Empty, "Add the opening sales section before submitting this daily sales report.");
                     TempData["Error"] = "Add the opening daily sales before submitting for manager verification.";
                     await _context.SaveChangesAsync();
-                    return View(BuildReviewModel(report));
+                    var errorModel = BuildReviewModel(report);
+                    var role = User.FindFirstValue(ClaimTypes.Role);
+                    if (string.Equals(role, UserRole.Manager.ToString(), StringComparison.OrdinalIgnoreCase)
+                     || string.Equals(role, UserRole.Owner.ToString(), StringComparison.OrdinalIgnoreCase)
+                     || string.Equals(role, UserRole.Admin.ToString(), StringComparison.OrdinalIgnoreCase))
+                    {
+                        return View("ReviewManager", errorModel);
+                    }
+                    return View(errorModel);
                 }
 
                 report.Status = SalesReportStatus.PendingManagerVerification;
@@ -613,7 +717,8 @@ namespace AuditCkDayo.Controllers
                     && (r.DocumentRecord.ImageUrl == fileName
                         || r.DocumentRecord.ImageUrl.EndsWith(storedImageUrlSuffix)
                         || r.DocumentRecord.ImageUrl.EndsWith(storedImageUrlWindowsSuffix)
-                        || (r.ImageUrlsJson != null && r.ImageUrlsJson.Contains(fileName))));
+                        || (r.ImageUrlsJson != null && r.ImageUrlsJson.Contains(fileName))
+                        || (r.ClosingImageUrlsJson != null && r.ClosingImageUrlsJson.Contains(fileName))));
 
             if (report == null)
             {
@@ -692,7 +797,7 @@ namespace AuditCkDayo.Controllers
             entry.Category = CashFlowCategory.Sales;
             entry.EstablishmentId = report.EstablishmentId;
             entry.SourceDocumentId = report.DocumentRecordId;
-            entry.Amount = report.TotalConfirmedCashToHandover;
+            entry.Amount = report.ConfirmedCashToHandover;
             entry.Notes = $"Sales handover for {report.BusinessDate:yyyy-MM-dd}";
             entry.ConfirmedByUserId = currentUserId;
 
@@ -816,6 +921,7 @@ namespace AuditCkDayo.Controllers
                 Notes = report.Notes,
                 ImageUrl = report.DocumentRecord?.ImageUrl ?? string.Empty,
                 ImageUrls = report.ImageUrls,
+                ClosingImageUrls = report.ClosingImageUrls,
                 Status = report.Status,
                 ReviewStatus = report.DocumentRecord?.ReviewStatus ?? DocumentReviewStatus.Draft,
             };
@@ -904,6 +1010,10 @@ namespace AuditCkDayo.Controllers
         {
             var model = ToReviewModel(report);
             model.CanConfirmToTreasury = CanConfirmSalesReportToTreasury();
+            if (model.ConfirmedCashToHandover == 0m)
+            {
+                model.ConfirmedCashToHandover = model.CombinedCashSales;
+            }
             return model;
         }
 
@@ -911,6 +1021,7 @@ namespace AuditCkDayo.Controllers
         {
             model.ImageUrl = report.DocumentRecord?.ImageUrl ?? string.Empty;
             model.ImageUrls = report.ImageUrls;
+            model.ClosingImageUrls = report.ClosingImageUrls;
             model.Status = report.Status;
             model.ReviewStatus = report.DocumentRecord?.ReviewStatus ?? DocumentReviewStatus.Draft;
             model.CanConfirmToTreasury = CanConfirmSalesReportToTreasury();

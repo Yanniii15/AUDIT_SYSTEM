@@ -1,0 +1,737 @@
+@model AuditCkDayo.ViewModels.SalesReportReviewViewModel
+@using Microsoft.AspNetCore.Mvc.Rendering
+@{
+    ViewData["Title"] = "Reconciliation Review Daily Sales Report";
+    var establishments = ViewBag.Establishments as SelectList ?? new SelectList(Enumerable.Empty<SelectListItem>());
+}
+
+<div class="space-y-6">
+    <div class="flex flex-col gap-space-2 max-w-3xl">
+        <div class="flex items-center gap-space-2 text-primary">
+            <span class="material-symbols-outlined text-[20px]">fact_check</span>
+            <span class="font-label-caps uppercase tracking-widest text-on-surface-variant">Manager Reconciliation Review</span>
+        </div>
+        <h1 class="font-headline-lg text-headline-lg text-on-surface">Review Daily Sales Report</h1>
+        <p class="font-body-md text-on-surface-variant leading-relaxed">
+            Verify the morning/evening logs, adjust any errors, and confirm to post cash-in.
+        </p>
+    </div>
+
+    @if (TempData["Message"] != null)
+    {
+        <div class="p-space-4 bg-audit-success/10 border border-audit-success/20 rounded-xl text-audit-success font-body-md flex items-center justify-between shadow-sm">
+            <span><i class="bi bi-check-circle-fill me-2"></i> @TempData["Message"]</span>
+            <button type="button" onclick="this.parentElement.remove()" class="material-symbols-outlined text-[18px] hover:scale-110 transition-transform">close</button>
+        </div>
+    }
+
+    <!-- ROW 1: Control Panel Header and Combined Handover Metrics -->
+    <div class="bg-surface-container-lowest p-space-6 rounded-xl border border-surface-border shadow-sm space-y-4">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+                <span class="text-[9px] uppercase font-bold text-on-surface-variant tracking-wider">Business Date: @Model.BusinessDate.ToString("MMM d, yyyy")</span>
+                <h2 class="text-headline-sm font-bold text-on-surface">Verification & Reconciliation Control Panel</h2>
+            </div>
+            
+            <div class="flex gap-3 w-full sm:w-auto items-center">
+                <!-- Export Section Images dropdown -->
+                <div class="relative inline-block text-left" id="exportDropdownContainer">
+                    <button type="button" onclick="document.getElementById('exportMenu').classList.toggle('hidden')" class="bg-surface-container text-primary border border-primary/20 px-4 py-2 rounded-lg font-label-caps uppercase tracking-wider hover:bg-primary/10 transition-all text-[11px] flex items-center gap-2">
+                        <span class="material-symbols-outlined text-[16px]">image</span> Export Report Image
+                    </button>
+                    <div id="exportMenu" class="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white border border-surface-border ring-1 ring-black ring-opacity-5 focus:outline-none hidden z-50">
+                        <div class="py-1">
+                            <button type="button" onclick="exportReportAsImage('opening')" class="text-on-surface hover:bg-surface-container-low block w-full text-left px-4 py-2 text-[11px] font-label-caps uppercase tracking-wide flex items-center gap-2">
+                                <span class="material-symbols-outlined text-[16px]">wb_twilight</span> Export Opening Sales
+                            </button>
+                            <button type="button" onclick="exportReportAsImage('closing')" class="text-on-surface hover:bg-surface-container-low block w-full text-left px-4 py-2 text-[11px] font-label-caps uppercase tracking-wide flex items-center gap-2 border-t border-surface-border">
+                                <span class="material-symbols-outlined text-[16px]">nights_stay</span> Export Closing Sales
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="button" onclick="triggerTopForm('SaveDraft')" class="bg-surface-container text-primary border border-primary/20 px-5 py-2 rounded-lg font-label-caps uppercase tracking-wider hover:bg-primary/10 transition-all text-[11px] flex items-center gap-2">
+                    <span class="material-symbols-outlined text-[16px]">save</span> Save Draft
+                </button>
+                <button type="button" onclick="triggerTopForm('@Model.PrimaryActionType')" class="bg-primary text-on-primary px-6 py-2 rounded-lg font-label-caps uppercase tracking-wider hover:bg-primary/95 transition-all text-[11px] flex items-center gap-2 shadow-sm">
+                    <span class="material-symbols-outlined text-[16px]">@Model.PrimaryActionIcon</span> @Model.PrimaryActionText
+                </button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-space-4 pt-2">
+            <div class="bg-surface-container-low rounded-lg p-space-4 border border-surface-border">
+                <div class="text-[9px] uppercase font-bold text-on-surface-variant tracking-wider mb-1">Opening Cash Sales</div>
+                <div class="text-body-md font-bold text-on-surface font-data-mono text-[18px]">
+                    ₱@Model.OpeningCashSales.ToString("N2")
+                </div>
+            </div>
+            <div class="bg-surface-container-low rounded-lg p-space-4 border border-surface-border">
+                <div class="text-[9px] uppercase font-bold text-on-surface-variant tracking-wider mb-1">Closing Cash Sales</div>
+                <div class="text-body-md font-bold text-on-surface font-data-mono text-[18px]" id="display_closing_cash_sales">
+                    ₱@Model.CashSales.ToString("N2")
+                </div>
+            </div>
+            <div class="bg-surface-container-low rounded-lg p-space-4 border-l-4 border-primary shadow-sm">
+                <div class="text-[9px] uppercase font-bold text-on-surface-variant tracking-wider mb-1">Combined Cash Sales</div>
+                <div class="text-primary font-bold font-data-mono text-[18px]" id="display_combined_cash_sales">
+                    ₱@Model.CombinedCashSales.ToString("N2")
+                </div>
+            </div>
+            <div class="bg-surface-container-low rounded-lg p-space-4 border border-surface-border ring-2 ring-primary/20">
+                <div class="text-[9px] uppercase font-bold text-primary tracking-wider mb-1">Total Handover Cash (Editable)</div>
+                @if (Model.CanConfirmToTreasury)
+                {
+                    <input type="number" step="0.01" value="@Model.ConfirmedCashToHandover.ToString("F2", System.Globalization.CultureInfo.InvariantCulture)" class="w-full bg-transparent border-0 border-b border-primary focus:outline-none font-bold font-data-mono text-[22px] text-primary p-0" id="HandoverCashInput" />
+                }
+                else
+                {
+                    <div class="text-body-md font-bold text-on-surface font-data-mono text-[18px]">
+                        ₱@Model.ConfirmedCashToHandover.ToString("N2")
+                    </div>
+                }
+            </div>
+            @{
+                var initialVariance = Model.ConfirmedCashToHandover - Model.CombinedCashSales;
+                var initialLabel = initialVariance < 0 ? "Short" : initialVariance > 0 ? "Over" : "Balanced";
+            }
+            <div class="bg-surface-container-low rounded-lg p-space-4 border-l-4 @(initialVariance == 0m ? "border-audit-success" : "border-audit-error") shadow-sm" id="short-over-card">
+                <div class="text-[9px] uppercase font-bold text-on-surface-variant tracking-wider mb-1" id="short-over-label">Short / Over Notice (@initialLabel)</div>
+                <div class="font-bold font-data-mono text-[18px] @(initialVariance == 0m ? "text-audit-success" : "text-audit-error")" id="short-over-amount">
+                    ₱@Math.Abs(initialVariance).ToString("N2")
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main post form wrap -->
+    <form asp-controller="SalesReports" asp-action="Review" method="post" enctype="multipart/form-data" class="space-y-6" id="topActionForm">
+        @Html.AntiForgeryToken()
+        <div asp-validation-summary="ModelOnly" class="text-audit-error bg-audit-error/10 border border-audit-error/20 p-space-4 rounded-lg text-body-md text-center"></div>
+        
+        <input type="hidden" asp-for="SalesReportId" />
+        <input type="hidden" asp-for="DocumentRecordId" />
+        <input type="hidden" asp-for="ImageUrl" />
+        <input type="hidden" asp-for="EstablishmentId" />
+        <input type="hidden" asp-for="BusinessDate" />
+        <input type="hidden" asp-for="HandoverDate" />
+        <input type="hidden" asp-for="CashierName" />
+        <input type="hidden" asp-for="ConfirmedCashToHandover" id="topHandoverMirror" />
+        <input type="hidden" asp-for="ManagerCountedTotalCash" id="topCountedMirror" />
+        <input type="hidden" asp-for="GCashAmount" id="GCashAmount" />
+        <input type="hidden" asp-for="CreditAmount" id="CreditAmount" />
+        <input type="hidden" asp-for="OtherPaymentAmount" id="OtherPaymentAmount" />
+        <input type="hidden" asp-for="CashOut" id="CashOut" />
+        <input type="hidden" name="actionType" id="actionTypeField" value="SaveDraft" />
+
+        @if (Model.ImageUrls != null)
+        {
+            for (int i = 0; i < Model.ImageUrls.Count; i++)
+            {
+                <input type="hidden" name="ImageUrls[@i]" value="@Model.ImageUrls[i]" />
+            }
+        }
+
+        <!-- ROW 2: Forms Side-by-Side Comparison -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-space-8 items-start">
+            
+            <!-- LEFT HALF: Opening Daily Sales (Readonly) -->
+            <div class="bg-surface-container-lowest rounded-xl shadow-sm border border-surface-border overflow-hidden space-y-space-6 pb-space-6">
+                <div class="bg-primary/95 px-space-6 py-space-4 flex justify-between items-center text-on-primary">
+                    <span class="font-label-caps uppercase tracking-tighter text-[11px] font-bold">1. Opening Daily Sales Log</span>
+                    <span class="text-[10px] font-data-mono bg-white/20 px-2 py-0.5 rounded text-white font-semibold">READONLY</span>
+                </div>
+
+                <!-- Opening Image Viewer -->
+                <div class="px-space-6">
+                    <div class="p-space-4 bg-surface-container-highest flex flex-col items-center justify-center min-h-[300px] relative border border-surface-border rounded-xl">
+                        <img id="opening-main-preview" src="@(Model.ImageUrls != null && Model.ImageUrls.Count > 0 ? Model.ImageUrls[0] : "/img/placeholder.png")" class="max-w-full max-h-[350px] object-contain rounded-lg border border-surface-border/50 shadow-sm cursor-pointer hover:opacity-90 transition-opacity" alt="Opening Logbook" onclick="openLightbox(this.src)" />
+                        <span class="text-on-surface-variant text-[10px] uppercase font-label-caps mt-2">Click photo to zoom</span>
+                    </div>
+                    @if (Model.ImageUrls != null && Model.ImageUrls.Count > 0)
+                    {
+                        <div class="p-space-3 mt-3 bg-surface-container-low border border-surface-border rounded-lg flex gap-2 overflow-x-auto">
+                            @for (int i = 0; i < Model.ImageUrls.Count; i++)
+                            {
+                                <div class="w-12 h-12 flex-shrink-0 bg-black rounded border border-surface-border overflow-hidden cursor-pointer hover:border-primary transition-all @(i == 0 ? "ring-2 ring-primary" : "")" onclick="setOpeningPreview(this, '@Model.ImageUrls[i]')">
+                                    <img src="@Model.ImageUrls[i]" class="w-full h-full object-contain" />
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+
+                <!-- Opening Financial Figures -->
+                <div class="px-space-6 space-y-space-4">
+                    <div class="rounded-xl border border-surface-border bg-surface-container-low/20 p-space-4 space-y-4">
+                        <h3 class="font-label-caps text-on-surface uppercase text-[10px] tracking-wider font-bold">Financial Figures</h3>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <span class="text-[10px] font-label-caps text-on-surface-variant block mb-1">Gross Sales (₱)</span>
+                                <div class="bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono text-[13px] text-on-surface">@Model.OpeningGrossSales.ToString("N2")</div>
+                            </div>
+                            <div>
+                                <span class="text-[10px] font-label-caps text-on-surface-variant block mb-1">Cash Sales (₱)</span>
+                                <div class="bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono text-[13px] text-on-surface">@Model.OpeningCashSales.ToString("N2")</div>
+                            </div>
+                            <div>
+                                <span class="text-[10px] font-label-caps text-on-surface-variant block mb-1">Food Sales (₱)</span>
+                                <div class="bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono text-[13px] text-on-surface">@Model.OpeningFoodSales.ToString("N2")</div>
+                            </div>
+                            <div>
+                                <span class="text-[10px] font-label-caps text-on-surface-variant block mb-1">Beer Sales (₱)</span>
+                                <div class="bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono text-[13px] text-on-surface">@Model.OpeningBeerSales.ToString("N2")</div>
+                            </div>
+                            <div>
+                                <span class="text-[10px] font-label-caps text-on-surface-variant block mb-1">Beverage Sales (₱)</span>
+                                <div class="bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono text-[13px] text-on-surface">@Model.OpeningBeverageSales.ToString("N2")</div>
+                            </div>
+                            <div>
+                                <span class="text-[10px] font-label-caps text-on-surface-variant block mb-1">Other Sales (₱)</span>
+                                <div class="bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono text-[13px] text-on-surface">@Model.OpeningOtherSales.ToString("N2")</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="rounded-xl border border-surface-border bg-surface-container-low/20 p-space-4 space-y-4">
+                        <h3 class="font-label-caps text-on-surface uppercase text-[10px] tracking-wider font-bold">Discounts Breakdown</h3>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <span class="text-[10px] font-label-caps text-on-surface-variant block mb-1">Senior Discount (₱)</span>
+                                <div class="bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono text-[13px] text-on-surface">@Model.OpeningSeniorDiscount.ToString("N2")</div>
+                            </div>
+                            <div>
+                                <span class="text-[10px] font-label-caps text-on-surface-variant block mb-1">PWD Discount (₱)</span>
+                                <div class="bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono text-[13px] text-on-surface">@Model.OpeningPwdDiscount.ToString("N2")</div>
+                            </div>
+                            <div>
+                                <span class="text-[10px] font-label-caps text-on-surface-variant block mb-1">Loyalty Discount (₱)</span>
+                                <div class="bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono text-[13px] text-on-surface">@Model.OpeningLoyaltyCardDiscount.ToString("N2")</div>
+                            </div>
+                            <div>
+                                <span class="text-[10px] font-label-caps text-on-surface-variant block mb-1">Voucher Discount (₱)</span>
+                                <div class="bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono text-[13px] text-on-surface">@Model.OpeningGiftVoucherDiscount.ToString("N2")</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="rounded-xl border border-surface-border bg-surface-container-low/20 p-space-4 space-y-4">
+                        <h3 class="font-label-caps text-on-surface uppercase text-[10px] tracking-wider font-bold">Variances & PCF</h3>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <span class="text-[10px] font-label-caps text-on-surface-variant block mb-1">Resto PCF (₱)</span>
+                                <div class="bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono text-[13px] text-on-surface">@Model.OpeningRestoPcf.ToString("N2")</div>
+                            </div>
+                            <div>
+                                <span class="text-[10px] font-label-caps text-on-surface-variant block mb-1">PCF from Sales (₱)</span>
+                                <div class="bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono text-[13px] text-on-surface">@Model.OpeningPcfFromSales.ToString("N2")</div>
+                            </div>
+                            <div>
+                                <span class="text-[10px] font-label-caps text-on-surface-variant block mb-1">Shortage Amount (₱)</span>
+                                <div class="bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono text-[13px] text-on-surface">@Model.OpeningSalesShortageAmount.ToString("N2")</div>
+                            </div>
+                            <div>
+                                <span class="text-[10px] font-label-caps text-on-surface-variant block mb-1">Overage Amount (₱)</span>
+                                <div class="bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono text-[13px] text-on-surface">@Model.OpeningSalesOverageAmount.ToString("N2")</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT HALF: Closing Daily Sales -->
+            <div class="bg-surface-container-lowest rounded-xl shadow-sm border border-surface-border overflow-hidden space-y-space-6 pb-space-6">
+                <div class="bg-primary px-space-6 py-space-4 flex justify-between items-center text-on-primary">
+                    <span class="font-label-caps uppercase tracking-tighter text-[11px] font-bold">2. Closing Daily Sales Log</span>
+                    <span class="text-[10px] font-data-mono bg-white/20 px-2 py-0.5 rounded text-white font-semibold">FORM INPUTS</span>
+                </div>
+
+                <!-- Closing Image Viewer -->
+                <div class="px-space-6">
+                    <div class="p-space-4 bg-surface-container-highest flex flex-col items-center justify-center min-h-[300px] relative border border-surface-border rounded-xl">
+                        <img id="closing-main-preview" src="@(Model.ClosingImageUrls != null && Model.ClosingImageUrls.Count > 0 ? Model.ClosingImageUrls[0] : "/img/placeholder.png")" class="max-w-full max-h-[350px] object-contain rounded-lg border border-surface-border/50 shadow-sm cursor-pointer hover:opacity-90 transition-opacity" alt="Closing Logbook" onclick="openLightbox(this.src)" />
+                        <span class="text-on-surface-variant text-[10px] uppercase font-label-caps mt-2">Click photo to zoom</span>
+                    </div>
+                    @if (Model.ClosingImageUrls != null && Model.ClosingImageUrls.Count > 0)
+                    {
+                        <div class="p-space-3 mt-3 bg-surface-container-low border border-surface-border rounded-lg flex gap-2 overflow-x-auto">
+                            @for (int i = 0; i < Model.ClosingImageUrls.Count; i++)
+                            {
+                                <div class="w-12 h-12 flex-shrink-0 bg-black rounded border border-surface-border overflow-hidden cursor-pointer hover:border-primary transition-all @(i == 0 ? "ring-2 ring-primary" : "")" onclick="setClosingPreview(this, '@Model.ClosingImageUrls[i]')">
+                                    <img src="@Model.ClosingImageUrls[i]" class="w-full h-full object-contain" />
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+
+                <!-- Closing Form Inputs -->
+                <div class="px-space-6 space-y-space-4">
+                    <div class="rounded-xl border border-surface-border bg-surface-container-low/20 p-space-4 space-y-4">
+                        <h3 class="font-label-caps text-on-surface uppercase text-[10px] tracking-wider font-bold">Financial Fields</h3>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <span class="text-[10px] font-label-caps text-on-surface-variant block mb-1">Gross Sales (₱)</span>
+                                @if (Model.CanConfirmToTreasury)
+                                {
+                                    <div class="bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono text-[13px] text-on-surface">@Model.ClosingGrossSales.ToString("N2")</div>
+                                    <input type="hidden" asp-for="ClosingGrossSales" />
+                                }
+                                else
+                                {
+                                    <input asp-for="ClosingGrossSales" type="number" step="0.01" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/20 text-[13px] text-on-surface" />
+                                }
+                            </div>
+                            <div>
+                                <span class="text-[10px] font-label-caps text-on-surface-variant block mb-1">Cash Sales (₱)</span>
+                                @if (Model.CanConfirmToTreasury)
+                                {
+                                    <div class="bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono text-[13px] text-on-surface">@Model.CashSales.ToString("N2")</div>
+                                    <input type="hidden" asp-for="CashSales" id="CashSales" />
+                                }
+                                else
+                                {
+                                    <input asp-for="CashSales" type="number" step="0.01" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/20 text-[13px] text-on-surface" id="CashSales" />
+                                }
+                            </div>
+                            <div>
+                                <span class="text-[10px] font-label-caps text-on-surface-variant block mb-1">Food Sales (₱)</span>
+                                @if (Model.CanConfirmToTreasury)
+                                {
+                                    <div class="bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono text-[13px] text-on-surface">@Model.FoodSales.ToString("N2")</div>
+                                    <input type="hidden" asp-for="FoodSales" />
+                                }
+                                else
+                                {
+                                    <input asp-for="FoodSales" type="number" step="0.01" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/20 text-[13px] text-on-surface" />
+                                }
+                            </div>
+                            <div>
+                                <span class="text-[10px] font-label-caps text-on-surface-variant block mb-1">Beer Sales (₱)</span>
+                                @if (Model.CanConfirmToTreasury)
+                                {
+                                    <div class="bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono text-[13px] text-on-surface">@Model.BeerSales.ToString("N2")</div>
+                                    <input type="hidden" asp-for="BeerSales" />
+                                }
+                                else
+                                {
+                                    <input asp-for="BeerSales" type="number" step="0.01" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 text-[13px] text-on-surface" />
+                                }
+                            </div>
+                            <div>
+                                <span class="text-[10px] font-label-caps text-on-surface-variant block mb-1">Beverage Sales (₱)</span>
+                                @if (Model.CanConfirmToTreasury)
+                                {
+                                    <div class="bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono text-[13px] text-on-surface">@Model.BeverageSales.ToString("N2")</div>
+                                    <input type="hidden" asp-for="BeverageSales" />
+                                }
+                                else
+                                {
+                                    <input asp-for="BeverageSales" type="number" step="0.01" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 text-[13px] text-on-surface" />
+                                }
+                            </div>
+                            <div>
+                                <span class="text-[10px] font-label-caps text-on-surface-variant block mb-1">Other Sales (₱)</span>
+                                @if (Model.CanConfirmToTreasury)
+                                {
+                                    <div class="bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono text-[13px] text-on-surface">@Model.OtherSales.ToString("N2")</div>
+                                    <input type="hidden" asp-for="OtherSales" />
+                                }
+                                else
+                                {
+                                    <input asp-for="OtherSales" type="number" step="0.01" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 text-[13px] text-on-surface" />
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="rounded-xl border border-surface-border bg-surface-container-low/20 p-space-4 space-y-4">
+                        <h3 class="font-label-caps text-on-surface uppercase text-[10px] tracking-wider font-bold">Discounts Breakdown</h3>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <span class="text-[10px] font-label-caps text-on-surface-variant block mb-1">Senior Discount (₱)</span>
+                                @if (Model.CanConfirmToTreasury)
+                                {
+                                    <div class="bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono text-[13px] text-on-surface">@Model.SeniorDiscount.ToString("N2")</div>
+                                    <input type="hidden" asp-for="SeniorDiscount" />
+                                }
+                                else
+                                {
+                                    <input asp-for="SeniorDiscount" type="number" step="0.01" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 text-[13px] text-on-surface" />
+                                }
+                            </div>
+                            <div>
+                                <span class="text-[10px] font-label-caps text-on-surface-variant block mb-1">PWD Discount (₱)</span>
+                                @if (Model.CanConfirmToTreasury)
+                                {
+                                    <div class="bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono text-[13px] text-on-surface">@Model.PwdDiscount.ToString("N2")</div>
+                                    <input type="hidden" asp-for="PwdDiscount" />
+                                }
+                                else
+                                {
+                                    <input asp-for="PwdDiscount" type="number" step="0.01" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 text-[13px] text-on-surface" />
+                                }
+                            </div>
+                            <div>
+                                <span class="text-[10px] font-label-caps text-on-surface-variant block mb-1">Loyalty Discount (₱)</span>
+                                @if (Model.CanConfirmToTreasury)
+                                {
+                                    <div class="bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono text-[13px] text-on-surface">@Model.LoyaltyCardDiscount.ToString("N2")</div>
+                                    <input type="hidden" asp-for="LoyaltyCardDiscount" />
+                                }
+                                else
+                                {
+                                    <input asp-for="LoyaltyCardDiscount" type="number" step="0.01" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 text-[13px] text-on-surface" />
+                                }
+                            </div>
+                            <div>
+                                <span class="text-[10px] font-label-caps text-on-surface-variant block mb-1">Voucher Discount (₱)</span>
+                                @if (Model.CanConfirmToTreasury)
+                                {
+                                    <div class="bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono text-[13px] text-on-surface">@Model.GiftVoucherDiscount.ToString("N2")</div>
+                                    <input type="hidden" asp-for="GiftVoucherDiscount" />
+                                }
+                                else
+                                {
+                                    <input asp-for="GiftVoucherDiscount" type="number" step="0.01" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 text-[13px] text-on-surface" />
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="rounded-xl border border-surface-border bg-surface-container-low/20 p-space-4 space-y-4">
+                        <h3 class="font-label-caps text-on-surface uppercase text-[10px] tracking-wider font-bold">Variances & PCF</h3>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <span class="text-[10px] font-label-caps text-on-surface-variant block mb-1">Resto PCF (₱)</span>
+                                @if (Model.CanConfirmToTreasury)
+                                {
+                                    <div class="bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono text-[13px] text-on-surface">@Model.RestoPcf.ToString("N2")</div>
+                                    <input type="hidden" asp-for="RestoPcf" />
+                                }
+                                else
+                                {
+                                    <input asp-for="RestoPcf" type="number" step="0.01" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 text-[13px] text-on-surface" />
+                                }
+                            </div>
+                            <div>
+                                <span class="text-[10px] font-label-caps text-on-surface-variant block mb-1">PCF from Sales (₱)</span>
+                                @if (Model.CanConfirmToTreasury)
+                                {
+                                    <div class="bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono text-[13px] text-on-surface">@Model.PcfFromSales.ToString("N2")</div>
+                                    <input type="hidden" asp-for="PcfFromSales" />
+                                }
+                                else
+                                {
+                                    <input asp-for="PcfFromSales" type="number" step="0.01" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 text-[13px] text-on-surface" />
+                                }
+                            </div>
+                            <div>
+                                <span class="text-[10px] font-label-caps text-on-surface-variant block mb-1">Shortage Amount (₱)</span>
+                                @if (Model.CanConfirmToTreasury)
+                                {
+                                    <div class="bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono text-[13px] text-on-surface">@Model.SalesShortageAmount.ToString("N2")</div>
+                                    <input type="hidden" asp-for="SalesShortageAmount" />
+                                }
+                                else
+                                {
+                                    <input asp-for="SalesShortageAmount" type="number" step="0.01" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 text-[13px] text-on-surface" />
+                                }
+                            </div>
+                            <div>
+                                <span class="text-[10px] font-label-caps text-on-surface-variant block mb-1">Overage Amount (₱)</span>
+                                @if (Model.CanConfirmToTreasury)
+                                {
+                                    <div class="bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono text-[13px] text-on-surface">@Model.SalesOverageAmount.ToString("N2")</div>
+                                    <input type="hidden" asp-for="SalesOverageAmount" />
+                                }
+                                else
+                                {
+                                    <input asp-for="SalesOverageAmount" type="number" step="0.01" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-4 py-2 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 text-[13px] text-on-surface" />
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+    function setOpeningPreview(el, src) {
+        document.getElementById('opening-main-preview').src = src;
+        el.parentElement.querySelectorAll('.ring-2').forEach(thumb => {
+            thumb.classList.remove('ring-2', 'ring-primary');
+        });
+        el.classList.add('ring-2', 'ring-primary');
+    }
+
+    function setClosingPreview(el, src) {
+        document.getElementById('closing-main-preview').src = src;
+        el.parentElement.querySelectorAll('.ring-2').forEach(thumb => {
+            thumb.classList.remove('ring-2', 'ring-primary');
+        });
+        el.classList.add('ring-2', 'ring-primary');
+    }
+
+    function triggerTopForm(actionType) {
+        document.getElementById('actionTypeField').value = actionType;
+        document.getElementById('topActionForm').submit();
+    }
+
+    // Mathematical dynamic updates
+    const expectedBaseline = @(Model.CombinedExpectedCashToHandover.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    const openingCashSales = @(Model.OpeningCashSales.ToString(System.Globalization.CultureInfo.InvariantCulture));
+    const combinedCashSales = @(Model.CombinedCashSales.ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+    function updateShortOverNotice(handoverCash) {
+        // Combined Expected Handover Cash is compared directly against Combined Cash Sales
+        const expected = combinedCashSales;
+        const variance = handoverCash - expected;
+        const label = document.getElementById('short-over-label');
+        const amount = document.getElementById('short-over-amount');
+        if (label) {
+            label.innerText = variance < 0 ? 'Short / Over Notice (Short)' : variance > 0 ? 'Short / Over Notice (Over)' : 'Short / Over Notice (Balanced)';
+        }
+        if (amount) {
+            amount.innerText = `₱${Math.abs(variance).toLocaleString('en-US', { minimumFractionDigits: 2 })}`;
+        }
+        const card = document.getElementById('short-over-card');
+        if (card) {
+            card.className = `bg-surface-container-low rounded-lg p-space-4 border-l-4 ${variance === 0 ? 'border-audit-success' : 'border-audit-error'} shadow-sm`;
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const inputEl = document.getElementById('HandoverCashInput');
+        if (inputEl) {
+            // Force value initialization to match combined total cash sales if it was loading closing sales placeholder (3000)
+            const currentValue = parseFloat(inputEl.value) || 0;
+            if (currentValue === @(Model.CashSales.ToString(System.Globalization.CultureInfo.InvariantCulture)) && combinedCashSales > currentValue) {
+                inputEl.value = combinedCashSales.toFixed(2);
+            }
+
+            inputEl.addEventListener('input', (e) => {
+                const handoverCash = parseFloat(e.target.value) || 0;
+                document.getElementById('topHandoverMirror').value = handoverCash.toFixed(2);
+                document.getElementById('topCountedMirror').value = (handoverCash + openingCashSales).toFixed(2);
+                updateShortOverNotice(handoverCash);
+            });
+        }
+
+        // Initialize values
+        const initialHandover = parseFloat(inputEl?.value) || 0;
+        document.getElementById('topHandoverMirror').value = initialHandover.toFixed(2);
+        document.getElementById('topCountedMirror').value = (initialHandover + openingCashSales).toFixed(2);
+        updateShortOverNotice(initialHandover);
+    });
+
+    // Close export dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        const container = document.getElementById('exportDropdownContainer');
+        const menu = document.getElementById('exportMenu');
+        if (container && menu && !container.contains(e.target)) {
+            menu.classList.add('hidden');
+        }
+    });
+
+    // Dynamic Image Export Renderer (Gemini reference template)
+    function exportReportAsImage(section) {
+        document.getElementById('exportMenu').classList.add('hidden');
+        
+        // Create an offscreen layout canvas container following the Gemini reference report layout card design
+        const reportContainer = document.createElement('div');
+        reportContainer.style.position = 'fixed';
+        reportContainer.style.top = '-9999px';
+        reportContainer.style.left = '-9999px';
+        reportContainer.style.width = '600px';
+        reportContainer.style.background = '#f8fafc';
+        reportContainer.style.padding = '32px';
+        reportContainer.style.fontFamily = "'Inter', system-ui, -apple-system, sans-serif";
+        reportContainer.style.color = '#0f172a';
+        reportContainer.style.boxSizing = 'border-box';
+
+        const isOpening = section === 'opening';
+        const sectionTitle = isOpening ? 'OPENING MAIN SALES' : 'CLOSING MAIN SALES';
+        const cashierVal = "@(Model.CashierName ?? "N/A")";
+
+        // Mappings
+        const grossVal = isOpening ? "@Model.OpeningGrossSales.ToString("N2")" : "@Model.ClosingGrossSales.ToString("N2")";
+        const combinedGross = "@Model.CombinedGrossSales.ToString("N2")";
+        const foodVal = isOpening ? "@Model.OpeningFoodSales.ToString("N2")" : "@Model.FoodSales.ToString("N2")";
+        const beerVal = isOpening ? "@Model.OpeningBeerSales.ToString("N2")" : "@Model.BeerSales.ToString("N2")";
+        const bevVal = isOpening ? "@Model.OpeningBeverageSales.ToString("N2")" : "@Model.BeverageSales.ToString("N2")";
+        const otherVal = isOpening ? "@Model.OpeningOtherSales.ToString("N2")" : "@Model.OtherSales.ToString("N2")";
+
+        const cashVal = isOpening ? "@Model.OpeningCashSales.ToString("N2")" : "@Model.CashSales.ToString("N2")";
+        const gcashVal = isOpening ? "@Model.OpeningTotalGCash.ToString("N2")" : "@Model.TotalGCash.ToString("N2")";
+        const transferVal = isOpening ? "@Model.OpeningTotalBankTransfer.ToString("N2")" : "@Model.TotalBankTransfer.ToString("N2")";
+        const cardCreditVal = isOpening ? "@Model.OpeningTotalCredit.ToString("N2")" : "@Model.TotalCredit.ToString("N2")";
+
+        const discountVal = isOpening ? "@Model.OpeningTotalDiscounts.ToString("N2")" : "@Model.TotalDiscounts.ToString("N2")";
+        const runawayVal = isOpening ? "@Model.OpeningTotalRunawayCustomer.ToString("N2")" : "@Model.TotalRunawayCustomer.ToString("N2")";
+        const expensesVal = isOpening ? "@Model.OpeningTotalExpensesFromSales.ToString("N2")" : "@Model.TotalExpensesFromSales.ToString("N2")";
+        
+        const restoPcfVal = isOpening ? "@Model.OpeningRestoPcf.ToString("N2")" : "@Model.RestoPcf.ToString("N2")";
+        const pcfFromSalesVal = isOpening ? "@Model.OpeningPcfFromSales.ToString("N2")" : "@Model.PcfFromSales.ToString("N2")";
+        const shortageVal = isOpening ? "@Model.OpeningSalesShortageAmount.ToString("N2")" : "@Model.SalesShortageAmount.ToString("N2")";
+        const overageVal = isOpening ? "@Model.OpeningSalesOverageAmount.ToString("N2")" : "@Model.SalesOverageAmount.ToString("N2")";
+
+        reportContainer.innerHTML = `
+            <div style="margin-bottom: 24px;">
+                <h1 style="font-size: 24px; font-weight: 800; color: #041632; margin: 0; text-transform: uppercase; letter-spacing: -0.02em;">${sectionTitle}</h1>
+                <p style="font-size: 13px; color: #64748b; margin: 6px 0 0 0; font-weight: 500;">
+                    @Model.BusinessDate.ToString("MMMM d, yyyy") • @Model.BusinessDate.ToString("dddd") | Cashier: ${cashierVal}
+                </p>
+            </div>
+
+            <!-- SALES SUMMARY SECTION -->
+            <div style="background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05); margin-bottom: 20px; overflow: hidden;">
+                <div style="background: #3B5B92; padding: 12px 16px; color: #ffffff; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">
+                    SALES SUMMARY
+                </div>
+                <div style="padding: 16px; font-size: 13px; color: #334155; line-height: 2.2;">
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;">
+                        <span>Daily Gross Sales (Opening + Closing)</span>
+                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">₱ ${combinedGross}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;">
+                        <span>${isOpening ? 'Opening' : 'Closing'} Gross Sales</span>
+                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">₱ ${grossVal}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;">
+                        <span>Food Sales</span>
+                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">₱ ${foodVal}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;">
+                        <span>Beer Sales</span>
+                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">₱ ${beerVal}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span>Beverages Sales</span>
+                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">₱ ${bevVal}</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLLECTION & PAYMENTS SECTION -->
+            <div style="background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05); margin-bottom: 20px; overflow: hidden;">
+                <div style="background: #3B5B92; padding: 12px 16px; color: #ffffff; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">
+                    COLLECTION & PAYMENTS
+                </div>
+                <div style="padding: 16px; font-size: 13px; color: #334155; line-height: 2.2;">
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;">
+                        <span>Cash Sales</span>
+                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">₱ ${cashVal}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;">
+                        <span>G-Cash Sales</span>
+                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">₱ ${gcashVal}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;">
+                        <span>Bank Transfers</span>
+                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">₱ ${transferVal}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span>Card / Credit</span>
+                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">₱ ${cardCreditVal}</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DEDUCTIONS & EXPENSES SECTION -->
+            <div style="background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05); margin-bottom: 24px; overflow: hidden;">
+                <div style="background: #475569; padding: 12px 16px; color: #ffffff; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">
+                    DEDUCTIONS & EXPENSES
+                </div>
+                <div style="padding: 16px; font-size: 13px; color: #334155; line-height: 2.2;">
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;">
+                        <span>Discounts / Vouchers</span>
+                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">₱ ${discountVal}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;">
+                        <span>Run-away Customer</span>
+                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">₱ ${runawayVal}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;">
+                        <span>Expenses from Sales</span>
+                        <strong style="font-family: monospace; color: #b91c1c; font-size: 14px;">-₱ ${expensesVal}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;">
+                        <span>Resto PCF / PCF from Sales</span>
+                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">₱ ${restoPcfVal} / ₱ ${pcfFromSalesVal}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span>Shortage / Overage</span>
+                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">-₱ ${shortageVal} / +₱ ${overageVal}</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FOOTER NOTICE -->
+            <div style="text-align: center; font-size: 11px; color: #94a3b8; font-weight: 500;">
+                Verified Report - @DateTime.Today.ToString("MMMM d, yyyy")
+            </div>
+        `;
+
+        document.body.appendChild(reportContainer);
+
+        // Load html2canvas dynamically if not loaded
+        const capture = () => {
+            html2canvas(reportContainer, {
+                backgroundColor: '#f8fafc',
+                scale: 2, // High resolution export
+                logging: false,
+                useCORS: true
+            }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = `DailySales_${section.toUpperCase()}_@((Model.BusinessDate).ToString("yyyyMMdd")).png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+                document.body.removeChild(reportContainer);
+            }).catch(err => {
+                console.error("Export failed:", err);
+                document.body.removeChild(reportContainer);
+            });
+        };
+
+        if (typeof html2canvas === 'undefined') {
+            const script = document.createElement('script');
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+            script.onload = capture;
+            document.head.appendChild(script);
+        } else {
+            capture();
+        }
+    }
+
+    // Zoom Lightbox Handlers
+    function openLightbox(src) {
+        const lightbox = document.getElementById('lightboxModal');
+        const lightboxImg = document.getElementById('lightbox-img');
+        if (lightbox && lightboxImg) {
+            lightboxImg.src = src;
+            lightbox.classList.remove('hidden');
+            document.body.classList.add('overflow-hidden');
+        }
+    }
+    function closeLightbox() {
+        const lightbox = document.getElementById('lightboxModal');
+        if (lightbox) {
+            lightbox.classList.add('hidden');
+            document.body.classList.remove('overflow-hidden');
+        }
+    }
+    window.closeLightbox = closeLightbox;
+</script>
+
+<!-- Lightbox Modal for Full Image View -->
+<div id="lightboxModal" class="fixed inset-0 z-[100] hidden" role="dialog" aria-modal="true">
+    <div class="absolute inset-0 bg-primary/90 backdrop-blur-sm cursor-pointer" onclick="closeLightbox()"></div>
+    <div class="relative z-10 h-full w-full p-space-6 flex flex-col items-center justify-center" onclick="closeLightbox()">
+        <img src="" id="lightbox-img" class="max-w-full max-h-[88vh] object-contain rounded-lg shadow-2xl bg-white border border-surface-border" />
+        <span class="text-on-primary/60 text-[11px] font-label-caps uppercase mt-space-3 pointer-events-none">Click anywhere to close</span>
+    </div>
+</div>

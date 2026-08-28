@@ -51,17 +51,22 @@
                 </div>
 
                 <!-- Thumbnail Selector -->
-                @if (Model.ImageUrls != null && Model.ImageUrls.Count > 1)
-                {
-                    <div class="p-space-3 bg-surface-container-low border-t border-surface-border flex gap-2 overflow-x-auto">
-                        @for (int i = 0; i < Model.ImageUrls.Count; i++)
-                        {
-                            <div class="w-16 h-16 flex-shrink-0 bg-black rounded border border-surface-border overflow-hidden cursor-pointer hover:border-primary transition-all @(i == 0 ? "ring-2 ring-primary" : "")" onclick="setPreview(this, '@Model.ImageUrls[i]')">
-                                <img src="@Model.ImageUrls[i]" class="w-full h-full object-contain" />
+                <div class="p-space-3 bg-surface-container-low border-t border-surface-border space-y-3">
+                    @if (Model.ImageUrls != null && Model.ImageUrls.Count > 0)
+                    {
+                        <div>
+                            <span class="text-[9px] font-label-caps text-on-surface-variant block mb-1">Opening Daily Sales Log Book</span>
+                            <div class="flex gap-2 overflow-x-auto">
+                                @for (int i = 0; i < Model.ImageUrls.Count; i++)
+                                {
+                                    <div class="w-14 h-14 flex-shrink-0 bg-black rounded border border-surface-border overflow-hidden cursor-pointer hover:border-primary transition-all @(i == 0 ? "ring-2 ring-primary" : "")" onclick="setPreview(this, '@Model.ImageUrls[i]')">
+                                        <img src="@Model.ImageUrls[i]" class="w-full h-full object-contain" />
+                                    </div>
+                                }
                             </div>
-                        }
-                    </div>
-                }
+                        </div>
+                    }
+                </div>
             </div>
         </div>
 

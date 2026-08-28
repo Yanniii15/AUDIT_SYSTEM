@@ -74,9 +74,24 @@
                                 }
                             </td>
                             <td class="px-space-4 py-space-3 text-right font-data-mono text-primary font-bold">₱@report.TotalConfirmedCashToHandover.ToString("N2")</td>
-                            <td class="px-space-4 py-space-3 text-right">
-                                <a asp-controller="SalesReports" asp-action="OpeningReview" asp-route-id="@report.Id" class="px-3 py-1.5 rounded-lg border border-primary/20 text-primary font-label-caps text-[10px] uppercase hover:bg-primary hover:text-on-primary transition-colors">Add Opening</a>
-                                <a asp-controller="SalesReports" asp-action="Review" asp-route-id="@report.Id" class="px-3 py-1.5 rounded-lg border border-primary/20 text-primary font-label-caps text-[10px] uppercase hover:bg-primary hover:text-on-primary transition-colors">Add Closing Daily Sales</a>
+                            <td class="px-space-4 py-space-3 text-right space-x-2">
+                                @if (report.OpeningCashSales > 0m)
+                                {
+                                    <a asp-controller="SalesReports" asp-action="OpeningReview" asp-route-id="@report.Id" class="px-3 py-1.5 rounded-lg border border-surface-border text-on-surface-variant font-label-caps text-[10px] uppercase hover:bg-surface-container-high transition-colors">Edit Opening</a>
+                                }
+                                else
+                                {
+                                    <a asp-controller="SalesReports" asp-action="Upload" asp-route-reportId="@report.Id" asp-route-section="Opening" class="px-3 py-1.5 rounded-lg border border-primary text-primary font-label-caps text-[10px] uppercase hover:bg-primary hover:text-on-primary transition-colors font-semibold">Add Opening</a>
+                                }
+
+                                @if (report.CashSales > 0m || report.Status == SalesReportStatus.PendingManagerVerification || report.Status == SalesReportStatus.Confirmed)
+                                {
+                                    <a asp-controller="SalesReports" asp-action="Review" asp-route-id="@report.Id" class="px-3 py-1.5 rounded-lg border border-surface-border text-on-surface-variant font-label-caps text-[10px] uppercase hover:bg-surface-container-high transition-colors">Edit Closing</a>
+                                }
+                                else
+                                {
+                                    <a asp-controller="SalesReports" asp-action="Upload" asp-route-reportId="@report.Id" asp-route-section="Closing" class="px-3 py-1.5 rounded-lg border border-primary text-primary font-label-caps text-[10px] uppercase hover:bg-primary hover:text-on-primary transition-colors font-semibold">Add Closing</a>
+                                }
                             </td>
                         </tr>
                     }

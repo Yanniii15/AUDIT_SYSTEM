@@ -7,17 +7,35 @@
 }
 
 <div class="space-y-6">
-    <div class="flex flex-col gap-space-2 max-w-3xl">
-        <div class="flex items-center gap-space-2 text-primary">
-            <span class="material-symbols-outlined text-[20px]">fact_check</span>
-            <span class="font-label-caps uppercase tracking-widest text-on-surface-variant">Sales Report Review</span>
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div class="flex flex-col gap-space-2 max-w-3xl">
+            <div class="flex items-center gap-space-2 text-primary">
+                <span class="material-symbols-outlined text-[20px]">fact_check</span>
+                <span class="font-label-caps uppercase tracking-widest text-on-surface-variant">Sales Report Review</span>
+            </div>
+            <h1 class="font-headline-lg text-headline-lg text-on-surface">Review Daily Sales Report</h1>
+            <p class="font-body-md text-on-surface-variant leading-relaxed">
+                @(Model.CanConfirmToTreasury
+                    ? "Verify the daily sales report count, adjust any errors, and confirm to post cash-in."
+                    : "Review the daily sales report values, adjust any errors, and submit it for manager verification.")
+            </p>
         </div>
-        <h1 class="font-headline-lg text-headline-lg text-on-surface">Review Daily Sales Report</h1>
-        <p class="font-body-md text-on-surface-variant leading-relaxed">
-            @(Model.CanConfirmToTreasury
-                ? "Verify the daily sales report count, adjust any errors, and confirm to post cash-in."
-                : "Review the daily sales report values, adjust any errors, and submit it for manager verification.")
-        </p>
+
+        <div class="relative inline-block text-left" id="exportDropdownContainer">
+            <button type="button" onclick="document.getElementById('exportMenu').classList.toggle('hidden')" class="bg-surface-container text-primary border border-primary/20 px-4 py-2 rounded-lg font-label-caps uppercase tracking-wider hover:bg-primary/10 transition-all text-[11px] flex items-center gap-2">
+                <span class="material-symbols-outlined text-[16px]">image</span> Export Report Image
+            </button>
+            <div id="exportMenu" class="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white border border-surface-border ring-1 ring-black ring-opacity-5 focus:outline-none hidden z-50">
+                <div class="py-1">
+                    <button type="button" onclick="exportReportAsImage('opening')" class="text-on-surface hover:bg-surface-container-low block w-full text-left px-4 py-2 text-[11px] font-label-caps uppercase tracking-wide flex items-center gap-2">
+                        <span class="material-symbols-outlined text-[16px]">wb_twilight</span> Export Opening Sales
+                    </button>
+                    <button type="button" onclick="exportReportAsImage('closing')" class="text-on-surface hover:bg-surface-container-low block w-full text-left px-4 py-2 text-[11px] font-label-caps uppercase tracking-wide flex items-center gap-2 border-t border-surface-border">
+                        <span class="material-symbols-outlined text-[16px]">nights_stay</span> Export Closing Sales
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 
     @if (TempData["Message"] != null)
@@ -1023,6 +1041,185 @@
             if (e.key === 'Escape') closeLightbox();
         });
     });
+
+    // Close export dropdown when clicking outside
+    document.addEventListener('click', (e) => {
+        const container = document.getElementById('exportDropdownContainer');
+        const menu = document.getElementById('exportMenu');
+        if (container && menu && !container.contains(e.target)) {
+            menu.classList.add('hidden');
+        }
+    });
+
+    // Dynamic Image Export Renderer (Gemini reference template)
+    function exportReportAsImage(section) {
+        document.getElementById('exportMenu').classList.add('hidden');
+        
+        // Create an offscreen layout canvas container following the Gemini reference report layout card design
+        const reportContainer = document.createElement('div');
+        reportContainer.style.position = 'fixed';
+        reportContainer.style.top = '-9999px';
+        reportContainer.style.left = '-9999px';
+        reportContainer.style.width = '600px';
+        reportContainer.style.background = '#f8fafc';
+        reportContainer.style.padding = '32px';
+        reportContainer.style.fontFamily = "'Inter', system-ui, -apple-system, sans-serif";
+        reportContainer.style.color = '#0f172a';
+        reportContainer.style.boxSizing = 'border-box';
+
+        const isOpening = section === 'opening';
+        const sectionTitle = isOpening ? 'OPENING MAIN SALES' : 'CLOSING MAIN SALES';
+        const cashierVal = "@(Model.CashierName ?? "N/A")";
+
+        // Mappings
+        const grossVal = isOpening ? "@Model.OpeningGrossSales.ToString("N2")" : "@Model.ClosingGrossSales.ToString("N2")";
+        const combinedGross = "@Model.CombinedGrossSales.ToString("N2")";
+        const foodVal = isOpening ? "@Model.OpeningFoodSales.ToString("N2")" : "@Model.FoodSales.ToString("N2")";
+        const beerVal = isOpening ? "@Model.OpeningBeerSales.ToString("N2")" : "@Model.BeerSales.ToString("N2")";
+        const bevVal = isOpening ? "@Model.OpeningBeverageSales.ToString("N2")" : "@Model.BeverageSales.ToString("N2")";
+        const otherVal = isOpening ? "@Model.OpeningOtherSales.ToString("N2")" : "@Model.OtherSales.ToString("N2")";
+
+        const cashVal = isOpening ? "@Model.OpeningCashSales.ToString("N2")" : "@Model.CashSales.ToString("N2")";
+        const gcashVal = isOpening ? "@Model.OpeningTotalGCash.ToString("N2")" : "@Model.TotalGCash.ToString("N2")";
+        const transferVal = isOpening ? "@Model.OpeningTotalBankTransfer.ToString("N2")" : "@Model.TotalBankTransfer.ToString("N2")";
+        const cardCreditVal = isOpening ? "@Model.OpeningTotalCredit.ToString("N2")" : "@Model.TotalCredit.ToString("N2")";
+
+        const discountVal = isOpening ? "@Model.OpeningTotalDiscounts.ToString("N2")" : "@Model.TotalDiscounts.ToString("N2")";
+        const runawayVal = isOpening ? "@Model.OpeningTotalRunawayCustomer.ToString("N2")" : "@Model.TotalRunawayCustomer.ToString("N2")";
+        const expensesVal = isOpening ? "@Model.OpeningTotalExpensesFromSales.ToString("N2")" : "@Model.TotalExpensesFromSales.ToString("N2")";
+        
+        const restoPcfVal = isOpening ? "@Model.OpeningRestoPcf.ToString("N2")" : "@Model.RestoPcf.ToString("N2")";
+        const pcfFromSalesVal = isOpening ? "@Model.OpeningPcfFromSales.ToString("N2")" : "@Model.PcfFromSales.ToString("N2")";
+        const shortageVal = isOpening ? "@Model.OpeningSalesShortageAmount.ToString("N2")" : "@Model.SalesShortageAmount.ToString("N2")";
+        const overageVal = isOpening ? "@Model.OpeningSalesOverageAmount.ToString("N2")" : "@Model.SalesOverageAmount.ToString("N2")";
+
+        reportContainer.innerHTML = `
+            <div style="margin-bottom: 24px;">
+                <h1 style="font-size: 24px; font-weight: 800; color: #041632; margin: 0; text-transform: uppercase; letter-spacing: -0.02em;">${sectionTitle}</h1>
+                <p style="font-size: 13px; color: #64748b; margin: 6px 0 0 0; font-weight: 500;">
+                    @Model.BusinessDate.ToString("MMMM d, yyyy") • @Model.BusinessDate.ToString("dddd") | Cashier: ${cashierVal}
+                </p>
+            </div>
+
+            <!-- SALES SUMMARY SECTION -->
+            <div style="background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05); margin-bottom: 20px; overflow: hidden;">
+                <div style="background: #3B5B92; padding: 12px 16px; color: #ffffff; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">
+                    SALES SUMMARY
+                </div>
+                <div style="padding: 16px; font-size: 13px; color: #334155; line-height: 2.2;">
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;">
+                        <span>Daily Gross Sales (Opening + Closing)</span>
+                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">₱ ${combinedGross}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;">
+                        <span>${isOpening ? 'Opening' : 'Closing'} Gross Sales</span>
+                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">₱ ${grossVal}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;">
+                        <span>Food Sales</span>
+                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">₱ ${foodVal}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;">
+                        <span>Beer Sales</span>
+                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">₱ ${beerVal}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span>Beverages Sales</span>
+                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">₱ ${bevVal}</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- COLLECTION & PAYMENTS SECTION -->
+            <div style="background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05); margin-bottom: 20px; overflow: hidden;">
+                <div style="background: #3B5B92; padding: 12px 16px; color: #ffffff; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">
+                    COLLECTION & PAYMENTS
+                </div>
+                <div style="padding: 16px; font-size: 13px; color: #334155; line-height: 2.2;">
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;">
+                        <span>Cash Sales</span>
+                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">₱ ${cashVal}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;">
+                        <span>G-Cash Sales</span>
+                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">₱ ${gcashVal}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;">
+                        <span>Bank Transfers</span>
+                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">₱ ${transferVal}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span>Card / Credit</span>
+                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">₱ ${cardCreditVal}</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- DEDUCTIONS & EXPENSES SECTION -->
+            <div style="background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05); margin-bottom: 24px; overflow: hidden;">
+                <div style="background: #475569; padding: 12px 16px; color: #ffffff; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">
+                    DEDUCTIONS & EXPENSES
+                </div>
+                <div style="padding: 16px; font-size: 13px; color: #334155; line-height: 2.2;">
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;">
+                        <span>Discounts / Vouchers</span>
+                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">₱ ${discountVal}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;">
+                        <span>Run-away Customer</span>
+                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">₱ ${runawayVal}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;">
+                        <span>Expenses from Sales</span>
+                        <strong style="font-family: monospace; color: #b91c1c; font-size: 14px;">-₱ ${expensesVal}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;">
+                        <span>Resto PCF / PCF from Sales</span>
+                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">₱ ${restoPcfVal} / ₱ ${pcfFromSalesVal}</strong>
+                    </div>
+                    <div style="display: flex; justify-content: space-between;">
+                        <span>Shortage / Overage</span>
+                        <strong style="font-family: monospace; color: #0f172a; font-size: 14px;">-₱ ${shortageVal} / +₱ ${overageVal}</strong>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FOOTER NOTICE -->
+            <div style="text-align: center; font-size: 11px; color: #94a3b8; font-weight: 500;">
+                Verified Report - @DateTime.Today.ToString("MMMM d, yyyy")
+            </div>
+        `;
+
+        document.body.appendChild(reportContainer);
+
+        // Load html2canvas dynamically if not loaded
+        const capture = () => {
+            html2canvas(reportContainer, {
+                backgroundColor: '#f8fafc',
+                scale: 2, // High resolution export
+                logging: false,
+                useCORS: true
+            }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = `DailySales_${section.toUpperCase()}_@((Model.BusinessDate).ToString("yyyyMMdd")).png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+                document.body.removeChild(reportContainer);
+            }).catch(err => {
+                console.error("Export failed:", err);
+                document.body.removeChild(reportContainer);
+            });
+        };
+
+        if (typeof html2canvas === 'undefined') {
+            const script = document.createElement('script');
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+            script.onload = capture;
+            document.head.appendChild(script);
+        } else {
+            capture();
+        }
+    }
 </script>
 
 <!-- Lightbox Modal for Full Image View -->
