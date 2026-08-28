@@ -591,7 +591,7 @@
             acrossEstablishments?.addEventListener('change', syncPurpose);
             syncPurpose();
 
-            // Image export trigger script (Dynamic Offscreen Layout Rendering)
+            // Image export trigger script (Dynamic Server-Baked Rendering)
             const exportBtn = document.getElementById('export-treasury-image-btn');
             if (exportBtn) {
                 exportBtn.addEventListener('click', (e) => {
@@ -609,61 +609,39 @@
                     reportContainer.style.color = '#000000';
                     reportContainer.style.boxSizing = 'border-box';
 
-                    // Locate and scrap ledger data elements from the visible screen
+                    // Server-baked lists directly from Razor Model data (Zero browser DOM dependency)
                     const salesItems = [];
-                    const changeInItems = [];
-                    const otherInItems = [];
-                    const pcfOutItems = [];
-                    const otherOutItems = [];
-
-                    // Scrape CASH IN (left side lists)
-                    const leftColHeader = document.querySelector('h3.text-green-700');
-                    if (leftColHeader) {
-                        const leftCol = leftColHeader.closest('div').parentElement;
-                        leftCol.querySelectorAll('h4').forEach(header => {
-                            const title = header.innerText.toUpperCase();
-                            const box = header.nextElementSibling;
-                            if (!box) return;
-                            box.querySelectorAll('.flex.justify-between').forEach(row => {
-                                const labelEl = row.querySelector('.text-on-surface');
-                                const amountEl = row.querySelector('.font-data-mono');
-                                if (labelEl && amountEl) {
-                                    let labelText = labelEl.innerText.replace(/Edit\s*\|\s*Del/g, '').replace(/\s+/g, ' ').trim();
-                                    const amountVal = amountEl.innerText.replace('₱', '').trim();
-                                    if (title.includes('SALES')) {
-                                        salesItems.push({ name: labelText, amount: amountVal });
-                                    } else if (title.includes('CHANGE PCF')) {
-                                        changeInItems.push({ name: labelText, amount: amountVal });
-                                    } else if (title.includes('OTHERS')) {
-                                        otherInItems.push({ name: labelText, amount: amountVal });
-                                    }
-                                }
-                            });
-                        });
+                    @foreach (var entry in Model.Entries.Where(e => e.Direction == CashFlowDirection.In && e.Category == CashFlowCategory.Sales))
+                    {
+                        @:salesItems.push({ name: "@(entry.Establishment?.Name ?? "General")", amount: "@entry.Amount.ToString("N2")" });
                     }
 
-                    // Scrape CASH OUT (right side lists)
-                    const rightColHeader = document.querySelector('h3.text-red-700');
-                    if (rightColHeader) {
-                        const rightCol = rightColHeader.closest('div').parentElement;
-                        rightCol.querySelectorAll('h4').forEach(header => {
-                            const title = header.innerText.toUpperCase();
-                            const box = header.nextElementSibling;
-                            if (!box) return;
-                            box.querySelectorAll('.flex.justify-between').forEach(row => {
-                                const labelEl = row.querySelector('.text-on-surface');
-                                const amountEl = row.querySelector('.font-data-mono');
-                                if (labelEl && amountEl) {
-                                    let labelText = labelEl.innerText.replace(/Edit\s*\|\s*Del/g, '').replace(/\s+/g, ' ').trim();
-                                    const amountVal = amountEl.innerText.replace('₱', '').trim();
-                                    if (title.includes('PCF')) {
-                                        pcfOutItems.push({ name: labelText, amount: amountVal });
-                                    } else if (title.includes('OTHERS')) {
-                                        otherOutItems.push({ name: labelText, amount: amountVal });
-                                    }
-                                }
-                            });
-                        });
+                    const changeInItems = [];
+                    @foreach (var entry in Model.Entries.Where(e => e.Direction == CashFlowDirection.In && e.Category == CashFlowCategory.ChangePcf))
+                    {
+                        var labelText = entry.Establishment != null ? entry.Establishment.Name : (entry.Notes ?? "General");
+                        if (entry.Establishment != null && !string.IsNullOrEmpty(entry.Notes)) { labelText += $" ({entry.Notes})"; }
+                        @:changeInItems.push({ name: "@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(labelText))", amount: "@entry.Amount.ToString("N2")" });
+                    }
+
+                    const otherInItems = [];
+                    @foreach (var entry in Model.Entries.Where(e => e.Direction == CashFlowDirection.In && e.Category != CashFlowCategory.Sales && e.Category != CashFlowCategory.ChangePcf))
+                    {
+                        @:otherInItems.push({ name: "@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(entry.Notes ?? entry.Category.ToString()))", amount: "@entry.Amount.ToString("N2")" });
+                    }
+
+                    const pcfOutItems = [];
+                    @foreach (var entry in Model.Entries.Where(e => e.Direction == CashFlowDirection.Out && e.Category == CashFlowCategory.PcfRelease))
+                    {
+                        @:pcfOutItems.push({ name: "@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(entry.Establishment?.Name ?? entry.RelatedUser?.Name ?? entry.Notes ?? "General"))", amount: "@entry.Amount.ToString("N2")" });
+                    }
+
+                    const otherOutItems = [];
+                    @foreach (var entry in Model.Entries.Where(e => e.Direction == CashFlowDirection.Out && e.Category != CashFlowCategory.PcfRelease))
+                    {
+                        var labelText = entry.Notes ?? entry.Category.ToString();
+                        if (entry.Establishment != null) { labelText += $" ({entry.Establishment.Name})"; }
+                        @:otherOutItems.push({ name: "@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(labelText))", amount: "@entry.Amount.ToString("N2")" });
                     }
 
                     // Helper to render dynamic rows inside the report image layout
@@ -758,7 +736,7 @@
 
                     html2canvas(reportContainer, {
                         backgroundColor: '#ffffff',
-                        scale: 2, // High resolution rendering
+                        scale: 2,
                         useCORS: true,
                         allowTaint: true
                     }).then(canvas => {
