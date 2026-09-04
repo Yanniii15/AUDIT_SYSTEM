@@ -1,0 +1,536 @@
+@model IEnumerable<AuditCkDayo.Models.AuditItem>
+@{
+    ViewData["Title"] = "Auditor - Edit Audits";
+    var selectedDate = (DateTime)(ViewBag.SelectedDate ?? DateTime.Today);
+    var prevDate = selectedDate.AddDays(-1).ToString("yyyy-MM-dd");
+    var nextDate = selectedDate.AddDays(1).ToString("yyyy-MM-dd");
+    var totalAmount = (decimal)(ViewBag.TotalAmount ?? 0m);
+    var totalCount = (int)(ViewBag.TotalCount ?? 0);
+    var totalReceiptPhotos = (int)(ViewBag.TotalReceiptPhotos ?? 0);
+    var totalLineItems = (int)(ViewBag.TotalLineItems ?? 0);
+    var approvedCount = (int)(ViewBag.ApprovedCount ?? 0);
+    var pendingCount = (int)(ViewBag.PendingCount ?? 0);
+    var recentDates = ViewBag.RecentActiveDates as List<(DateTime Date, int Count, decimal Total)> ?? new();
+}
+
+<div class="space-y-space-6 w-full pb-space-12">
+    <!-- Top Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-space-4 border-b border-surface-border pb-space-4">
+        <div class="space-y-1">
+            <div class="flex items-center gap-2">
+                <span class="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-[11px] font-label-caps uppercase tracking-wider font-bold bg-primary/10 text-primary border border-primary/20">
+                    <span class="material-symbols-outlined text-[15px]">verified_user</span> Auditor Portal
+                </span>
+                <span class="text-xs text-on-surface-variant font-medium">&bull; Full Edit Privileges</span>
+            </div>
+            <h1 class="font-headline-lg text-headline-lg text-on-surface font-extrabold tracking-tight">Audit Corrections & Receipt Management</h1>
+            <p class="font-body-md text-on-surface-variant text-sm">
+                Select a date to inspect, review, and modify all receipts, merchant sources, and line-item branch allocations.
+            </p>
+        </div>
+        <div class="flex items-center gap-2 self-start sm:self-center">
+            <a asp-controller="Reports" asp-action="Index" class="h-10 px-space-4 rounded-xl bg-surface-container hover:bg-surface-container-high border border-surface-border text-on-surface font-label-caps uppercase text-[11px] tracking-wider inline-flex items-center gap-1.5 transition-all">
+                <span class="material-symbols-outlined text-[16px]">assessment</span> View Reports
+            </a>
+        </div>
+    </div>
+
+    <!-- Date Navigation & Filter Command Bar -->
+    <div class="bg-surface-container-lowest border border-surface-border rounded-2xl shadow-sm p-6 space-y-4">
+        <form method="get" asp-action="AuditorEdit" id="auditorFilterForm" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-end">
+            <!-- Date Stepper & Picker -->
+            <div class="flex flex-col min-w-0">
+                <span class="font-label-caps text-[11px] text-on-surface-variant mb-2 uppercase tracking-wider font-bold flex items-center gap-1.5">
+                    <span class="material-symbols-outlined text-[15px] text-primary">calendar_month</span> Audit Date
+                </span>
+                <div class="flex items-center gap-1.5">
+                    <a asp-action="AuditorEdit" asp-route-date="@prevDate" asp-route-buyerId="@ViewBag.SelectedBuyerId" asp-route-establishmentId="@ViewBag.SelectedEstablishmentId"
+                       title="Previous Day"
+                       class="h-11 w-11 flex items-center justify-center rounded-xl bg-surface-container-low hover:bg-surface-container-high border border-surface-border text-on-surface transition-colors shrink-0">
+                        <span class="material-symbols-outlined text-[20px]">chevron_left</span>
+                    </a>
+                    <input type="date" name="date" id="dateInput" value="@selectedDate.ToString("yyyy-MM-dd")" onchange="document.getElementById('auditorFilterForm').submit()"
+                           class="h-11 flex-1 min-w-0 bg-surface-container-low border border-surface-border rounded-xl px-space-3 text-[14px] text-on-surface font-bold focus:outline-none focus:border-primary/50 text-center" />
+                    <a asp-action="AuditorEdit" asp-route-date="@nextDate" asp-route-buyerId="@ViewBag.SelectedBuyerId" asp-route-establishmentId="@ViewBag.SelectedEstablishmentId"
+                       title="Next Day"
+                       class="h-11 w-11 flex items-center justify-center rounded-xl bg-surface-container-low hover:bg-surface-container-high border border-surface-border text-on-surface transition-colors shrink-0">
+                        <span class="material-symbols-outlined text-[20px]">chevron_right</span>
+                    </a>
+                    <a asp-action="AuditorEdit" asp-route-date="@DateTime.Today.ToString("yyyy-MM-dd")"
+                       class="h-11 px-3 rounded-xl bg-surface-container-low hover:bg-surface-container-high border border-surface-border text-on-surface font-label-caps uppercase text-[11px] tracking-wider inline-flex items-center justify-center transition-colors font-bold shrink-0">
+                        Today
+                    </a>
+                </div>
+            </div>
+
+            <!-- Buyer Dropdown Filter -->
+            <div class="flex flex-col min-w-0">
+                <span class="font-label-caps text-[11px] text-on-surface-variant mb-2 uppercase tracking-wider font-bold flex items-center gap-1.5">
+                    <span class="material-symbols-outlined text-[15px] text-primary">person</span> Filter by Buyer
+                </span>
+                <select name="buyerId" onchange="document.getElementById('auditorFilterForm').submit()" asp-items="ViewBag.Buyers"
+                        class="h-11 w-full bg-surface-container-low border border-surface-border rounded-xl px-space-3 text-[13px] font-semibold text-on-surface focus:outline-none focus:border-primary/50">
+                </select>
+            </div>
+
+            <!-- Establishment Dropdown Filter -->
+            <div class="flex flex-col min-w-0">
+                <span class="font-label-caps text-[11px] text-on-surface-variant mb-2 uppercase tracking-wider font-bold flex items-center gap-1.5">
+                    <span class="material-symbols-outlined text-[15px] text-primary">storefront</span> Establishment / Branch
+                </span>
+                <select name="establishmentId" onchange="document.getElementById('auditorFilterForm').submit()" asp-items="ViewBag.Establishments"
+                        class="h-11 w-full bg-surface-container-low border border-surface-border rounded-xl px-space-3 text-[13px] font-semibold text-on-surface focus:outline-none focus:border-primary/50">
+                </select>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex flex-col min-w-0">
+                <span class="font-label-caps text-[11px] text-on-surface-variant mb-2 uppercase tracking-wider font-bold block">Actions</span>
+                <div class="flex items-center gap-2">
+                    <button type="submit" class="h-11 flex-1 bg-primary hover:bg-primary/90 text-on-primary rounded-xl font-label-caps uppercase text-[11px] tracking-wider font-bold transition-all inline-flex items-center justify-center gap-1.5 shadow-sm">
+                        <span class="material-symbols-outlined text-[16px]">filter_alt</span> Apply
+                    </button>
+                    <a asp-action="AuditorEdit" class="h-11 px-4 bg-surface-container text-on-surface-variant border border-surface-border rounded-xl font-label-caps uppercase text-[11px] tracking-wider hover:bg-surface-container-high transition-all inline-flex items-center justify-center font-bold">
+                        Clear
+                    </a>
+                </div>
+            </div>
+        </form>
+
+        <!-- Quick Jump Chips for Active Dates with Receipts -->
+        @if (recentDates.Any())
+        {
+            <div class="pt-space-3 border-t border-surface-border flex flex-wrap items-center gap-2">
+                <span class="text-[10px] font-label-caps uppercase tracking-wider text-on-surface-variant font-bold flex items-center gap-1">
+                    <span class="material-symbols-outlined text-[13px] text-primary">history</span> Jump to Date with Audits:
+                </span>
+                @foreach (var rd in recentDates)
+                {
+                    var isCurrent = rd.Date.Date == selectedDate.Date;
+                    var activeClass = isCurrent
+                        ? "bg-primary text-on-primary font-bold shadow-sm border-primary"
+                        : "bg-surface-container-low hover:bg-surface-container-high text-on-surface border-surface-border";
+
+                    <a asp-action="AuditorEdit" asp-route-date="@rd.Date.ToString("yyyy-MM-dd")"
+                       class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[11px] border font-label-caps uppercase tracking-wider transition-all @activeClass">
+                        <span>@rd.Date.ToString("MMM d")</span>
+                        <span class="text-[9px] opacity-75 font-data-mono">(@rd.Count audit@(rd.Count == 1 ? "" : "s"))</span>
+                    </a>
+                }
+            </div>
+        }
+    </div>
+
+    <!-- Daily Metrics Stat Cards -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <!-- Submissions Count -->
+        <div class="bg-surface-container-lowest border border-surface-border rounded-2xl p-6 shadow-sm flex items-start justify-between">
+            <div>
+                <span class="block font-label-caps uppercase text-[10px] text-on-surface-variant font-bold tracking-wider">Audit Submissions</span>
+                <div class="flex items-baseline gap-2 mt-1">
+                    <span class="font-headline-md text-[28px] font-extrabold text-on-surface">@totalCount</span>
+                    <span class="text-xs text-on-surface-variant font-medium">record@(totalCount == 1 ? "" : "s")</span>
+                </div>
+                <div class="text-[11px] text-primary font-bold mt-1.5 flex items-center gap-1">
+                    <span class="material-symbols-outlined text-[15px]">photo_library</span>
+                    <span>@totalReceiptPhotos receipt photo@(totalReceiptPhotos == 1 ? "" : "s")</span>
+                </div>
+            </div>
+            <div class="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                <span class="material-symbols-outlined text-[22px]">receipt_long</span>
+            </div>
+        </div>
+
+        <!-- Total Amount -->
+        <div class="bg-surface-container-lowest border border-surface-border rounded-2xl p-6 shadow-sm flex items-start justify-between">
+            <div>
+                <span class="block font-label-caps uppercase text-[10px] text-on-surface-variant font-bold tracking-wider">Total Audited Amount</span>
+                <div class="mt-1">
+                    <span class="font-data-mono text-primary font-extrabold text-[24px]">₱@totalAmount.ToString("N2")</span>
+                </div>
+                <span class="text-[11px] text-on-surface-variant font-medium mt-1.5 block">@totalLineItems itemized line@(totalLineItems == 1 ? "" : "s")</span>
+            </div>
+            <div class="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0">
+                <span class="material-symbols-outlined text-[22px]">payments</span>
+            </div>
+        </div>
+
+        <!-- Approved -->
+        <div class="bg-surface-container-lowest border border-surface-border rounded-2xl p-6 shadow-sm flex items-start justify-between">
+            <div>
+                <span class="block font-label-caps uppercase text-[10px] text-on-surface-variant font-bold tracking-wider">Approved Audits</span>
+                <div class="flex items-baseline gap-2 mt-1">
+                    <span class="font-headline-md text-[28px] font-extrabold text-audit-success">@approvedCount</span>
+                    <span class="text-xs text-on-surface-variant font-medium">processed</span>
+                </div>
+                <span class="text-[11px] text-audit-success font-semibold mt-1.5 block">Verified &amp; Cleared</span>
+            </div>
+            <div class="w-10 h-10 rounded-xl bg-audit-success/10 text-audit-success flex items-center justify-center shrink-0">
+                <span class="material-symbols-outlined text-[22px]">check_circle</span>
+            </div>
+        </div>
+
+        <!-- Pending Verification -->
+        <div class="bg-surface-container-lowest border border-surface-border rounded-2xl p-6 shadow-sm flex items-start justify-between">
+            <div>
+                <span class="block font-label-caps uppercase text-[10px] text-on-surface-variant font-bold tracking-wider">Pending Verification</span>
+                <div class="flex items-baseline gap-2 mt-1">
+                    <span class="font-headline-md text-[28px] font-extrabold text-audit-pending">@pendingCount</span>
+                    <span class="text-xs text-on-surface-variant font-medium">in queue</span>
+                </div>
+                <span class="text-[11px] text-audit-pending font-semibold mt-1.5 block">Requires Approval</span>
+            </div>
+            <div class="w-10 h-10 rounded-xl bg-audit-pending/10 text-audit-pending flex items-center justify-center shrink-0">
+                <span class="material-symbols-outlined text-[22px]">pending_actions</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section Header -->
+    <div class="flex flex-wrap items-center justify-between gap-2 border-b border-surface-border pb-space-3 pt-space-2">
+        <div class="flex items-center gap-space-3">
+            <h2 class="font-headline-sm text-on-surface font-extrabold tracking-tight">Receipt Submissions</h2>
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-primary/10 text-primary border border-primary/20">
+                <span class="material-symbols-outlined text-[15px]">event</span> @selectedDate.ToString("dddd, MMMM dd, yyyy")
+            </span>
+        </div>
+        <span class="text-xs text-on-surface-variant font-medium">Showing @Model.Count() submission@(Model.Count() == 1 ? "" : "s")</span>
+    </div>
+
+    <!-- Receipts Content List -->
+    @if (!Model.Any())
+    {
+        <div class="bg-surface-container-lowest border border-surface-border rounded-2xl p-8 lg:p-10 shadow-sm max-w-2xl mx-auto my-6 text-center space-y-6">
+            <!-- Icon -->
+            <div class="w-14 h-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mx-auto shadow-sm">
+                <span class="material-symbols-outlined text-[28px]">calendar_month</span>
+            </div>
+
+            <!-- Text -->
+            <div class="space-y-1">
+                <h3 class="font-headline-sm text-on-surface font-extrabold text-lg">No Audits on @selectedDate.ToString("MMMM dd, yyyy")</h3>
+                <p class="text-xs text-on-surface-variant max-w-md mx-auto leading-relaxed">
+                    No receipt submissions were recorded for this day. Select an active date below to view uploaded receipts:
+                </p>
+            </div>
+
+            <!-- Recent Dates List -->
+            @if (recentDates.Any())
+            {
+                <div class="space-y-2.5 text-left pt-2 border-t border-surface-border">
+                    <span class="text-[10px] font-label-caps uppercase tracking-wider text-on-surface-variant font-bold block text-center pt-1">
+                        Recent Dates with Audits
+                    </span>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                        @foreach (var rd in recentDates.Take(4))
+                        {
+                            <a asp-action="AuditorEdit" asp-route-date="@rd.Date.ToString("yyyy-MM-dd")"
+                               class="flex items-center justify-between p-3.5 rounded-xl bg-surface-container-low hover:bg-surface-container hover:border-primary/40 border border-surface-border transition-all group decoration-none">
+                                <div class="flex items-center gap-2.5">
+                                    <div class="w-8 h-8 rounded-lg bg-surface-container flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-on-primary transition-colors">
+                                        <span class="material-symbols-outlined text-[16px]">calendar_today</span>
+                                    </div>
+                                    <div>
+                                        <span class="block text-xs font-bold text-on-surface">@rd.Date.ToString("MMM dd, yyyy")</span>
+                                        <span class="block text-[10px] text-on-surface-variant">@rd.Count audit@(rd.Count == 1 ? "" : "s")</span>
+                                    </div>
+                                </div>
+                                <div class="text-right flex items-center gap-1.5">
+                                    <span class="font-data-mono font-bold text-xs text-primary">₱@rd.Total.ToString("N2")</span>
+                                    <span class="material-symbols-outlined text-[16px] text-on-surface-variant group-hover:text-primary group-hover:translate-x-0.5 transition-all">chevron_right</span>
+                                </div>
+                            </a>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <div class="space-y-space-6">
+            @foreach (var audit in Model)
+            {
+                var statusBg = audit.Status == AuditCkDayo.Models.AuditStatus.Approved ? "bg-audit-success/10 text-audit-success border-audit-success/20" :
+                               (audit.Status == AuditCkDayo.Models.AuditStatus.Rejected ? "bg-audit-error/10 text-audit-error border-audit-error/20" :
+                               "bg-audit-pending/10 text-audit-pending border-audit-pending/20");
+
+                var allImages = audit.Images.OrderBy(i => i.DisplayOrder).Select(i => i.ImageUrl).ToList();
+                if (allImages.Count == 0 && !string.IsNullOrWhiteSpace(audit.ReceiptImageUrl))
+                {
+                    allImages.Add(audit.ReceiptImageUrl);
+                }
+
+                <article class="bg-surface-container-lowest border border-surface-border rounded-2xl shadow-sm overflow-hidden transition-all hover:shadow-md">
+                    <!-- Receipt Card Top Banner -->
+                    <div class="px-space-6 py-space-4 bg-surface-container-low border-b border-surface-border flex flex-col xl:flex-row xl:items-center xl:justify-between gap-space-4">
+                        <div class="flex flex-wrap items-center gap-space-2.5 min-w-0">
+                            <span class="font-data-mono text-on-surface font-extrabold text-[15px]">#AUD-@audit.Id</span>
+                            <span class="px-space-3 py-1 @statusBg rounded-full text-[10px] font-label-caps uppercase border font-bold whitespace-nowrap">
+                                @audit.Status
+                            </span>
+                            <span class="px-space-3 py-1 bg-primary/10 text-primary border border-primary/20 rounded-full text-[10px] font-label-caps uppercase font-bold flex items-center gap-1 whitespace-nowrap">
+                                <span class="material-symbols-outlined text-[13px]">photo_library</span>
+                                @allImages.Count Receipt Photo@(allImages.Count == 1 ? "" : "s")
+                            </span>
+                            <span class="px-space-3 py-1 bg-surface-container text-on-surface-variant rounded-full text-[10px] font-label-caps uppercase font-semibold whitespace-nowrap">
+                                @audit.Details.Count Item@(audit.Details.Count == 1 ? "" : "s")
+                            </span>
+                            <div class="flex items-center gap-1 text-xs text-on-surface-variant font-medium whitespace-nowrap">
+                                <span class="material-symbols-outlined text-[15px]">schedule</span>
+                                <span>@(audit.SubmittedAt?.ToString("hh:mm tt") ?? audit.EntryDate.ToString("MMM dd"))</span>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-space-4 shrink-0 self-start xl:self-auto">
+                            <div class="text-left xl:text-right">
+                                <span class="block text-[10px] font-label-caps uppercase text-on-surface-variant font-bold">Total Amount</span>
+                                <span class="font-data-mono text-primary font-extrabold text-[20px] whitespace-nowrap">₱@audit.Amount.ToString("N2")</span>
+                            </div>
+                            <a asp-action="Edit" asp-route-id="@audit.Id"
+                               class="inline-flex items-center justify-center gap-1.5 bg-primary hover:bg-primary/90 text-on-primary px-space-5 py-2.5 rounded-xl font-label-caps uppercase text-[11px] tracking-wider font-bold shadow-sm hover:shadow transition-all whitespace-nowrap shrink-0">
+                                <span class="material-symbols-outlined text-[16px]">edit</span> Edit Receipt
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- Meta Information Row -->
+                    <div class="px-space-6 py-space-3 bg-surface-container-lowest border-b border-surface-border flex flex-wrap items-center gap-x-space-6 gap-y-space-2 text-xs">
+                        <div class="flex items-center gap-2">
+                            <span class="text-on-surface-variant font-bold uppercase text-[10px] tracking-wider">Buyer:</span>
+                            <span class="font-semibold text-on-surface">@audit.Buyer.Name</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-on-surface-variant font-bold uppercase text-[10px] tracking-wider">Branch:</span>
+                            <span class="font-semibold text-on-surface flex items-center gap-1">
+                                <span class="material-symbols-outlined text-[15px] text-primary">storefront</span>
+                                @audit.Establishment.Name
+                            </span>
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(audit.Description))
+                        {
+                            <div class="flex items-center gap-2">
+                                <span class="text-on-surface-variant font-bold uppercase text-[10px] tracking-wider">Description:</span>
+                                <span class="text-on-surface font-medium truncate max-w-md">@audit.Description</span>
+                            </div>
+                        }
+                    </div>
+
+                    <!-- Card Body: Thumbnail Gallery + Line Items Table -->
+                    <div class="p-space-6 grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-space-6 items-start">
+                        <!-- Receipt Images Gallery -->
+                        <div class="flex flex-col gap-space-3">
+                            @if (allImages.Any())
+                            {
+                                <!-- Main Active Preview -->
+                                <div class="relative group cursor-pointer w-full aspect-[3/4] bg-surface-container-low rounded-2xl overflow-hidden border border-surface-border shadow-sm flex items-center justify-center"
+                                     onclick="openReceiptImageModal(document.getElementById('mainImg-@audit.Id').src)">
+                                    <img id="mainImg-@audit.Id" src="@allImages[0]" alt="Receipt photo 1" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" />
+                                    <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-semibold gap-1">
+                                        <span class="material-symbols-outlined text-[18px]">zoom_in</span> Click to Enlarge
+                                    </div>
+                                    <div class="absolute top-2 left-2 bg-black/70 text-white text-[10px] font-bold px-2 py-0.5 rounded backdrop-blur-sm">
+                                        <span id="imgBadge-@audit.Id">Photo 1 of @allImages.Count</span>
+                                    </div>
+                                </div>
+
+                                <!-- Thumbnail Gallery Strip when Multiple Receipts Exist -->
+                                @if (allImages.Count > 1)
+                                {
+                                    <div class="space-y-1.5">
+                                        <div class="flex items-center justify-between text-[10px] font-label-caps uppercase text-on-surface-variant font-bold">
+                                            <span>All Attached Photos</span>
+                                            <span class="text-primary font-data-mono">@allImages.Count receipts</span>
+                                        </div>
+                                        <div class="grid grid-cols-4 gap-1.5">
+                                            @for (int imgIdx = 0; imgIdx < allImages.Count; imgIdx++)
+                                            {
+                                                var currentImg = allImages[imgIdx];
+                                                var displayNum = imgIdx + 1;
+                                                <button type="button"
+                                                        onclick="switchReceiptImage('@audit.Id', '@currentImg', @displayNum, @allImages.Count)"
+                                                        title="View Receipt Photo @displayNum"
+                                                        class="relative aspect-square rounded-xl overflow-hidden border border-surface-border hover:border-primary focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all bg-surface-container-low group">
+                                                    <img src="@currentImg" alt="Receipt photo @displayNum" class="w-full h-full object-cover" />
+                                                    <span class="absolute bottom-0 right-0 bg-black/75 text-white text-[9px] font-bold px-1 rounded-tl">@displayNum</span>
+                                                </button>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+
+                                <button type="button" onclick="openReceiptImageModal(document.getElementById('mainImg-@audit.Id').src)" class="text-[11px] text-primary hover:underline flex items-center justify-center gap-1 font-bold w-full pt-1">
+                                    <span class="material-symbols-outlined text-[15px]">fullscreen</span> View Full Size
+                                </button>
+                            }
+                            else
+                            {
+                                <div class="w-full aspect-[3/4] bg-surface-container-low rounded-2xl border border-surface-border flex flex-col items-center justify-center text-on-surface-variant p-4 text-center">
+                                    <span class="material-symbols-outlined text-[32px] opacity-40 mb-1">no_photography</span>
+                                    <span class="text-[11px] font-semibold">No Image Attached</span>
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Itemized Details Table -->
+                        <div class="hidden md:block overflow-x-auto border border-surface-border rounded-xl">
+                            <table class="w-full text-left text-xs border-collapse">
+                                <thead>
+                                    <tr class="bg-surface-container-low border-b border-surface-border font-label-caps uppercase text-on-surface-variant text-[10px] tracking-wider">
+                                        <th class="px-space-4 py-3" style="width: 40px;">#</th>
+                                        <th class="px-space-4 py-3">Item Name</th>
+                                        <th class="px-space-4 py-3">Source / Vendor</th>
+                                        <th class="px-space-4 py-3 text-center">Qty</th>
+                                        <th class="px-space-4 py-3 text-right">Price</th>
+                                        <th class="px-space-4 py-3 text-right">Total</th>
+                                        <th class="px-space-4 py-3">Allocation</th>
+                                        <th class="px-space-4 py-3 text-center">Receipt</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-surface-border font-data-mono">
+                                    @{
+                                        int lineIdx = 1;
+                                    }
+                                    @foreach (var detail in audit.Details)
+                                    {
+                                        var sourceName = !string.IsNullOrWhiteSpace(detail.ExpenseSourceName) ? detail.ExpenseSourceName :
+                                                         (detail.ExpenseSource != null ? detail.ExpenseSource.Name : "—");
+
+                                        var allocName = !string.IsNullOrWhiteSpace(detail.AllocationNotes) ? detail.AllocationNotes :
+                                                        (detail.AssignedEstablishment != null ? detail.AssignedEstablishment.Name :
+                                                        (detail.CostCenter != null ? detail.CostCenter.Name : audit.Establishment.Name));
+
+                                        <tr class="hover:bg-primary/5 transition-colors">
+                                            <td class="px-space-4 py-2.5 text-on-surface-variant font-bold">@lineIdx</td>
+                                            <td class="px-space-4 py-2.5 font-body-md text-on-surface font-bold font-sans">@detail.ItemName</td>
+                                            <td class="px-space-4 py-2.5 font-body-md text-on-surface font-sans">
+                                                @if (sourceName != "—")
+                                                {
+                                                    <span class="inline-block px-2.5 py-0.5 rounded-lg bg-surface-container text-on-surface font-semibold text-[11px] border border-surface-border">@sourceName</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-on-surface-variant">—</span>
+                                                }
+                                            </td>
+                                            <td class="px-space-4 py-2.5 text-center">@detail.Quantity</td>
+                                            <td class="px-space-4 py-2.5 text-right">₱@detail.Price.ToString("N2")</td>
+                                            <td class="px-space-4 py-2.5 text-right font-extrabold text-primary">₱@detail.Total.ToString("N2")</td>
+                                            <td class="px-space-4 py-2.5 font-body-md text-on-surface-variant font-sans">
+                                                <span class="inline-flex items-center gap-1 font-semibold text-[11px]">
+                                                    <span class="material-symbols-outlined text-[14px] text-primary/70">location_on</span>
+                                                    @allocName
+                                                </span>
+                                            </td>
+                                            <td class="px-space-4 py-2.5 text-center">
+                                                @if (detail.ReceiptStatus == AuditCkDayo.Models.ReceiptLineStatus.NoReceipt)
+                                                {
+                                                    <span class="inline-block px-2 py-0.5 rounded text-[9px] font-label-caps uppercase bg-red-600 text-white font-extrabold">No Receipt</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-audit-success font-extrabold text-sm">✓</span>
+                                                }
+                                            </td>
+                                        </tr>
+                                        lineIdx++;
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                        <!-- Mobile Itemized Details Card List -->
+                        <div class="block md:hidden space-y-2.5">
+                            <div class="text-[10px] font-label-caps uppercase text-on-surface-variant font-bold tracking-wider px-1">
+                                Line Items (@audit.Details.Count)
+                            </div>
+                            @{
+                                int mLineIdx = 1;
+                            }
+                            @foreach (var detail in audit.Details)
+                            {
+                                var sourceName = !string.IsNullOrWhiteSpace(detail.ExpenseSourceName) ? detail.ExpenseSourceName :
+                                                 (detail.ExpenseSource != null ? detail.ExpenseSource.Name : "—");
+
+                                var allocName = !string.IsNullOrWhiteSpace(detail.AllocationNotes) ? detail.AllocationNotes :
+                                                (detail.AssignedEstablishment != null ? detail.AssignedEstablishment.Name :
+                                                (detail.CostCenter != null ? detail.CostCenter.Name : audit.Establishment.Name));
+
+                                <div class="bg-surface-container-low rounded-xl p-3 border border-surface-border space-y-2">
+                                    <div class="flex items-start justify-between gap-2">
+                                        <div class="min-w-0 flex-1">
+                                            <div class="flex items-center gap-1.5">
+                                                <span class="text-[10px] font-data-mono font-bold text-on-surface-variant">#@mLineIdx</span>
+                                                <span class="font-body-md text-xs font-bold text-on-surface truncate">@detail.ItemName</span>
+                                            </div>
+                                            @if (sourceName != "—")
+                                            {
+                                                <span class="inline-block mt-1 px-2 py-0.5 rounded bg-surface-container-high text-on-surface font-semibold text-[10px] border border-surface-border">
+                                                    @sourceName
+                                                </span>
+                                            }
+                                        </div>
+                                        <div class="text-right whitespace-nowrap">
+                                            <div class="font-data-mono font-extrabold text-[13px] text-primary">₱@detail.Total.ToString("N2")</div>
+                                            <div class="text-[10px] font-data-mono text-on-surface-variant">@detail.Quantity &times; ₱@detail.Price.ToString("N2")</div>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center justify-between pt-1.5 border-t border-surface-border/60 text-[11px]">
+                                        <span class="inline-flex items-center gap-1 text-on-surface-variant text-[11px] truncate max-w-[60%]">
+                                            <span class="material-symbols-outlined text-[14px] text-primary">location_on</span>
+                                            <span class="truncate">@allocName</span>
+                                        </span>
+                                        @if (detail.ReceiptStatus == AuditCkDayo.Models.ReceiptLineStatus.NoReceipt)
+                                        {
+                                            <span class="px-2 py-0.5 rounded text-[9px] font-label-caps uppercase bg-red-600 text-white font-extrabold">No Receipt</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="inline-flex items-center gap-1 text-audit-success font-bold text-[11px]">
+                                                <span class="text-xs">✓</span> Has Receipt
+                                            </span>
+                                        }
+                                    </div>
+                                </div>
+                                mLineIdx++;
+                            }
+                        </div>
+                    </div>
+                </article>
+            }
+        </div>
+    }
+</div>
+
+<!-- Receipt Image Fullscreen Modal -->
+<div id="receiptImageModal" class="hidden fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm" onclick="closeReceiptImageModal()">
+    <div class="relative max-w-4xl max-h-[90vh] bg-surface-container-lowest rounded-2xl overflow-hidden shadow-2xl p-2 border border-white/10" onclick="event.stopPropagation()">
+        <button type="button" onclick="closeReceiptImageModal()" class="absolute top-4 right-4 z-10 w-9 h-9 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-black transition-colors shadow">
+            <span class="material-symbols-outlined text-[20px]">close</span>
+        </button>
+        <img id="modalReceiptImg" src="" alt="Full receipt preview" class="max-h-[85vh] w-auto mx-auto object-contain rounded-xl" />
+    </div>
+</div>
+
+<script>
+    function switchReceiptImage(auditId, src, index, total) {
+        const mainImg = document.getElementById('mainImg-' + auditId);
+        if (mainImg) mainImg.src = src;
+        const badge = document.getElementById('imgBadge-' + auditId);
+        if (badge) badge.innerText = 'Photo ' + index + ' of ' + total;
+    }
+
+    function openReceiptImageModal(src) {
+        document.getElementById('modalReceiptImg').src = src;
+        document.getElementById('receiptImageModal').classList.remove('hidden');
+        document.body.classList.add('overflow-hidden');
+    }
+
+    function closeReceiptImageModal() {
+        document.getElementById('receiptImageModal').classList.add('hidden');
+        document.body.classList.remove('overflow-hidden');
+    }
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') closeReceiptImageModal();
+    });
+</script>

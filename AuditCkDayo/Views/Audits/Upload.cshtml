@@ -1,6 +1,7 @@
 @model List<AuditCkDayo.ViewModels.AuditSubmissionViewModel>
 @{
     ViewData["Title"] = "Upload Receipts";
+    var uploadLimit = User.IsInRole("Auditor") ? 25 : 10;
 }
 
 <!-- Header Section -->
@@ -12,7 +13,7 @@
         </div>
         <h1 class="font-headline-lg text-headline-lg text-on-surface">Upload Receipts</h1>
         <p class="font-body-md text-on-surface-variant leading-relaxed">
-            Submit a new expense to the auditing system. Upload up to 5 clear photographs or receipt images.
+            Submit a new expense to the auditing system. Upload up to @uploadLimit clear photographs or receipt images.
             Any queued audits below belong only to your current login.
         </p>
     </div>
@@ -35,7 +36,7 @@
                 <div id="upload-prompt" class="flex flex-col items-center gap-space-3">
                     <span class="material-symbols-outlined text-[48px] text-primary">receipt_long</span>
                     <div>
-                        <p class="font-headline-sm text-on-surface text-[15px]">Click or drag receipts here (up to 5 images)</p>
+                        <p class="font-headline-sm text-on-surface text-[15px]">Click or drag receipts here (up to @uploadLimit images)</p>
                         <p class="text-on-surface-variant text-body-md text-[13px] mt-1">Accepts PNG, JPG, JPEG, or WEBP up to 10MB each</p>
                     </div>
                 </div>
@@ -68,7 +69,7 @@
             <span class="font-data-mono text-data-mono text-primary">@Model.Count audit(s) · ₱@pendingTotal.ToString("N2")</span>
         </div>
 
-        <div class="overflow-x-auto">
+        <div class="hidden sm:block overflow-x-auto">
             <table class="w-full text-left border-collapse">
                 <thead>
                     <tr class="border-b border-surface-border bg-surface-container-low/50">
@@ -95,6 +96,26 @@
                 </tbody>
             </table>
         </div>
+        <div class="block sm:hidden space-y-2.5 p-4">
+            @for (var i = 0; i < Model.Count; i++)
+            {
+                <article class="bg-surface-container-low border border-surface-border rounded-xl p-3 space-y-2 shadow-sm">
+                    <div class="flex items-start justify-between gap-2">
+                        <div class="min-w-0 flex-1">
+                            <div class="font-body-md font-bold text-on-surface text-xs truncate">@Model[i].Description</div>
+                            <div class="text-[10px] font-data-mono text-on-surface-variant">@Model[i].EntryDate.ToString("yyyy-MM-dd")</div>
+                        </div>
+                        <span class="font-data-mono font-extrabold text-primary text-xs whitespace-nowrap">₱@Model[i].Amount.ToString("N2")</span>
+                    </div>
+                    <div class="flex items-center justify-between text-[11px] pt-1.5 border-t border-surface-border/60 text-on-surface-variant">
+                        <span>Receipt files</span>
+                        <span class="inline-flex items-center justify-center bg-surface-container-high rounded-full px-2 py-0.5 text-[11px] font-data-mono font-semibold">
+                            @(Model[i].ReceiptImageUrls?.Count ?? 0)
+                        </span>
+                    </div>
+                </article>
+            }
+        </div>
 
         <div class="px-space-6 py-space-4 border-t border-surface-border flex justify-end">
             <a asp-action="BatchReview" class="rounded-lg bg-primary px-space-6 py-space-3 text-[12px] font-label-caps uppercase tracking-widest text-on-primary hover:brightness-110 transition-all">Review queued audits</a>
@@ -108,6 +129,7 @@
     const previewsContainer = document.getElementById('previews-container');
     const processBtn = document.getElementById('process-btn');
     const form = document.getElementById('uploadForm');
+    const uploadLimit = @uploadLimit;
 
     let fileItems = []; // Array of { id: number, file: File, rotation: number }
     let nextId = 1;
@@ -142,8 +164,8 @@
 
     function addFiles(files) {
         for (let i = 0; i < files.length; i++) {
-            if (fileItems.length >= 5) {
-                alert('You can only upload up to 5 images.');
+            if (fileItems.length >= uploadLimit) {
+                alert(`You can only upload up to ${uploadLimit} images.`);
                 break;
             }
             const file = files[i];

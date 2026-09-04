@@ -1,0 +1,120 @@
+@model IEnumerable<AuditCkDayo.Models.ExpenseSource>
+@{
+    ViewData["Title"] = "Store / Sources";
+}
+
+<div class="relative flex flex-col lg:flex-row gap-space-6 items-start justify-between">
+    <div class="flex flex-col gap-space-2 max-w-2xl">
+        <div class="flex items-center gap-space-2 text-primary">
+            <span class="material-symbols-outlined text-[20px]">store</span>
+            <span class="font-label-caps uppercase tracking-widest text-on-surface-variant">Expense Sources</span>
+        </div>
+        <h1 class="font-headline-lg text-headline-lg text-on-surface">Store / Sources</h1>
+        <p class="font-body-md text-on-surface-variant leading-relaxed">
+            Manage the source names buyers can select for each receipt line, such as MARKET, CAL MANOK, MONTEMART, LCC, or LUCKYSTAR.
+        </p>
+    </div>
+
+    <div class="bg-surface-container-lowest p-space-4 rounded-xl shadow-sm border border-surface-border flex flex-col gap-space-1 min-w-[180px]">
+        <span class="font-label-caps text-on-surface-variant uppercase text-[10px]">Active Sources</span>
+        <div class="flex items-baseline gap-space-2">
+            <span class="font-headline-md text-headline-md text-primary">@Model.Count(source => source.IsActive)</span>
+            <span class="text-audit-success text-[12px] font-bold">Selectable</span>
+        </div>
+    </div>
+</div>
+
+@if (TempData["Message"] != null)
+{
+    <div class="bg-audit-success/10 border border-audit-success/30 text-audit-success p-space-4 rounded-lg font-body-md my-space-4">@TempData["Message"]</div>
+}
+@if (TempData["Error"] != null)
+{
+    <div class="bg-error-container border border-error/30 text-error p-space-4 rounded-lg font-body-md my-space-4">@TempData["Error"]</div>
+}
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-space-6 my-space-4">
+    <section class="lg:col-span-1 bg-surface-container-lowest rounded-xl shadow-sm border border-surface-border p-space-6">
+        <h2 class="font-headline-sm text-headline-sm text-on-surface mb-space-4">Add Source</h2>
+        <form asp-controller="ExpenseSources" asp-action="Create" method="post" class="space-y-space-4">
+            <div class="space-y-space-2">
+                <label class="text-label-caps text-on-surface-variant uppercase tracking-wider text-[11px]">Store / Source Name</label>
+                <input name="name" class="w-full px-space-4 py-space-3 bg-surface rounded-lg border border-surface-border focus:ring-2 focus:ring-primary/10 focus:border-primary outline-none transition-all font-body-md text-on-surface" placeholder="e.g. MARKET, CAL MANOK" required />
+            </div>
+            <button class="w-full bg-primary text-on-primary py-space-3 rounded-lg font-label-caps uppercase tracking-widest hover:brightness-110 active:scale-[0.98] transition-all text-[12px]" type="submit">
+                Add Source
+            </button>
+        </form>
+    </section>
+
+    <section class="lg:col-span-2 bg-surface-container-lowest rounded-xl shadow-sm overflow-hidden border border-surface-border/50">
+        <div class="hidden lg:block max-h-[520px] overflow-y-auto overflow-x-auto">
+            <table class="w-full text-left border-collapse">
+                <thead class="sticky top-0 z-10">
+                    <tr class="bg-surface-container-low border-b border-surface-border">
+                        <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">ID</th>
+                        <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">Source Name</th>
+                        <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px]">Status</th>
+                        <th class="px-space-6 py-space-4 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[11px] text-right">Action</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-surface-border">
+                    @if (!Model.Any())
+                    {
+                        <tr>
+                            <td colspan="4" class="px-space-6 py-space-8 text-center text-on-surface-variant font-body-md">No store / sources registered yet.</td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var source in Model)
+                        {
+                            <tr class="hover:bg-surface-container-low/30 transition-colors">
+                                <td class="px-space-6 py-space-4 font-data-mono text-data-text text-[13px]">#SRC-@source.Id</td>
+                                <td class="px-space-6 py-space-4 font-headline-sm text-headline-sm text-on-surface text-[14px]">@source.Name</td>
+                                <td class="px-space-6 py-space-4">
+                                    <span class="font-label-caps uppercase text-[10px] @(source.IsActive ? "text-audit-success" : "text-on-surface-variant")">@(source.IsActive ? "Active" : "Hidden")</span>
+                                </td>
+                                <td class="px-space-6 py-space-4 text-right">
+                                    <form asp-controller="ExpenseSources" asp-action="ToggleActive" asp-route-id="@source.Id" method="post" class="inline">
+                                        <button type="submit" class="font-label-caps uppercase text-[11px] text-primary hover:underline">
+                                            @(source.IsActive ? "Hide" : "Activate")
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        </div>
+        <div class="block lg:hidden space-y-3 p-4 max-h-[520px] overflow-y-auto">
+            @if (!Model.Any())
+            {
+                <div class="p-4 text-center text-on-surface-variant font-body-md">No store / sources registered yet.</div>
+            }
+            else
+            {
+                @foreach (var source in Model)
+                {
+                    <article class="bg-surface-container-low border border-surface-border rounded-xl p-3.5 flex items-center justify-between gap-3 shadow-sm">
+                        <div class="min-w-0">
+                            <div class="font-body-md font-bold text-on-surface text-sm truncate">@source.Name</div>
+                            <div class="flex items-center gap-2 mt-0.5">
+                                <span class="font-data-mono text-[11px] text-on-surface-variant">#SRC-@source.Id</span>
+                                <span class="text-[10px] font-label-caps uppercase font-bold @(source.IsActive ? "text-audit-success" : "text-on-surface-variant")">
+                                    @(source.IsActive ? "Active" : "Hidden")
+                                </span>
+                            </div>
+                        </div>
+                        <form asp-controller="ExpenseSources" asp-action="ToggleActive" asp-route-id="@source.Id" method="post" class="inline shrink-0">
+                            <button type="submit" class="px-3 py-1.5 rounded-lg border border-surface-border font-label-caps uppercase text-[11px] font-semibold text-primary hover:bg-surface-container-high transition-colors">
+                                @(source.IsActive ? "Hide" : "Activate")
+                            </button>
+                        </form>
+                    </article>
+                }
+            }
+        </div>
+    </section>
+</div>
