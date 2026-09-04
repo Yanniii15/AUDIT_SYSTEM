@@ -32,12 +32,23 @@
             <!-- Drag & Drop Zone -->
             <div id="drop-zone" class="border-2 border-dashed border-surface-border rounded-xl p-space-8 text-center flex flex-col items-center justify-center gap-space-4 cursor-pointer hover:border-primary/40 hover:bg-primary/5 transition-all relative min-h-[160px]">
                 <input type="file" name="receipts" id="file-input" class="hidden" accept="image/*" multiple />
+                <input type="file" id="camera-input" class="hidden" accept="image/*" capture="environment" />
                 
                 <div id="upload-prompt" class="flex flex-col items-center gap-space-3">
                     <span class="material-symbols-outlined text-[48px] text-primary">receipt_long</span>
                     <div>
-                        <p class="font-headline-sm text-on-surface text-[15px]">Click or drag receipts here (up to @uploadLimit images)</p>
+                        <p class="font-headline-sm text-on-surface text-[15px]">Capture or upload receipts (up to @uploadLimit images)</p>
                         <p class="text-on-surface-variant text-body-md text-[13px] mt-1">Accepts PNG, JPG, JPEG, or WEBP up to 10MB each</p>
+                    </div>
+                    <div class="flex flex-col sm:flex-row gap-2.5 w-full max-w-sm mt-1" onclick="event.stopPropagation()">
+                        <button type="button" onclick="document.getElementById('camera-input').click()" class="flex-1 py-3 px-4 rounded-xl bg-primary text-on-primary font-label-caps uppercase text-xs font-bold flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] hover:brightness-110 transition-all">
+                            <span class="material-symbols-outlined text-[20px]">photo_camera</span>
+                            Take Photo
+                        </button>
+                        <button type="button" onclick="document.getElementById('file-input').click()" class="flex-1 py-3 px-4 rounded-xl bg-surface-container-high border border-surface-border text-on-surface font-label-caps uppercase text-xs font-bold flex items-center justify-center gap-2 shadow-sm active:scale-[0.98] hover:bg-surface-container-highest transition-all">
+                            <span class="material-symbols-outlined text-[20px]">photo_library</span>
+                            Choose Gallery
+                        </button>
                     </div>
                 </div>
             </div>
@@ -126,6 +137,7 @@
 <script>
     const dropZone = document.getElementById('drop-zone');
     const fileInput = document.getElementById('file-input');
+    const cameraInput = document.getElementById('camera-input');
     const previewsContainer = document.getElementById('previews-container');
     const processBtn = document.getElementById('process-btn');
     const form = document.getElementById('uploadForm');
@@ -159,6 +171,12 @@
         if (e.target.files.length) {
             addFiles(e.target.files);
             fileInput.value = ''; // Reset input to allow adding same files again
+        }
+    });
+    cameraInput?.addEventListener('change', (e) => {
+        if (e.target.files.length) {
+            addFiles(e.target.files);
+            cameraInput.value = '';
         }
     });
 
