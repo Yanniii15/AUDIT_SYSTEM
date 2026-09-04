@@ -1,0 +1,17 @@
+{
+  "name": "Makbie Companies",
+  "short_name": "Makbie",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#041632",
+  "theme_color": "#041632",
+  "description": "Makbie Companies Auditing and Store Operations Suite",
+  "icons": [
+    {
+      "src": "/images/logo.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
