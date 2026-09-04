@@ -11,12 +11,41 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 builder.Services.AddDbContext<AuditDbContext>(options =>
     options.UseMySql(connectionString, new MySqlServerVersion(new Version(8, 0, 31))));
 
-builder.Services.AddAuthentication(Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme)
+var jwtKey = builder.Configuration["JwtSettings:SecretKey"] ?? "AuditCkDayo_SuperSecret_Jwt_Security_Key_For_Mobile_2026_CkrDayo_Secure";
+var jwtIssuer = builder.Configuration["JwtSettings:Issuer"] ?? "AuditCkDayo";
+builder.Services.AddSingleton(new AuditCkDayo.Services.JwtTokenService(jwtKey, jwtIssuer));
+
+builder.Services.AddAuthentication(options =>
+    {
+        options.DefaultScheme = Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme;
+        options.DefaultChallengeScheme = Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme;
+    })
     .AddCookie(options =>
     {
         options.LoginPath = "/Account/Login";
         options.AccessDeniedPath = "/Account/AccessDenied";
+    })
+    .AddJwtBearer(Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme, options =>
+    {
+        options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters
+        {
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new Microsoft.IdentityModel.Tokens.SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(jwtKey)),
+            ValidateIssuer = true,
+            ValidIssuer = jwtIssuer,
+            ValidateAudience = true,
+            ValidAudience = jwtIssuer,
+            ClockSkew = TimeSpan.FromMinutes(5)
+        };
     });
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowMobile", policy =>
+    {
+        policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
+    });
+});
 
 builder.Services.AddSession(options =>
 {
@@ -59,6 +88,8 @@ using (var scope = app.Services.CreateScope())
         db.Database.ExecuteSqlRaw("UPDATE AuditItems SET Status = 'AwaitingBranchVerification' WHERE Status = 'Pending';");
         db.Database.ExecuteSqlRaw("UPDATE AuditItems SET Status = 'AwaitingBranchVerification' WHERE Status = 'AwaitingBranchVerifi';");
         db.Database.ExecuteSqlRaw("UPDATE AuditItems SET Status = 'AwaitingManagerApproval' WHERE Status = 'AwaitingManagerAppro';");
+        db.Database.ExecuteSqlRaw("UPDATE AuditItems SET Status = 'Approved' WHERE Notes LIKE '%August%' OR Description LIKE '%August%';");
+        db.Database.ExecuteSqlRaw("UPDATE AuditItemDetails SET BranchVerificationStatus = 'Verified' WHERE AuditItemId IN (SELECT Id FROM AuditItems WHERE Notes LIKE '%August%' OR Description LIKE '%August%');");
         db.Database.ExecuteSqlRaw("UPDATE AuditItems SET ReceiptImageUrl = REPLACE(ReceiptImageUrl, '/uploads/', '/Audits/Receipt/') WHERE ReceiptImageUrl LIKE '/uploads/%';");
     }
     catch (Exception ex)
@@ -87,7 +118,7 @@ app.UseHttpsRedirection();
 app.UseStaticFiles();
 app.UseSession();
 app.UseRouting();
-
+app.UseCors("AllowMobile");
 app.UseAuthentication();
 app.UseAuthorization();
 
