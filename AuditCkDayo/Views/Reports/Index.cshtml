@@ -1172,14 +1172,24 @@
         });
     });
 
-    function triggerCapture(source, downloadFilename, bgColor, width, alertMsg) {
+    function triggerCapture(source, downloadFilename, bgColor, width, alertMsg, btn) {
         if (!source) return;
+        const originalBtnHtml = btn ? btn.innerHTML : '';
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<span class="material-symbols-outlined text-[15px] animate-spin">progress_activity</span> Generating...';
+        }
+
         const clone = source.cloneNode(true);
         clone.classList.remove('hidden');
         clone.style.display = 'block';
-        clone.style.position = 'absolute';
-        clone.style.left = '-10000px';
+        clone.style.position = 'fixed';
         clone.style.top = '0';
+        clone.style.left = '0';
+        clone.style.zIndex = '-9999';
+        clone.style.opacity = '1';
+        clone.style.visibility = 'visible';
+        clone.style.pointerEvents = 'none';
         clone.style.width = width ? `${width}px` : `${Math.max(source.scrollWidth, 960)}px`;
         clone.style.maxWidth = 'none';
         document.body.appendChild(clone);
@@ -1190,16 +1200,31 @@
                 scale: 2,
                 logging: false,
                 useCORS: true,
-                windowWidth: width || clone.scrollWidth
-            }).then(canvas => {
-                const link = document.createElement('a');
-                link.download = downloadFilename;
-                link.href = canvas.toDataURL('image/png');
-                link.click();
-                document.body.removeChild(clone);
-            }).catch(() => {
+                allowTaint: true,
+                scrollX: 0,
+                scrollY: 0,
+                windowWidth: width || clone.scrollWidth || 1020
+            }).then(async canvas => {
+                if (clone.parentNode) {
+                    document.body.removeChild(clone);
+                }
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalBtnHtml;
+                }
+                if (window.deliverExportedImage) {
+                    await window.deliverExportedImage(canvas, downloadFilename, 'Buyer Audit Report');
+                }
+            }).catch(err => {
+                console.error("Capture failed:", err);
                 alert(alertMsg || 'Could not export image. Please try again.');
-                document.body.removeChild(clone);
+                if (clone.parentNode) {
+                    document.body.removeChild(clone);
+                }
+                if (btn) {
+                    btn.disabled = false;
+                    btn.innerHTML = originalBtnHtml;
+                }
             });
         };
 
@@ -1217,13 +1242,13 @@
     exportBuyerAuditImageBtn?.addEventListener('click', function (event) {
         event.preventDefault();
         const source = document.querySelector('[id^="buyer-audit-ledger-template-"]') || document.getElementById('buyer-audit-export-section');
-        triggerCapture(source, `BuyerAudit_@(buyerAuditImageStart)_@(buyerAuditImageEnd).png`, '#f1f5f9', 1020, 'Could not export buyer audit ledger as image. Please try again.');
+        triggerCapture(source, `BuyerAudit_@(buyerAuditImageStart)_@(buyerAuditImageEnd).png`, '#f1f5f9', 1020, 'Could not export buyer audit ledger as image. Please try again.', exportBuyerAuditImageBtn);
     });
 
     const exportSummaryImageBtn = document.getElementById('export-summary-image-btn');
     exportSummaryImageBtn?.addEventListener('click', function (event) {
         event.preventDefault();
         const source = document.querySelector('[id^="buyer-audit-summary-template-"]') || document.getElementById('buyer-audit-export-section');
-        triggerCapture(source, `Summary_@(buyerAuditImageStart)_@(buyerAuditImageEnd).png`, '#f8fafc', 880, 'Could not export summary dashboard as image. Please try again.');
+        triggerCapture(source, `Summary_@(buyerAuditImageStart)_@(buyerAuditImageEnd).png`, '#f8fafc', 880, 'Could not export summary dashboard as image. Please try again.', exportSummaryImageBtn);
     });
 </script>

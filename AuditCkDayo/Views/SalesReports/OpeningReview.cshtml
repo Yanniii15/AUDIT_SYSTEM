@@ -7,15 +7,30 @@
 }
 
 <div class="space-y-6">
-    <div class="flex flex-col gap-space-2 max-w-3xl">
-        <div class="flex items-center gap-space-2 text-primary">
-            <span class="material-symbols-outlined text-[20px]">storefront</span>
-            <span class="font-label-caps uppercase tracking-widest text-on-surface-variant">Opening Daily Sales</span>
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div class="flex flex-col gap-space-2 max-w-3xl">
+            <div class="flex items-center gap-space-2 text-primary">
+                <span class="material-symbols-outlined text-[20px]">storefront</span>
+                <span class="font-label-caps uppercase tracking-widest text-on-surface-variant">Opening Daily Sales</span>
+            </div>
+            <h1 class="font-headline-lg text-headline-lg text-on-surface">Opening Daily Sales</h1>
+            <p class="font-body-md text-on-surface-variant leading-relaxed">
+                Record your establishment's opening daily sales.
+            </p>
         </div>
-        <h1 class="font-headline-lg text-headline-lg text-on-surface">Opening Daily Sales</h1>
-        <p class="font-body-md text-on-surface-variant leading-relaxed">
-            Record your establishment's opening daily sales.
-        </p>
+
+        <div class="relative inline-block text-left" id="exportDropdownContainer">
+            <button type="button" onclick="document.getElementById('exportMenu').classList.toggle('hidden')" class="bg-surface-container text-primary border border-primary/20 px-4 py-2 rounded-lg font-label-caps uppercase tracking-wider hover:bg-primary/10 transition-all text-[11px] flex items-center gap-2">
+                <span class="material-symbols-outlined text-[16px]">image</span> Export Report Image
+            </button>
+            <div id="exportMenu" class="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white border border-surface-border ring-1 ring-black ring-opacity-5 focus:outline-none hidden z-50">
+                <div class="py-1">
+                    <button type="button" onclick="exportReportAsImage('opening')" class="text-on-surface hover:bg-surface-container-low block w-full text-left px-4 py-2 text-[11px] font-label-caps uppercase tracking-wide flex items-center gap-2">
+                        <span class="material-symbols-outlined text-[16px]">wb_twilight</span> Export Opening Sales
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 
     @if (TempData["Message"] != null)
@@ -133,9 +148,8 @@
                             </div>
                             <input type="hidden" asp-for="HandoverDate" />
                             <div class="flex flex-col gap-space-2">
-                                <label asp-for="CashierName" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Cashier Name</label>
-                                <input asp-for="CashierName" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" placeholder="Cashier name" maxlength="100" />
-                                <span asp-validation-for="CashierName" class="text-audit-error text-[11px]"></span>
+                                <span class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Inputted By</span>
+                                <div class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md text-on-surface font-semibold">@Model.OpeningInputtedByName</div>
                             </div>
                             <div class="flex flex-col gap-space-2">
                                 <span class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Day of the Week</span>
@@ -172,6 +186,11 @@
                                 <label asp-for="OpeningBeverageSales" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Beverages Sales (₱)</label>
                                 <input asp-for="OpeningBeverageSales" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" min="0" step="0.01" />
                                 <span asp-validation-for="OpeningBeverageSales" class="text-audit-error text-[11px]"></span>
+                            </div>
+                            <div class="flex flex-col gap-space-2">
+                                <label asp-for="OpeningHardSales" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Hard Sales (₱)</label>
+                                <input asp-for="OpeningHardSales" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-data-mono focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" type="number" min="0" step="0.01" />
+                                <span asp-validation-for="OpeningHardSales" class="text-audit-error text-[11px]"></span>
                             </div>
                             <div class="flex flex-col gap-space-2">
                                 <label asp-for="OpeningOtherSales" class="font-label-caps text-on-surface-variant uppercase text-[11px] font-semibold">Other Sales (₱)</label>
@@ -791,6 +810,174 @@
             if (e.key === 'Escape') closeLightbox();
         });
     });
+
+    document.addEventListener('click', (e) => {
+        const container = document.getElementById('exportDropdownContainer');
+        const menu = document.getElementById('exportMenu');
+        if (container && menu && !container.contains(e.target)) {
+            menu.classList.add('hidden');
+        }
+    });
+
+    function exportReportAsImage(section) {
+        document.getElementById('exportMenu').classList.add('hidden');
+
+        const reportContainer = document.createElement('div');
+        reportContainer.style.position = 'fixed';
+        reportContainer.style.top = '0';
+        reportContainer.style.left = '0';
+        reportContainer.style.zIndex = '-9999';
+        reportContainer.style.opacity = '1';
+        reportContainer.style.visibility = 'visible';
+        reportContainer.style.pointerEvents = 'none';
+        reportContainer.style.width = '960px';
+        reportContainer.style.background = '#f8fafc';
+        reportContainer.style.padding = '48px';
+        reportContainer.style.color = '#0f172a';
+        reportContainer.style.boxSizing = 'border-box';
+
+        const selectEl = document.getElementById('EstablishmentId');
+        const estName = selectEl && selectEl.options[selectEl.selectedIndex] && selectEl.options[selectEl.selectedIndex].text !== "Select branch..."
+            ? selectEl.options[selectEl.selectedIndex].text.toUpperCase()
+            : "MAIN";
+        const cashierVal = "@Model.OpeningInputtedByName";
+        const grossVal = "@Model.OpeningGrossSales.ToString("N2")";
+        const foodVal = "@Model.OpeningFoodSales.ToString("N2")";
+        const beerVal = "@Model.OpeningBeerSales.ToString("N2")";
+        const bevVal = "@Model.OpeningBeverageSales.ToString("N2")";
+        const hardVal = "@Model.OpeningHardSales.ToString("N2")";
+        const otherVal = "@Model.OpeningOtherSales.ToString("N2")";
+        const cashVal = "@Model.OpeningCashSales.ToString("N2")";
+        const gcashVal = "@Model.OpeningTotalGCash.ToString("N2")";
+        const transferVal = "@Model.OpeningTotalBankTransfer.ToString("N2")";
+        const cardCreditVal = "@Model.OpeningTotalCredit.ToString("N2")";
+        const discountVal = "@Model.OpeningTotalDiscounts.ToString("N2")";
+        const runawayVal = "@Model.OpeningTotalRunawayCustomer.ToString("N2")";
+        const expensesVal = "@Model.OpeningTotalExpensesFromSales.ToString("N2")";
+        const restoPcfVal = "@Model.OpeningRestoPcf.ToString("N2")";
+        const pcfFromSalesVal = "@Model.OpeningPcfFromSales.ToString("N2")";
+        const shortageVal = "@Model.OpeningSalesShortageAmount.ToString("N2")";
+        const overageVal = "@Model.OpeningSalesOverageAmount.ToString("N2")";
+
+        const gcashItems = [];
+        @foreach (var line in Model.OpeningGCashLines)
+        {
+            @:gcashItems.push({ label: "@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(line.Label ?? "GCash Line"))", amount: "@line.Amount.ToString("N2")" });
+        }
+
+        const bankItems = [];
+        @foreach (var line in Model.OpeningBankTransferLines)
+        {
+            @:bankItems.push({ label: "@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(line.Label ?? "Bank Transfer"))", amount: "@line.Amount.ToString("N2")" });
+        }
+
+        const cardItems = [];
+        @foreach (var line in Model.OpeningCardLines)
+        {
+            @:cardItems.push({ label: "@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(line.Label ?? "Card"))", amount: "@line.Amount.ToString("N2")" });
+        }
+
+        const creditItems = [];
+        @foreach (var line in Model.OpeningCreditLines)
+        {
+            @:creditItems.push({ label: "@Html.Raw(System.Web.HttpUtility.JavaScriptStringEncode(line.Label ?? "Credit"))", amount: "@line.Amount.ToString("N2")" });
+        }
+
+        const renderDetailedLines = (label, list, sumVal, isLast = false) => {
+            let html = `
+                <div style="display: flex; justify-content: space-between; border-bottom: ${isLast && list.length === 0 ? '0' : '1px dashed #f1f5f9'}; padding-bottom: 4px;">
+                    <span>${label}</span>
+                    <strong style="font-family: monospace; color: #0f172a; font-size: 19px;">₱ ${sumVal}</strong>
+                </div>
+            `;
+            list.forEach(item => {
+                html += `
+                    <div style="display: flex; justify-content: space-between; padding-left: 28px; font-size: 14px; color: #475569; padding-bottom: 4px; border-bottom: 1px dashed #f8fafc;">
+                        <span>↳ ${item.label}</span>
+                        <span style="font-family: monospace;">₱ ${item.amount}</span>
+                    </div>
+                `;
+            });
+            return html;
+        };
+
+        reportContainer.innerHTML = `
+            <div style="margin-bottom: 24px;">
+                <h1 style="font-size: 40px; font-weight: 900; color: #041632; margin: 0; text-transform: uppercase; letter-spacing: -0.02em;">OPENING ${estName} SALES</h1>
+                <p style="font-size: 18px; color: #475569; margin: 8px 0 0 0; font-weight: 700;">
+                    @Model.BusinessDate.ToString("MMMM d, yyyy") • @Model.BusinessDate.ToString("dddd") | Cashier: ${cashierVal}
+                </p>
+            </div>
+            <div style="background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05); margin-bottom: 20px; overflow: hidden;">
+                <div style="background: #3B5B92; padding: 16px 20px; color: #ffffff; font-size: 15px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;">SALES SUMMARY</div>
+                <div style="padding: 20px; font-size: 17px; color: #334155; line-height: 2.15;">
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;"><span>Opening Gross Sales</span><strong style="font-family: monospace; color: #0f172a; font-size: 19px;">₱ ${grossVal}</strong></div>
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;"><span>Food Sales</span><strong style="font-family: monospace; color: #0f172a; font-size: 19px;">₱ ${foodVal}</strong></div>
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;"><span>Beer Sales</span><strong style="font-family: monospace; color: #0f172a; font-size: 19px;">₱ ${beerVal}</strong></div>
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;"><span>Beverages Sales</span><strong style="font-family: monospace; color: #0f172a; font-size: 19px;">₱ ${bevVal}</strong></div>
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;"><span>Hard Sales</span><strong style="font-family: monospace; color: #0f172a; font-size: 19px;">₱ ${hardVal}</strong></div>
+                    <div style="display: flex; justify-content: space-between;"><span>Other Sales</span><strong style="font-family: monospace; color: #0f172a; font-size: 19px;">₱ ${otherVal}</strong></div>
+                </div>
+            </div>
+            <div style="background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05); margin-bottom: 20px; overflow: hidden;">
+                <div style="background: #3B5B92; padding: 16px 20px; color: #ffffff; font-size: 15px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;">COLLECTION & PAYMENTS</div>
+                <div style="padding: 20px; font-size: 17px; color: #334155; line-height: 2.15;">
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; font-weight: bold;"><span>Cash Sales</span><strong style="font-family: monospace; color: #0f172a; font-size: 19px;">₱ ${cashVal}</strong></div>
+                    ${renderDetailedLines('G-Cash Sales', gcashItems, gcashVal)}
+                    ${renderDetailedLines('Bank Transfers', bankItems, transferVal)}
+                    ${renderDetailedLines('Card & Credit Payments', [...cardItems, ...creditItems], cardCreditVal, true)}
+                </div>
+            </div>
+            <div style="background: #ffffff; border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05); margin-bottom: 24px; overflow: hidden;">
+                <div style="background: #475569; padding: 16px 20px; color: #ffffff; font-size: 15px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em;">DEDUCTIONS & EXPENSES</div>
+                <div style="padding: 20px; font-size: 17px; color: #334155; line-height: 2.15;">
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;"><span>Discounts / Vouchers</span><strong style="font-family: monospace; color: #0f172a; font-size: 19px;">₱ ${discountVal}</strong></div>
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;"><span>Run-away Customers</span><strong style="font-family: monospace; color: #0f172a; font-size: 19px;">₱ ${runawayVal}</strong></div>
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;"><span>Expenses from Sales</span><strong style="font-family: monospace; color: #0f172a; font-size: 19px;">₱ ${expensesVal}</strong></div>
+                    <div style="display: flex; justify-content: space-between; border-bottom: 1px dashed #f1f5f9; padding-bottom: 4px;"><span>Resto PCF / PCF from Sales</span><strong style="font-family: monospace; color: #0f172a; font-size: 19px;">₱ ${restoPcfVal} / ₱ ${pcfFromSalesVal}</strong></div>
+                    <div style="display: flex; justify-content: space-between;"><span>Shortage / Overage</span><strong style="font-family: monospace; color: #b91c1c; font-size: 19px;">-₱ ${shortageVal} / +₱ ${overageVal}</strong></div>
+                </div>
+            </div>
+            <div style="text-align: center; font-size: 14px; color: #94a3b8; font-weight: 600;">Verified Report - @DateTime.Today.ToString("MMMM d, yyyy")</div>
+        `;
+
+        document.body.appendChild(reportContainer);
+        const capture = () => {
+            html2canvas(reportContainer, {
+                backgroundColor: '#f8fafc',
+                scale: 2,
+                logging: false,
+                useCORS: true,
+                allowTaint: true,
+                scrollX: 0,
+                scrollY: 0,
+                windowWidth: 960
+            }).then(async canvas => {
+                if (reportContainer.parentNode) {
+                    document.body.removeChild(reportContainer);
+                }
+                const filename = `DailySales_${section.toUpperCase()}_@((Model.BusinessDate).ToString("yyyyMMdd")).png`;
+                if (window.deliverExportedImage) {
+                    await window.deliverExportedImage(canvas, filename, 'Opening Daily Sales Report');
+                }
+            }).catch(err => {
+                console.error("Export failed:", err);
+                if (reportContainer.parentNode) {
+                    document.body.removeChild(reportContainer);
+                }
+                alert('Could not export report as image. Please try again.');
+            });
+        };
+
+        if (typeof html2canvas === 'undefined') {
+            const script = document.createElement('script');
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+            script.onload = capture;
+            document.head.appendChild(script);
+        } else {
+            capture();
+        }
+    }
 </script>
 
 <!-- Lightbox Modal for Full Image View -->

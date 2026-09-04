@@ -11,6 +11,8 @@ import {
   Platform,
   Image,
 } from "react-native";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
 import { WebView } from "react-native-webview";
 
 const APP_URL = "https://makbiecompanies.dev";
@@ -41,6 +43,30 @@ export default function App() {
     setIsLoading(true);
     webViewRef.current?.reload();
   };
+  const handleMessage = async (event: any) => {
+    try {
+      const data = JSON.parse(event.nativeEvent.data);
+      if (data && data.type === "EXPORT_IMAGE" && data.dataUrl) {
+        const rawBase64 = data.dataUrl.replace(/^data:image\/\w+;base64,/, "");
+        if (!rawBase64) return;
+        const filename = data.filename || `Export_${Date.now()}.png`;
+        const fileUri = `${FileSystem.cacheDirectory}${filename}`;
+        await FileSystem.writeAsStringAsync(fileUri, rawBase64, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        if (await Sharing.isAvailableAsync()) {
+          await Sharing.shareAsync(fileUri, {
+            mimeType: "image/png",
+            dialogTitle: data.title || "Export Report Image",
+            UTI: "public.png",
+          });
+        }
+      }
+    } catch (err) {
+      console.warn("WebView message handling error:", err);
+    }
+  };
+
 
   return (
     <SafeAreaView style={styles.container}>
@@ -84,6 +110,7 @@ export default function App() {
             cacheEnabled
             sharedCookiesEnabled
             thirdPartyCookiesEnabled
+            onMessage={handleMessage}
           />
 
           {/* Initial Loading Overlay with Makbie Logo */}
