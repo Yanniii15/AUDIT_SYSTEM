@@ -126,18 +126,26 @@ public class TreasuryAuditReportViewModel
             .Where(item => !string.IsNullOrWhiteSpace(item.Label))
             .ToList();
 
-        var preferredOrder = new[] { "CKR MAIN", "CKR BRANCH 4", "DAYO", "OTHERS" };
-        report.CashInColumns = cashInEntries
+        var preferredOrder = new[]
+        {
+            "CKR MAIN RECEIVED",
+            "CKR MAIN CHANGE",
+            "CKR BRANCH 4 RECEIVED",
+            "CKR BRANCH 4 CHANGE",
+            "DAYO RECEIVED",
+            "DAYO CHANGE",
+            "OTHERS"
+        };
+
+        var groupedColumns = cashInEntries
             .GroupBy(item => item.Label)
-            .Select(group => new TreasuryAuditCashInColumnViewModel
+            .ToDictionary(g => g.Key, g => g.Sum(item => item.Entry.Amount));
+
+        report.CashInColumns = preferredOrder
+            .Select(label => new TreasuryAuditCashInColumnViewModel
             {
-                Label = group.Key,
-                Total = group.Sum(item => item.Entry.Amount)
-            })
-            .OrderBy(c =>
-            {
-                var idx = Array.IndexOf(preferredOrder, c.Label);
-                return idx >= 0 ? idx : 999;
+                Label = label,
+                Total = groupedColumns.GetValueOrDefault(label, 0m)
             })
             .ToList();
 
@@ -178,7 +186,11 @@ public class TreasuryAuditReportViewModel
     {
         var est = entry.Establishment?.Name?.Trim() ?? string.Empty;
         var note = entry.Notes?.Trim() ?? string.Empty;
+        var isChange = entry.Category == CashFlowCategory.ChangePcf 
+                    || note.Contains("Change", StringComparison.OrdinalIgnoreCase) 
+                    || note.Contains("Sukli", StringComparison.OrdinalIgnoreCase);
 
+        // CKR Main
         if (est.Equals("CKR Main", StringComparison.OrdinalIgnoreCase) ||
             est.Equals("Main", StringComparison.OrdinalIgnoreCase) ||
             note.Contains("CKR Main", StringComparison.OrdinalIgnoreCase) ||
@@ -187,22 +199,24 @@ public class TreasuryAuditReportViewModel
             note.Contains("CKR Main Change", StringComparison.OrdinalIgnoreCase) ||
             note.Contains("Main Change", StringComparison.OrdinalIgnoreCase))
         {
-            return "CKR MAIN";
+            return isChange ? "CKR MAIN CHANGE" : "CKR MAIN RECEIVED";
         }
 
+        // CKR Branch 4
         if (est.Equals("CKR Branch 4", StringComparison.OrdinalIgnoreCase) ||
             est.Equals("Branch 4", StringComparison.OrdinalIgnoreCase) ||
             note.Contains("CKR Branch 4", StringComparison.OrdinalIgnoreCase) ||
             note.Contains("Branch 4", StringComparison.OrdinalIgnoreCase) ||
             note.Contains("B4", StringComparison.OrdinalIgnoreCase))
         {
-            return "CKR BRANCH 4";
+            return isChange ? "CKR BRANCH 4 CHANGE" : "CKR BRANCH 4 RECEIVED";
         }
 
+        // Dayo
         if (est.Equals("Dayo", StringComparison.OrdinalIgnoreCase) ||
             note.Contains("Dayo", StringComparison.OrdinalIgnoreCase))
         {
-            return "DAYO";
+            return isChange ? "DAYO CHANGE" : "DAYO RECEIVED";
         }
 
         return "OTHERS";

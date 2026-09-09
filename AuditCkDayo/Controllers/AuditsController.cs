@@ -2574,33 +2574,8 @@ namespace AuditCkDayo.Controllers
 
             var flows = await cashFlowsQuery.OrderBy(f => f.CashFlowDate).ThenBy(f => f.Id).ToListAsync();
 
-            model.ManagerCashInRows = flows
-                .SelectMany(f => f.Entries
-                    .Where(e => e.Direction == CashFlowDirection.In)
-                    .Select(e => new TreasuryAuditCashOutRowViewModel
-                    {
-                        Date = f.CashFlowDate,
-                        Description = !string.IsNullOrWhiteSpace(e.Notes) ? e.Notes : e.Category.ToString().ToUpperInvariant(),
-                        Category = e.Category.ToString(),
-                        TreasuryHandlerName = f.TreasuryUser?.Name ?? e.ReportedByUser?.Name ?? "Manager",
-                        Amount = e.Amount
-                    }))
-                .OrderBy(r => r.Date)
-                .ToList();
-
-            model.ManagerCashOutRows = flows
-                .SelectMany(f => f.Entries
-                    .Where(e => e.Direction == CashFlowDirection.Out)
-                    .Select(e => new TreasuryAuditCashOutRowViewModel
-                    {
-                        Date = f.CashFlowDate,
-                        Description = !string.IsNullOrWhiteSpace(e.Notes) ? e.Notes : e.Category.ToString().ToUpperInvariant(),
-                        Category = e.Category.ToString(),
-                        TreasuryHandlerName = f.TreasuryUser?.Name ?? e.ReportedByUser?.Name ?? "Manager",
-                        Amount = e.Amount
-                    }))
-                .OrderBy(r => r.Date)
-                .ToList();
+            model.ManagerTreasuryFlow = TreasuryAuditReportViewModel.Build(flows, filter.ManagerId, startDate, endDate);
+            model.ManagerCashOutRows = model.ManagerTreasuryFlow.CashOutRows;
 
             // 6. Branch Audit (Expense Allocations)
             var branchExpensesQuery = _context.AuditItemDetails

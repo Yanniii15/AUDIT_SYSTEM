@@ -34,7 +34,7 @@ public class AuditSummaryViewModel
     public decimal HandedChange { get; set; }
     public decimal ShortOver => HandedChange - ActualChange;
 
-    public List<TreasuryAuditCashOutRowViewModel> ManagerCashInRows { get; set; } = new();
+    public TreasuryAuditReportViewModel ManagerTreasuryFlow { get; set; } = new();
     public List<TreasuryAuditCashOutRowViewModel> ManagerCashOutRows { get; set; } = new();
     public List<BuyerAuditReportViewModel> BuyerAudits { get; set; } = new();
     public BranchAuditReportViewModel BranchAudit { get; set; } = new();

@@ -479,96 +479,125 @@
         }
     </div>
 
-    <!-- Manager Cash In & Cash Out Details Section -->
-    <div class="grid grid-cols-1 xl:grid-cols-2 gap-space-6">
-        <!-- Manager Cash In Details -->
-        <div class="bg-surface-container-lowest border border-surface-border rounded-xl shadow-sm overflow-hidden">
-            <div class="px-space-6 py-space-4 border-b border-surface-border flex items-center justify-between bg-surface-container-low">
-                <div>
-                    <h3 class="font-headline-sm text-on-surface font-bold">Manager Cash In Details</h3>
-                    <p class="text-xs text-on-surface-variant mt-0.5">Inflow movements (Owner Funding, Collections, Surrenders received).</p>
-                </div>
-                <span class="px-3 py-1 bg-audit-success/10 text-audit-success border border-audit-success/20 rounded-full text-[10px] font-label-caps uppercase font-bold">Cash In</span>
+    <!-- Manager Daily Cash Flow (Treasury Inflow - Layout A) Section -->
+    <div id="manager-flow-table-container" class="bg-surface-container-lowest border border-surface-border rounded-xl shadow-sm overflow-hidden">
+        <div class="px-space-6 py-space-4 border-b border-surface-border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-surface-container-low">
+            <div>
+                <h3 class="font-headline-sm text-on-surface font-bold">Manager Daily Cash Flow (Treasury Inflow)</h3>
+                <p class="text-xs text-on-surface-variant mt-0.5">
+                    Inflows from branch sales received, returned PCF changes (CKR Main, Branch 4, Dayo), and non-establishment items under Others.
+                </p>
             </div>
-
-            <div class="overflow-x-auto" style="max-height: 380px; overflow-y: auto;">
-                <table class="w-full text-left border-collapse text-sm">
-                    <thead>
-                        <tr class="bg-surface-container-low border-b border-surface-border text-xs uppercase text-on-surface-variant font-bold sticky top-0 z-10">
-                            <th class="px-space-4 py-space-2.5">Date</th>
-                            <th class="px-space-4 py-space-2.5">Description</th>
-                            <th class="px-space-4 py-space-2.5">Category</th>
-                            <th class="px-space-4 py-space-2.5">Handler</th>
-                            <th class="px-space-4 py-space-2.5 text-right">Amount</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-surface-border font-data-mono text-xs">
-                        @foreach (var row in Model.ManagerCashInRows)
-                        {
-                            <tr>
-                                <td class="px-space-4 py-space-3 font-body-md text-on-surface">@row.Date.ToString("MM-dd")</td>
-                                <td class="px-space-4 py-space-3 font-body-md text-on-surface">@row.Description</td>
-                                <td class="px-space-4 py-space-3 text-on-surface-variant">@row.Category</td>
-                                <td class="px-space-4 py-space-3 font-body-md text-on-surface-variant">@row.TreasuryHandlerName</td>
-                                <td class="px-space-4 py-space-3 text-right text-audit-success font-bold">₱@row.Amount.ToString("N2")</td>
-                            </tr>
-                        }
-                        @if (!Model.ManagerCashInRows.Any())
-                        {
-                            <tr>
-                                <td colspan="5" class="px-space-6 py-6 text-center text-on-surface-variant font-body-md text-xs">
-                                    No manager cash-in records found for this period.
-                                </td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
+            <div class="flex items-center gap-2">
+                <button type="button" id="export-manager-flow-btn" onclick="exportManagerFlowImage()" 
+                        class="h-8 bg-surface-container text-primary border border-primary/20 px-3 rounded-lg font-label-caps uppercase text-[10px] font-bold tracking-wider inline-flex items-center gap-1 select-none hover:bg-primary/10 transition-colors cursor-pointer">
+                    <span class="material-symbols-outlined text-[15px]">photo_camera</span> Export Table Image
+                </button>
+                <span class="px-3 py-1 bg-audit-success/10 text-audit-success border border-audit-success/20 rounded-full text-[10px] font-label-caps uppercase font-bold">
+                    Cash In
+                </span>
             </div>
         </div>
 
-        <!-- Manager Cash Out Details -->
-        <div class="bg-surface-container-lowest border border-surface-border rounded-xl shadow-sm overflow-hidden">
-            <div class="px-space-6 py-space-4 border-b border-surface-border flex items-center justify-between bg-surface-container-low">
-                <div>
-                    <h3 class="font-headline-sm text-on-surface font-bold">Manager Cash Out Details</h3>
-                    <p class="text-xs text-on-surface-variant mt-0.5">Outflow movements (PCF disbursements, suppliers, expenses).</p>
-                </div>
-                <span class="px-3 py-1 bg-audit-error/10 text-audit-error border border-audit-error/20 rounded-full text-[10px] font-label-caps uppercase font-bold">Cash Out</span>
-            </div>
-
-            <div class="overflow-x-auto" style="max-height: 380px; overflow-y: auto;">
-                <table class="w-full text-left border-collapse text-sm">
-                    <thead>
-                        <tr class="bg-surface-container-low border-b border-surface-border text-xs uppercase text-on-surface-variant font-bold sticky top-0 z-10">
-                            <th class="px-space-4 py-space-2.5">Date</th>
-                            <th class="px-space-4 py-space-2.5">Description</th>
-                            <th class="px-space-4 py-space-2.5">Category</th>
-                            <th class="px-space-4 py-space-2.5">Handler</th>
-                            <th class="px-space-4 py-space-2.5 text-right">Amount</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-surface-border font-data-mono text-xs">
-                        @foreach (var row in Model.ManagerCashOutRows)
+        <div class="overflow-x-auto">
+            <table class="w-full text-left border-collapse text-sm">
+                <thead>
+                    <tr class="bg-surface-container-low border-b border-surface-border text-xs uppercase text-on-surface-variant font-bold sticky top-0 z-10">
+                        <th class="px-space-4 py-space-3 font-label-caps">Date</th>
+                        @foreach (var col in Model.ManagerTreasuryFlow.CashInColumns)
                         {
-                            <tr>
-                                <td class="px-space-4 py-space-3 font-body-md text-on-surface">@row.Date.ToString("MM-dd")</td>
-                                <td class="px-space-4 py-space-3 font-body-md text-on-surface">@row.Description</td>
-                                <td class="px-space-4 py-space-3 text-on-surface-variant">@row.Category</td>
-                                <td class="px-space-4 py-space-3 font-body-md text-on-surface-variant">@row.TreasuryHandlerName</td>
-                                <td class="px-space-4 py-space-3 text-right text-audit-error font-bold">₱@row.Amount.ToString("N2")</td>
-                            </tr>
+                            <th class="px-space-4 py-space-3 font-label-caps text-right">@col.Label</th>
                         }
-                        @if (!Model.ManagerCashOutRows.Any())
-                        {
-                            <tr>
-                                <td colspan="5" class="px-space-6 py-6 text-center text-on-surface-variant font-body-md text-xs">
-                                    No manager cash-out records found for this period.
+                        <th class="px-space-4 py-space-3 font-label-caps text-right text-primary">TOTAL IN</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-surface-border font-data-mono text-xs">
+                    @foreach (var row in Model.ManagerTreasuryFlow.CashInRows)
+                    {
+                        var rowTotal = row.Amounts.Values.Sum();
+                        <tr class="hover:bg-surface-container-low/40 transition-colors">
+                            <td class="px-space-4 py-space-3 font-body-md text-on-surface font-semibold whitespace-nowrap">@row.Date.ToString("MMMM dd, yyyy")</td>
+                            @foreach (var col in Model.ManagerTreasuryFlow.CashInColumns)
+                            {
+                                var amt = row.Amounts.GetValueOrDefault(col.Label, 0m);
+                                <td class="px-space-4 py-space-3 text-right font-bold @(amt > 0 ? "text-on-surface" : "text-on-surface-variant/40")">
+                                    @(amt > 0 ? "₱" + amt.ToString("N2") : "-")
                                 </td>
-                            </tr>
+                            }
+                            <td class="px-space-4 py-space-3 text-right text-audit-success font-extrabold text-sm">
+                                ₱@rowTotal.ToString("N2")
+                            </td>
+                        </tr>
+                    }
+                    @if (!Model.ManagerTreasuryFlow.CashInRows.Any())
+                    {
+                        <tr>
+                            <td colspan="@(Model.ManagerTreasuryFlow.CashInColumns.Count + 2)" class="px-space-6 py-8 text-center text-on-surface-variant font-body-md text-xs">
+                                No manager cash-in records found for this period.
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+                <tfoot>
+                    <tr class="bg-yellow-100 text-yellow-950 font-data-mono font-extrabold border-t-2 border-yellow-300">
+                        <td class="px-space-4 py-3 uppercase font-label-caps text-xs">TOTAL</td>
+                        @foreach (var col in Model.ManagerTreasuryFlow.CashInColumns)
+                        {
+                            <td class="px-space-4 py-3 text-right font-bold text-yellow-950">
+                                ₱@col.Total.ToString("N2")
+                            </td>
                         }
-                    </tbody>
-                </table>
+                        <td class="px-space-4 py-3 text-right font-extrabold text-primary text-sm">
+                            ₱@Model.ManagerTreasuryFlow.CashInColumns.Sum(c => c.Total).ToString("N2")
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+
+    <!-- Manager Cash Out Details Section -->
+    <div class="bg-surface-container-lowest border border-surface-border rounded-xl shadow-sm overflow-hidden">
+        <div class="px-space-6 py-space-4 border-b border-surface-border flex items-center justify-between bg-surface-container-low">
+            <div>
+                <h3 class="font-headline-sm text-on-surface font-bold">Manager Cash Out Details</h3>
+                <p class="text-xs text-on-surface-variant mt-0.5">Outflow movements (disbursements, expenses, supplier payments).</p>
             </div>
+            <span class="px-3 py-1 bg-audit-error/10 text-audit-error border border-audit-error/20 rounded-full text-[10px] font-label-caps uppercase font-bold">Cash Out</span>
+        </div>
+
+        <div class="overflow-x-auto" style="max-height: 380px; overflow-y: auto;">
+            <table class="w-full text-left border-collapse text-sm">
+                <thead>
+                    <tr class="bg-surface-container-low border-b border-surface-border text-xs uppercase text-on-surface-variant font-bold sticky top-0 z-10">
+                        <th class="px-space-4 py-space-2.5">Date</th>
+                        <th class="px-space-4 py-space-2.5">Description</th>
+                        <th class="px-space-4 py-space-2.5">Category</th>
+                        <th class="px-space-4 py-space-2.5">Handler</th>
+                        <th class="px-space-4 py-space-2.5 text-right">Amount</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-surface-border font-data-mono text-xs">
+                    @foreach (var row in Model.ManagerCashOutRows)
+                    {
+                        <tr>
+                            <td class="px-space-4 py-space-3 font-body-md text-on-surface">@row.Date.ToString("MM-dd")</td>
+                            <td class="px-space-4 py-space-3 font-body-md text-on-surface">@row.Description</td>
+                            <td class="px-space-4 py-space-3 text-on-surface-variant">@row.Category</td>
+                            <td class="px-space-4 py-space-3 font-body-md text-on-surface-variant">@row.TreasuryHandlerName</td>
+                            <td class="px-space-4 py-space-3 text-right text-audit-error font-bold">₱@row.Amount.ToString("N2")</td>
+                        </tr>
+                    }
+                    @if (!Model.ManagerCashOutRows.Any())
+                    {
+                        <tr>
+                            <td colspan="5" class="px-space-6 py-6 text-center text-on-surface-variant font-body-md text-xs">
+                                No manager cash-out records found for this period.
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
         </div>
     </div>
 
@@ -640,6 +669,42 @@
             if (btnCust) btnCust.className = 'px-3 py-1.5 text-xs font-bold uppercase rounded-md transition-all bg-primary text-on-primary shadow-sm';
             if (btnBranch) btnBranch.className = 'px-3 py-1.5 text-xs font-bold uppercase rounded-md transition-all text-on-surface-variant hover:text-on-surface';
             if (hiddenInput) hiddenInput.value = 'Custodians';
+        }
+    }
+
+    function exportManagerFlowImage() {
+        const tableContainer = document.getElementById('manager-flow-table-container');
+        if (!tableContainer) return;
+        const btn = document.getElementById('export-manager-flow-btn');
+        const originalText = btn ? btn.innerHTML : '';
+        if (btn) btn.innerHTML = '<span class="material-symbols-outlined text-[15px] animate-spin">progress_activity</span> Exporting...';
+
+        const doCapture = () => {
+            html2canvas(tableContainer, {
+                backgroundColor: '#ffffff',
+                scale: 2,
+                logging: false,
+                useCORS: true
+            }).then(canvas => {
+                const link = document.createElement('a');
+                link.download = `Manager_Daily_Cash_Flow_${new Date().toISOString().slice(0,10)}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+                if (btn) btn.innerHTML = originalText;
+            }).catch(err => {
+                console.error(err);
+                if (btn) btn.innerHTML = originalText;
+                alert('Could not export table as image. Please try again.');
+            });
+        };
+
+        if (typeof html2canvas === 'undefined') {
+            const script = document.createElement('script');
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+            script.onload = doCapture;
+            document.head.appendChild(script);
+        } else {
+            doCapture();
         }
     }
 </script>
