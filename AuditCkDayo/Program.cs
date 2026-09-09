@@ -101,6 +101,30 @@ using (var scope = app.Services.CreateScope())
 
     try
     {
+        var sqlPath = Path.Combine(AppContext.BaseDirectory, "insert_buyer_expenses.sql");
+        if (File.Exists(sqlPath))
+        {
+            var alreadyImported = db.AuditItems.Any(a => a.Notes == "Imported from August 2026 Buyer Expense Sheets");
+            if (!alreadyImported)
+            {
+                Console.WriteLine("[IMPORT] Importing August buyer expenses from sheets...");
+                var sql = File.ReadAllText(sqlPath);
+                db.Database.ExecuteSqlRaw(sql);
+                Console.WriteLine("[IMPORT] Successfully imported 363 August buyer expense items!");
+            }
+            else
+            {
+                Console.WriteLine("[IMPORT] August buyer expenses already imported. Skipping.");
+            }
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[IMPORT] Buyer expenses import failed: {ex.Message}");
+    }
+
+    try
+    {
         DbSeeder.Seed(db, app.Environment.IsDevelopment());
     }
     catch (Exception ex)
