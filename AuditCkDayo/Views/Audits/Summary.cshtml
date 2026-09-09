@@ -133,27 +133,109 @@
             <span class="block text-[10px] text-on-surface-variant mt-0.5">Handed - Actual</span>
         </div>
     </div>
-    <!-- Manager Daily Cash Flow & Liquidation Summary Section -->
-    <div id="manager-flow-table-container" class="bg-surface-container-lowest border border-surface-border rounded-xl shadow-sm overflow-hidden">
-        <div class="px-space-6 py-space-4 border-b border-surface-border bg-surface-container-low flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+    <!-- SHOW PCF TABLE Section (Dual View: For Buyers & For Managers) -->
+    <div id="pcf-table-wrapper" class="bg-surface-container-lowest border border-surface-border rounded-xl shadow-sm overflow-hidden">
+        <div class="px-space-6 py-space-4 border-b border-surface-border bg-surface-container-low flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div>
-                <h3 class="font-headline-sm text-on-surface font-bold">Manager Daily Cash Flow &amp; Liquidation Summary</h3>
-                <p class="text-xs text-on-surface-variant mt-0.5">
-                    Inflows from branch sales received, returned PCF changes (CKR Main, Branch 4, Dayo), beginning balance roll-forward, and liquidation reconciliation.
+                <h3 id="pcf-table-title" class="font-headline-sm text-on-surface font-bold">
+                    @(Model.ActiveTableView == "Branches" ? "Manager Daily Cash Flow & Liquidation Summary" : "Buyer PCF Release Matrix & Liquidation Summary")
+                </h3>
+                <p id="pcf-table-subtitle" class="text-xs text-on-surface-variant mt-0.5">
+                    @(Model.ActiveTableView == "Branches" 
+                        ? "Inflows from branch sales received, returned PCF changes (CKR Main, Branch 4, Dayo), and liquidation reconciliation." 
+                        : "Daily Petty Cash releases to buyers by custodians (M. Barbs, Chelsea, Maymay, Ma'am Lolit) with beginning balance roll-forward.")
                 </p>
             </div>
-            <div class="flex items-center gap-2">
-                <button type="button" id="export-manager-flow-btn" onclick="exportManagerFlowImage()" 
+            <div class="flex flex-wrap items-center gap-2">
+                <button type="button" id="export-pcf-table-btn" onclick="exportActivePcfTableImage()" 
                         class="h-8 bg-surface-container text-primary border border-primary/20 px-3 rounded-lg font-label-caps uppercase text-[10px] font-bold tracking-wider inline-flex items-center gap-1 select-none hover:bg-primary/10 transition-colors cursor-pointer">
                     <span class="material-symbols-outlined text-[15px]">photo_camera</span> Export Table Image
                 </button>
-                <span class="px-3 py-1 bg-primary/10 text-primary border border-primary/20 rounded-full text-[10px] font-label-caps uppercase font-bold">
-                    @(Model.Filter.StartDate?.ToString("MMM dd") ?? "START") - @(Model.Filter.EndDate?.ToString("MMM dd, yyyy") ?? "END")
-                </span>
+                <span class="text-[10px] uppercase font-bold text-on-surface-variant ml-2">SHOW PCF TABLE:</span>
+                <div class="inline-flex rounded-lg border border-surface-border bg-surface-container-highest/60 p-0.5" role="group">
+                    <button type="button" id="btn-view-buyers" onclick="switchActivePcfTable('Buyers')" 
+                            class="px-3 py-1.5 text-xs font-bold uppercase rounded-md transition-all @(Model.ActiveTableView != "Branches" ? "bg-primary text-on-primary shadow-sm" : "text-on-surface-variant hover:text-on-surface")">
+                        For Buyers
+                    </button>
+                    <button type="button" id="btn-view-managers" onclick="switchActivePcfTable('Managers')" 
+                            class="px-3 py-1.5 text-xs font-bold uppercase rounded-md transition-all @(Model.ActiveTableView == "Branches" ? "bg-primary text-on-primary shadow-sm" : "text-on-surface-variant hover:text-on-surface")">
+                        For Managers
+                    </button>
+                </div>
             </div>
         </div>
 
-        <div class="overflow-x-auto">
+        <!-- 1. BUYERS PCF TABLE (Managers & Owners -> Buyer Releases) -->
+        <div id="pcf-table-buyers-view" class="overflow-x-auto @(Model.ActiveTableView == "Branches" ? "hidden" : "")">
+            <table class="w-full text-left border-collapse text-sm">
+                <thead>
+                    <tr class="bg-surface-container-low border-b border-surface-border text-xs uppercase text-on-surface-variant font-bold">
+                        <th class="px-space-6 py-space-3 font-label-caps">DATE</th>
+                        @foreach (var cust in Model.PcfMatrix.Custodians)
+                        {
+                            <th class="px-space-6 py-space-3 font-label-caps text-right">@cust</th>
+                        }
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-surface-border font-data-mono text-sm">
+                    @foreach (var row in Model.PcfMatrix.Rows)
+                    {
+                        <tr class="hover:bg-surface-container-low/40 transition-colors">
+                            <td class="px-space-6 py-space-3 font-body-md text-on-surface font-semibold">@row.Date.ToString("MMMM dd, yyyy")</td>
+                            @foreach (var cust in Model.PcfMatrix.Custodians)
+                            {
+                                var amt = row.AmountsByCustodian.GetValueOrDefault(cust, 0m);
+                                var note = row.NotesByCustodian.GetValueOrDefault(cust, string.Empty);
+                                var isBeginning = note.Contains("BEGINNING", StringComparison.OrdinalIgnoreCase);
+
+                                <td class="px-space-6 py-space-3 text-right">
+                                    @if (amt > 0)
+                                    {
+                                        <span class="font-bold text-on-surface">₱@amt.ToString("N2")</span>
+                                        @if (isBeginning)
+                                        {
+                                            <span class="ml-1.5 px-1.5 py-0.5 bg-amber-500/20 text-amber-700 border border-amber-500/30 rounded text-[9px] font-extrabold uppercase tracking-wide">BEGINNING</span>
+                                        }
+                                        else if (!string.IsNullOrWhiteSpace(note))
+                                        {
+                                            <span class="block text-[10px] text-on-surface-variant font-body-md font-normal">@note</span>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <span class="text-on-surface-variant/40">-</span>
+                                    }
+                                </td>
+                            }
+                        </tr>
+                    }
+                    @if (!Model.PcfMatrix.Rows.Any())
+                    {
+                        <tr>
+                            <td colspan="@(Model.PcfMatrix.Custodians.Count + 1)" class="px-space-6 py-8 text-center text-on-surface-variant">
+                                No buyer release records found for the selected date range.
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+                <!-- Yellow Highlighted Totals Row -->
+                <tfoot>
+                    <tr class="bg-yellow-200 text-yellow-950 font-data-mono font-extrabold border-t-2 border-yellow-400">
+                        <td class="px-space-6 py-3 uppercase font-label-caps text-xs">TOTAL</td>
+                        @foreach (var cust in Model.PcfMatrix.Custodians)
+                        {
+                            var colTotal = Model.PcfMatrix.ColumnTotals.GetValueOrDefault(cust, 0m);
+                            <td class="px-space-6 py-3 text-right font-bold text-yellow-950">
+                                ₱@colTotal.ToString("N2")
+                            </td>
+                        }
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <!-- 2. MANAGERS DAILY CASH FLOW TABLE (Inflows from Branches: Main, Branch 4, Dayo, Others) -->
+        <div id="pcf-table-managers-view" class="overflow-x-auto @(Model.ActiveTableView == "Branches" ? "" : "hidden")">
             <table class="w-full text-left border-collapse text-sm">
                 <thead>
                     <tr class="bg-surface-container-low border-b border-surface-border text-xs uppercase text-on-surface-variant font-bold sticky top-0 z-10">
@@ -224,10 +306,11 @@
                 </tfoot>
             </table>
         </div>
-        <!-- Matrix Summary Strip (Matching User Spreadsheet) -->
+
+        <!-- Liquidation Summary Strip (Shared below active table) -->
         <div class="p-space-4 bg-surface-container-low border-t border-surface-border grid grid-cols-2 sm:grid-cols-5 gap-3 font-data-mono text-sm">
             <div class="flex flex-col">
-                <span class="text-[10px] uppercase font-bold text-on-surface-variant">TOTAL IN:</span>
+                <span class="text-[10px] uppercase font-bold text-on-surface-variant">TOTAL PC / IN:</span>
                 <span class="text-base font-extrabold text-primary">₱@Model.TotalPc.ToString("N2")</span>
             </div>
             <div class="flex flex-col">
@@ -501,32 +584,38 @@
 </div>
 
 <script>
-    function togglePcfMatrixView(view) {
-        const custView = document.getElementById('pcf-matrix-custodians');
-        const branchView = document.getElementById('pcf-matrix-branches');
-        const btnCust = document.getElementById('btn-pcf-custodians');
-        const btnBranch = document.getElementById('btn-pcf-branches');
+    function switchActivePcfTable(view) {
+        const buyersView = document.getElementById('pcf-table-buyers-view');
+        const managersView = document.getElementById('pcf-table-managers-view');
+        const btnBuyers = document.getElementById('btn-view-buyers');
+        const btnManagers = document.getElementById('btn-view-managers');
+        const title = document.getElementById('pcf-table-title');
+        const subtitle = document.getElementById('pcf-table-subtitle');
         const hiddenInput = document.getElementById('filter-table-view');
 
-        if (view === 'Branches') {
-            if (custView) custView.classList.add('hidden');
-            if (branchView) branchView.classList.remove('hidden');
-            if (btnBranch) btnBranch.className = 'px-3 py-1.5 text-xs font-bold uppercase rounded-md transition-all bg-primary text-on-primary shadow-sm';
-            if (btnCust) btnCust.className = 'px-3 py-1.5 text-xs font-bold uppercase rounded-md transition-all text-on-surface-variant hover:text-on-surface';
+        if (view === 'Managers' || view === 'Branches') {
+            if (buyersView) buyersView.classList.add('hidden');
+            if (managersView) managersView.classList.remove('hidden');
+            if (btnManagers) btnManagers.className = 'px-3 py-1.5 text-xs font-bold uppercase rounded-md transition-all bg-primary text-on-primary shadow-sm';
+            if (btnBuyers) btnBuyers.className = 'px-3 py-1.5 text-xs font-bold uppercase rounded-md transition-all text-on-surface-variant hover:text-on-surface';
+            if (title) title.innerText = 'Manager Daily Cash Flow & Liquidation Summary';
+            if (subtitle) subtitle.innerText = 'Inflows from branch sales received, returned PCF changes (CKR Main, Branch 4, Dayo), and liquidation reconciliation.';
             if (hiddenInput) hiddenInput.value = 'Branches';
         } else {
-            if (custView) custView.classList.remove('hidden');
-            if (branchView) branchView.classList.add('hidden');
-            if (btnCust) btnCust.className = 'px-3 py-1.5 text-xs font-bold uppercase rounded-md transition-all bg-primary text-on-primary shadow-sm';
-            if (btnBranch) btnBranch.className = 'px-3 py-1.5 text-xs font-bold uppercase rounded-md transition-all text-on-surface-variant hover:text-on-surface';
+            if (buyersView) buyersView.classList.remove('hidden');
+            if (managersView) managersView.classList.add('hidden');
+            if (btnBuyers) btnBuyers.className = 'px-3 py-1.5 text-xs font-bold uppercase rounded-md transition-all bg-primary text-on-primary shadow-sm';
+            if (btnManagers) btnManagers.className = 'px-3 py-1.5 text-xs font-bold uppercase rounded-md transition-all text-on-surface-variant hover:text-on-surface';
+            if (title) title.innerText = 'Buyer PCF Release Matrix & Liquidation Summary';
+            if (subtitle) subtitle.innerText = 'Daily Petty Cash releases to buyers by custodians (M. Barbs, Chelsea, Maymay, Ma\'am Lolit) with beginning balance roll-forward.';
             if (hiddenInput) hiddenInput.value = 'Custodians';
         }
     }
 
-    function exportManagerFlowImage() {
-        const tableContainer = document.getElementById('manager-flow-table-container');
+    function exportActivePcfTableImage() {
+        const tableContainer = document.getElementById('pcf-table-wrapper');
         if (!tableContainer) return;
-        const btn = document.getElementById('export-manager-flow-btn');
+        const btn = document.getElementById('export-pcf-table-btn');
         const originalText = btn ? btn.innerHTML : '';
         if (btn) btn.innerHTML = '<span class="material-symbols-outlined text-[15px] animate-spin">progress_activity</span> Exporting...';
 
@@ -538,7 +627,7 @@
                 useCORS: true
             }).then(canvas => {
                 const link = document.createElement('a');
-                link.download = `Manager_Daily_Cash_Flow_${new Date().toISOString().slice(0,10)}.png`;
+                link.download = `PCF_Table_${new Date().toISOString().slice(0,10)}.png`;
                 link.href = canvas.toDataURL('image/png');
                 link.click();
                 if (btn) btn.innerHTML = originalText;
