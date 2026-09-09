@@ -28,28 +28,24 @@ public class AuditSummaryViewModel
     public PcfMatrixViewModel PcfMatrix { get; set; } = new();
     public PcfMatrixViewModel BranchPcfMatrix { get; set; } = new();
 
-    public decimal TotalPc
-    {
-        get
-        {
-            var pcfTotal = PcfMatrix?.TotalPc ?? 0m;
-            var managerTotal = ManagerTreasuryFlow?.CashInColumns?.Sum(c => c.Total) ?? 0m;
-            return Math.Max(pcfTotal, managerTotal);
-        }
-    }
+    // Buyer-specific metrics (strictly from the Buyer PCF Matrix)
+    public decimal BuyerTotalPc => PcfMatrix?.TotalPc ?? 0m;
+    public decimal BuyerTotalExpenses => PcfMatrix?.TotalExpenses ?? (BuyerAudits?.Sum(b => b.TotalExpenses) ?? 0m);
+    public decimal BuyerActualChange => BuyerTotalPc - BuyerTotalExpenses;
+    public decimal BuyerHandedChange => HandedChange;
+    public decimal BuyerShortOver => BuyerHandedChange - BuyerActualChange;
 
-    public decimal TotalExpenses
-    {
-        get
-        {
-            var buyerTotal = BuyerAudits?.Sum(b => b.TotalExpenses) ?? 0m;
-            var pcfTotal = PcfMatrix?.TotalExpenses ?? 0m;
-            return Math.Max(buyerTotal, pcfTotal);
-        }
-    }
+    // Manager-specific metrics (strictly from Manager Treasury Inflow)
+    public decimal ManagerTotalIn => ManagerTreasuryFlow?.CashInColumns?.Sum(c => c.Total) ?? 0m;
+    public decimal ManagerTotalOut => ManagerTreasuryFlow?.CashOutRows?.Sum(r => r.Amount) ?? 0m;
+    public decimal ManagerNetFlow => ManagerTotalIn - ManagerTotalOut;
+
+    // Active perspective metrics
+    public decimal TotalPc => ActiveTableView == "Branches" ? ManagerTotalIn : BuyerTotalPc;
+    public decimal TotalExpenses => ActiveTableView == "Branches" ? ManagerTotalOut : BuyerTotalExpenses;
     public decimal ActualChange => TotalPc - TotalExpenses;
     public decimal HandedChange { get; set; }
-    public decimal ShortOver => HandedChange - ActualChange;
+    public decimal ShortOver => ActiveTableView == "Branches" ? ManagerNetFlow : (HandedChange - ActualChange);
 
     public TreasuryAuditReportViewModel ManagerTreasuryFlow { get; set; } = new();
     public List<TreasuryAuditCashOutRowViewModel> ManagerCashOutRows { get; set; } = new();

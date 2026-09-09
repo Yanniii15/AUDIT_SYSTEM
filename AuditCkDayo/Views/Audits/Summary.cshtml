@@ -98,38 +98,38 @@
 
     <!-- Top Summary Metric Cards -->
     @{
-        var shortOver = Model.ShortOver;
-        var shortOverColor = shortOver < 0 ? "text-audit-error" : (shortOver > 0 ? "text-audit-success" : "text-on-surface");
-        var shortOverSign = shortOver < 0 ? "-" : (shortOver > 0 ? "+" : "");
+        var buyerShortOver = Model.BuyerShortOver;
+        var buyerShortOverColor = buyerShortOver < 0 ? "text-audit-error" : (buyerShortOver > 0 ? "text-audit-success" : "text-on-surface");
+        var buyerShortOverSign = buyerShortOver < 0 ? "-" : (buyerShortOver > 0 ? "+" : "");
     }
     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-space-4">
         <div class="bg-surface-container-lowest border border-surface-border rounded-xl p-4 shadow-sm">
-            <span class="block font-label-caps uppercase text-[10px] text-on-surface-variant font-bold">TOTAL IN</span>
-            <span class="block font-data-mono text-primary font-extrabold text-xl mt-1">₱@Model.TotalPc.ToString("N2")</span>
-            <span class="block text-[10px] text-on-surface-variant mt-0.5">Collections, PCF Change + Beg. Bal.</span>
+            <span class="block font-label-caps uppercase text-[10px] text-on-surface-variant font-bold">TOTAL PC</span>
+            <span class="block font-data-mono text-primary font-extrabold text-xl mt-1">₱@Model.BuyerTotalPc.ToString("N2")</span>
+            <span class="block text-[10px] text-on-surface-variant mt-0.5">Releases + Beg. Bal.</span>
         </div>
 
         <div class="bg-surface-container-lowest border border-surface-border rounded-xl p-4 shadow-sm">
             <span class="block font-label-caps uppercase text-[10px] text-on-surface-variant font-bold">TOTAL EXP</span>
-            <span class="block font-data-mono text-on-surface font-extrabold text-xl mt-1">₱@Model.TotalExpenses.ToString("N2")</span>
+            <span class="block font-data-mono text-on-surface font-extrabold text-xl mt-1">₱@Model.BuyerTotalExpenses.ToString("N2")</span>
             <span class="block text-[10px] text-on-surface-variant mt-0.5">Approved Deductions</span>
         </div>
 
         <div class="bg-surface-container-lowest border border-surface-border rounded-xl p-4 shadow-sm">
             <span class="block font-label-caps uppercase text-[10px] text-on-surface-variant font-bold">ACTUAL CHANGE</span>
-            <span class="block font-data-mono text-on-surface font-extrabold text-xl mt-1">₱@Model.ActualChange.ToString("N2")</span>
+            <span class="block font-data-mono text-on-surface font-extrabold text-xl mt-1">₱@Model.BuyerActualChange.ToString("N2")</span>
             <span class="block text-[10px] text-on-surface-variant mt-0.5">Total PC - Total Exp</span>
         </div>
 
         <div class="bg-surface-container-lowest border border-surface-border rounded-xl p-4 shadow-sm">
             <span class="block font-label-caps uppercase text-[10px] text-on-surface-variant font-bold">HANDED CHANGE</span>
-            <span class="block font-data-mono text-on-surface font-extrabold text-xl mt-1">₱@Model.HandedChange.ToString("N2")</span>
+            <span class="block font-data-mono text-on-surface font-extrabold text-xl mt-1">₱@Model.BuyerHandedChange.ToString("N2")</span>
             <span class="block text-[10px] text-on-surface-variant mt-0.5">Actual Returned Cash</span>
         </div>
 
-        <div class="bg-surface-container-lowest border border-surface-border rounded-xl p-4 shadow-sm @shortOverColor">
+        <div class="bg-surface-container-lowest border border-surface-border rounded-xl p-4 shadow-sm @buyerShortOverColor">
             <span class="block font-label-caps uppercase text-[10px] text-on-surface-variant font-bold">SHORT / OVER</span>
-            <span class="block font-data-mono font-extrabold text-xl mt-1">@shortOverSign₱@Math.Abs(shortOver).ToString("N2")</span>
+            <span class="block font-data-mono font-extrabold text-xl mt-1">@buyerShortOverSign₱@Math.Abs(buyerShortOver).ToString("N2")</span>
             <span class="block text-[10px] text-on-surface-variant mt-0.5">Handed - Actual</span>
         </div>
     </div>
@@ -307,27 +307,43 @@
             </table>
         </div>
 
-        <!-- Liquidation Summary Strip (Shared below active table) -->
-        <div class="p-space-4 bg-surface-container-low border-t border-surface-border grid grid-cols-2 sm:grid-cols-5 gap-3 font-data-mono text-sm">
+        <!-- Buyer Liquidation Summary Strip (Under Buyer Matrix) -->
+        <div id="buyer-matrix-strip" class="p-space-4 bg-surface-container-low border-t border-surface-border grid grid-cols-2 sm:grid-cols-5 gap-3 font-data-mono text-sm @(Model.ActiveTableView == "Branches" ? "hidden" : "")">
             <div class="flex flex-col">
-                <span class="text-[10px] uppercase font-bold text-on-surface-variant">TOTAL PC / IN:</span>
-                <span class="text-base font-extrabold text-primary">₱@Model.TotalPc.ToString("N2")</span>
+                <span class="text-[10px] uppercase font-bold text-on-surface-variant">TOTAL PC:</span>
+                <span class="text-base font-extrabold text-primary">₱@Model.BuyerTotalPc.ToString("N2")</span>
             </div>
             <div class="flex flex-col">
                 <span class="text-[10px] uppercase font-bold text-on-surface-variant">TOTAL EXP:</span>
-                <span class="text-base font-extrabold text-on-surface">₱@Model.TotalExpenses.ToString("N2")</span>
+                <span class="text-base font-extrabold text-on-surface">₱@Model.BuyerTotalExpenses.ToString("N2")</span>
             </div>
             <div class="flex flex-col">
                 <span class="text-[10px] uppercase font-bold text-on-surface-variant">ACTUAL CHANGE:</span>
-                <span class="text-base font-extrabold text-on-surface">₱@Model.ActualChange.ToString("N2")</span>
+                <span class="text-base font-extrabold text-on-surface">₱@Model.BuyerActualChange.ToString("N2")</span>
             </div>
             <div class="flex flex-col">
                 <span class="text-[10px] uppercase font-bold text-on-surface-variant">HANDED CHANGE:</span>
-                <span class="text-base font-extrabold text-on-surface">₱@Model.HandedChange.ToString("N2")</span>
+                <span class="text-base font-extrabold text-on-surface">₱@Model.BuyerHandedChange.ToString("N2")</span>
             </div>
-            <div class="flex flex-col @shortOverColor">
+            <div class="flex flex-col @buyerShortOverColor">
                 <span class="text-[10px] uppercase font-bold text-on-surface-variant">SHORT / OVER:</span>
-                <span class="text-base font-extrabold">@shortOverSign₱@Math.Abs(shortOver).ToString("N2")</span>
+                <span class="text-base font-extrabold">@buyerShortOverSign₱@Math.Abs(buyerShortOver).ToString("N2")</span>
+            </div>
+        </div>
+
+        <!-- Manager Inflow Summary Strip (Under Manager Flow Table) -->
+        <div id="manager-flow-strip" class="p-space-4 bg-surface-container-low border-t border-surface-border grid grid-cols-2 sm:grid-cols-3 gap-3 font-data-mono text-sm @(Model.ActiveTableView == "Branches" ? "" : "hidden")">
+            <div class="flex flex-col">
+                <span class="text-[10px] uppercase font-bold text-on-surface-variant">TOTAL INFLOW:</span>
+                <span class="text-base font-extrabold text-audit-success">₱@Model.ManagerTotalIn.ToString("N2")</span>
+            </div>
+            <div class="flex flex-col">
+                <span class="text-[10px] uppercase font-bold text-on-surface-variant">TOTAL OUTFLOW:</span>
+                <span class="text-base font-extrabold text-audit-error">₱@Model.ManagerTotalOut.ToString("N2")</span>
+            </div>
+            <div class="flex flex-col">
+                <span class="text-[10px] uppercase font-bold text-on-surface-variant">NET CASH FLOW:</span>
+                <span class="text-base font-extrabold text-primary">₱@Model.ManagerNetFlow.ToString("N2")</span>
             </div>
         </div>
     </div>
@@ -587,6 +603,8 @@
     function switchActivePcfTable(view) {
         const buyersView = document.getElementById('pcf-table-buyers-view');
         const managersView = document.getElementById('pcf-table-managers-view');
+        const buyerStrip = document.getElementById('buyer-matrix-strip');
+        const managerStrip = document.getElementById('manager-flow-strip');
         const btnBuyers = document.getElementById('btn-view-buyers');
         const btnManagers = document.getElementById('btn-view-managers');
         const title = document.getElementById('pcf-table-title');
@@ -596,6 +614,8 @@
         if (view === 'Managers' || view === 'Branches') {
             if (buyersView) buyersView.classList.add('hidden');
             if (managersView) managersView.classList.remove('hidden');
+            if (buyerStrip) buyerStrip.classList.add('hidden');
+            if (managerStrip) managerStrip.classList.remove('hidden');
             if (btnManagers) btnManagers.className = 'px-3 py-1.5 text-xs font-bold uppercase rounded-md transition-all bg-primary text-on-primary shadow-sm';
             if (btnBuyers) btnBuyers.className = 'px-3 py-1.5 text-xs font-bold uppercase rounded-md transition-all text-on-surface-variant hover:text-on-surface';
             if (title) title.innerText = 'Manager Daily Cash Flow & Liquidation Summary';
@@ -604,6 +624,8 @@
         } else {
             if (buyersView) buyersView.classList.remove('hidden');
             if (managersView) managersView.classList.add('hidden');
+            if (buyerStrip) buyerStrip.classList.remove('hidden');
+            if (managerStrip) managerStrip.classList.add('hidden');
             if (btnBuyers) btnBuyers.className = 'px-3 py-1.5 text-xs font-bold uppercase rounded-md transition-all bg-primary text-on-primary shadow-sm';
             if (btnManagers) btnManagers.className = 'px-3 py-1.5 text-xs font-bold uppercase rounded-md transition-all text-on-surface-variant hover:text-on-surface';
             if (title) title.innerText = 'Buyer PCF Release Matrix & Liquidation Summary';
