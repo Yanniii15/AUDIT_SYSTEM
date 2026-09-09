@@ -147,6 +147,22 @@
                 </p>
             </div>
             <div class="flex flex-wrap items-center gap-2">
+                <button type="button" id="listen-summary-btn" onclick="listenAuditSummary()" 
+                        class="h-8 bg-surface-container text-secondary border border-secondary/20 px-3 rounded-lg font-label-caps uppercase text-[10px] font-bold tracking-wider inline-flex items-center gap-1 select-none hover:bg-secondary/10 transition-colors cursor-pointer">
+                    <span class="material-symbols-outlined text-[15px]">volume_up</span>
+                    <span id="listen-summary-label">Listen Summary</span>
+                </button>
+                <a asp-action="ExportAudioSummary"
+                   asp-route-StartDate="@(Model.Filter.StartDate?.ToString("yyyy-MM-dd"))"
+                   asp-route-EndDate="@(Model.Filter.EndDate?.ToString("yyyy-MM-dd"))"
+                   asp-route-EstablishmentId="@Model.Filter.EstablishmentId"
+                   asp-route-BuyerId="@Model.Filter.BuyerId"
+                   asp-route-ManagerId="@Model.Filter.ManagerId"
+                   asp-route-BeginningBalanceOverride="@Model.Filter.BeginningBalanceOverride"
+                   asp-route-HandedChangeOverride="@Model.Filter.HandedChangeOverride"
+                   class="h-8 bg-secondary text-on-secondary px-3 rounded-lg font-label-caps uppercase text-[10px] font-bold tracking-wider inline-flex items-center gap-1 select-none hover:brightness-110 transition-all">
+                    <span class="material-symbols-outlined text-[15px]">download</span> Download Audio
+                </a>
                 <button type="button" id="export-pcf-table-btn" onclick="exportActivePcfTableImage()" 
                         class="h-8 bg-surface-container text-primary border border-primary/20 px-3 rounded-lg font-label-caps uppercase text-[10px] font-bold tracking-wider inline-flex items-center gap-1 select-none hover:bg-primary/10 transition-colors cursor-pointer">
                     <span class="material-symbols-outlined text-[15px]">photo_camera</span> Export Table Image
@@ -667,6 +683,32 @@
             document.head.appendChild(script);
         } else {
             doCapture();
+        }
+    }
+
+    function listenAuditSummary() {
+        const text = `@Html.Raw(Model.SpokenSummary.Replace("\"", "\\\"").Replace("\r", "").Replace("\n", " "))`;
+        if (!text) return;
+        
+        const btn = document.getElementById('listen-summary-btn');
+        const label = document.getElementById('listen-summary-label');
+
+        if ('speechSynthesis' in window) {
+            if (window.speechSynthesis.speaking) {
+                window.speechSynthesis.cancel();
+                if (label) label.innerText = 'Listen Summary';
+                return;
+            }
+
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = 0.95;
+            utterance.onstart = () => { if (label) label.innerText = 'Stop Audio'; };
+            utterance.onend = () => { if (label) label.innerText = 'Listen Summary'; };
+            utterance.onerror = () => { if (label) label.innerText = 'Listen Summary'; };
+            window.speechSynthesis.speak(utterance);
+        } else {
+            const audioLink = document.querySelector('a[href*="ExportAudioSummary"]');
+            if (audioLink) audioLink.click();
         }
     }
 </script>

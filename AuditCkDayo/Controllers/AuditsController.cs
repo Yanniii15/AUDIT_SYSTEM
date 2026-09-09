@@ -24,15 +24,23 @@ namespace AuditCkDayo.Controllers
         private readonly IWebHostEnvironment _env;
         private readonly Services.CoverageService? _coverageService;
         private readonly SharedPcfFundService _pcfFund;
+        private readonly ITreasuryAudioExportService _audioExport;
         private const string PendingAuditDraftsSessionKey = "PendingAuditDrafts";
 
-        public AuditsController(AuditDbContext context, IOcrService ocrService, IWebHostEnvironment env, Services.CoverageService? coverageService = null, Services.SharedPcfFundService? pcfFund = null)
+        public AuditsController(
+            AuditDbContext context, 
+            IOcrService ocrService, 
+            IWebHostEnvironment env, 
+            Services.CoverageService? coverageService = null, 
+            Services.SharedPcfFundService? pcfFund = null,
+            ITreasuryAudioExportService? audioExport = null)
         {
             _context = context;
             _ocrService = ocrService;
             _env = env;
             _coverageService = coverageService;
             _pcfFund = pcfFund ?? new SharedPcfFundService(context);
+            _audioExport = audioExport ?? new Services.UnconfiguredTreasuryAudioExportService();
         }
 
         [HttpGet]
@@ -2650,7 +2658,79 @@ namespace AuditCkDayo.Controllers
                 .ToListAsync();
             ViewBag.Managers = new SelectList(managers, "Id", "Name", filter.ManagerId);
 
+            model.SpokenSummary = BuildSpokenAuditSummary(model);
             return View(model);
+        }
+
+        [HttpGet]
+        [Authorize(Roles = "Owner,Auditor,Admin")]
+        public async Task<IActionResult> ExportAudioSummary(AuditSummaryFilterViewModel filter)
+        {
+            var summaryResult = await Summary(filter) as ViewResult;
+            if (summaryResult?.Model is not AuditSummaryViewModel model)
+            {
+                return BadRequest("Could not generate audit summary.");
+            }
+
+            var spokenText = BuildSpokenAuditSummary(model);
+            try
+            {
+                var audio = await _audioExport.GenerateSpeechFromTextAsync(spokenText, HttpContext.RequestAborted);
+                bool isWav = audio.Length >= 4 && audio[0] == (byte)'R' && audio[1] == (byte)'I' && audio[2] == (byte)'F' && audio[3] == (byte)'F';
+                string contentType = isWav ? "audio/wav" : "audio/mpeg";
+                string extension = isWav ? "wav" : "mp3";
+                var startDate = filter.StartDate ?? DateTime.Today;
+                var endDate = filter.EndDate ?? DateTime.Today;
+                return File(audio, contentType, $"Audit_Summary_Audio_{startDate:yyyyMMdd}_{endDate:yyyyMMdd}.{extension}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[TTS] Audit audio generation failed: {ex.Message}");
+                TempData["Error"] = "Audio summary could not be generated. Please try again later.";
+                return RedirectToAction(nameof(Summary), filter);
+            }
+        }
+
+        public static string BuildSpokenAuditSummary(AuditSummaryViewModel model)
+        {
+            var sb = new System.Text.StringBuilder();
+            var start = model.Filter.StartDate ?? DateTime.Today;
+            var end = model.Filter.EndDate ?? DateTime.Today;
+            var period = $"{start:MMMM dd} to {end:MMMM dd, yyyy}";
+
+            sb.Append($"Audit liquidation summary for {period}. ");
+            sb.Append($"Total Petty Cash is {model.BuyerTotalPc:N2} pesos. ");
+
+            var custodianParts = model.PcfMatrix.Custodians
+                .Select(c => new { Name = c, Total = model.PcfMatrix.ColumnTotals.GetValueOrDefault(c, 0m) })
+                .Where(x => x.Total > 0)
+                .Select(x => $"{x.Name}: {x.Total:N2} pesos")
+                .ToList();
+
+            if (custodianParts.Any())
+            {
+                sb.Append($"Releases breakdown: {string.Join(", ", custodianParts)}. ");
+            }
+
+            sb.Append($"Total expenses are {model.BuyerTotalExpenses:N2} pesos. ");
+            sb.Append($"Actual change is {model.BuyerActualChange:N2} pesos. ");
+            sb.Append($"Handed change returned is {model.BuyerHandedChange:N2} pesos. ");
+
+            var variance = model.BuyerShortOver;
+            if (variance > 0)
+            {
+                sb.Append($"Net variance is over by {Math.Abs(variance):N2} pesos.");
+            }
+            else if (variance < 0)
+            {
+                sb.Append($"Net variance is short by {Math.Abs(variance):N2} pesos.");
+            }
+            else
+            {
+                sb.Append("Net variance is balanced with zero discrepancy.");
+            }
+
+            return sb.ToString();
         }
 
         private static string ResolveSummaryReleaserName(PcfRelease r)

@@ -7613,11 +7613,21 @@ namespace AuditCkDayo.Tests
             {
                 return Task.FromResult(_audio);
             }
+
+            public Task<byte[]> GenerateSpeechFromTextAsync(string spokenText, CancellationToken cancellationToken = default)
+            {
+                return Task.FromResult(_audio);
+            }
         }
 
         private sealed class FailingTreasuryAudioExportService : ITreasuryAudioExportService
         {
             public Task<byte[]> GenerateSpeechAsync(TreasuryCashFlow flow, CancellationToken cancellationToken = default)
+            {
+                throw new InvalidOperationException("Invalid API Key");
+            }
+
+            public Task<byte[]> GenerateSpeechFromTextAsync(string spokenText, CancellationToken cancellationToken = default)
             {
                 throw new InvalidOperationException("Invalid API Key");
             }

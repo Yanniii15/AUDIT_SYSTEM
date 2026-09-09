@@ -23,6 +23,7 @@ public class AuditSummaryViewModel
 
     public decimal BeginningBalance { get; set; }
     public bool IsBeginningBalanceOverridden { get; set; }
+    public string SpokenSummary { get; set; } = string.Empty;
 
     public string ActiveTableView { get; set; } = "Custodians";
     public PcfMatrixViewModel PcfMatrix { get; set; } = new();
