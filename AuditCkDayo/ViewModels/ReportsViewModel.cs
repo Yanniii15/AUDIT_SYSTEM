@@ -42,6 +42,7 @@ public class ReportsViewModel
     public List<BuyerAuditReportViewModel> BuyerAudits { get; set; } = new();
     public BranchAuditReportViewModel BranchAudit { get; set; } = new();
     public PnlReportViewModel PnlReport { get; set; } = new();
+    public PcfMatrixViewModel PcfMatrix { get; set; } = new();
 }
 
 public class ReportStatusSummary
@@ -125,12 +126,18 @@ public class TreasuryAuditReportViewModel
             .Where(item => !string.IsNullOrWhiteSpace(item.Label))
             .ToList();
 
+        var preferredOrder = new[] { "CKR MAIN", "CKR BRANCH 4", "DAYO", "OTHERS" };
         report.CashInColumns = cashInEntries
             .GroupBy(item => item.Label)
             .Select(group => new TreasuryAuditCashInColumnViewModel
             {
                 Label = group.Key,
                 Total = group.Sum(item => item.Entry.Amount)
+            })
+            .OrderBy(c =>
+            {
+                var idx = Array.IndexOf(preferredOrder, c.Label);
+                return idx >= 0 ? idx : 999;
             })
             .ToList();
 
@@ -169,38 +176,33 @@ public class TreasuryAuditReportViewModel
 
     private static string GetCashInLabel(CashFlowEntry entry)
     {
-        if (entry.Category == CashFlowCategory.Sales && !string.IsNullOrWhiteSpace(entry.Establishment?.Name))
+        var est = entry.Establishment?.Name?.Trim() ?? string.Empty;
+        var note = entry.Notes?.Trim() ?? string.Empty;
+
+        if (est.Equals("CKR Main", StringComparison.OrdinalIgnoreCase) ||
+            est.Equals("Main", StringComparison.OrdinalIgnoreCase) ||
+            note.Contains("CKR Main", StringComparison.OrdinalIgnoreCase) ||
+            note.Contains("Main Handover", StringComparison.OrdinalIgnoreCase) ||
+            note.Contains("Sales - CKR Main", StringComparison.OrdinalIgnoreCase) ||
+            note.Contains("CKR Main Change", StringComparison.OrdinalIgnoreCase) ||
+            note.Contains("Main Change", StringComparison.OrdinalIgnoreCase))
         {
-            var establishment = entry.Establishment.Name.Trim();
-            return establishment.Equals("DAYO", StringComparison.OrdinalIgnoreCase)
-                ? establishment.ToUpperInvariant()
-                : $"{establishment.ToUpperInvariant()} RECEIVED";
+            return "CKR MAIN";
         }
 
-        if (entry.Category == CashFlowCategory.ChangePcf && !string.IsNullOrWhiteSpace(entry.Establishment?.Name))
+        if (est.Equals("CKR Branch 4", StringComparison.OrdinalIgnoreCase) ||
+            est.Equals("Branch 4", StringComparison.OrdinalIgnoreCase) ||
+            note.Contains("CKR Branch 4", StringComparison.OrdinalIgnoreCase) ||
+            note.Contains("Branch 4", StringComparison.OrdinalIgnoreCase) ||
+            note.Contains("B4", StringComparison.OrdinalIgnoreCase))
         {
-            var establishment = entry.Establishment.Name.Trim().ToUpperInvariant();
-            return establishment switch
-            {
-                "MAIN" => "M.CHANGE",
-                "DAYO" => "D.CHANGE",
-                _ => $"{establishment} CHANGE"
-            };
+            return "CKR BRANCH 4";
         }
 
-        if (!string.IsNullOrWhiteSpace(entry.RelatedUser?.Name))
+        if (est.Equals("Dayo", StringComparison.OrdinalIgnoreCase) ||
+            note.Contains("Dayo", StringComparison.OrdinalIgnoreCase))
         {
-            return entry.RelatedUser.Name.Trim().ToUpperInvariant();
-        }
-
-        if (!string.IsNullOrWhiteSpace(entry.CostCenter?.Name))
-        {
-            return entry.CostCenter.Name.Trim().ToUpperInvariant();
-        }
-
-        if (!string.IsNullOrWhiteSpace(entry.Notes))
-        {
-            return entry.Notes.Trim().ToUpperInvariant();
+            return "DAYO";
         }
 
         return "OTHERS";
@@ -263,6 +265,69 @@ public class BuyerAuditReportViewModel
     public decimal ExpectedChange => TotalPc - TotalExpenses;
     public decimal ActualChangeReturned { get; set; }
     public decimal ShortOverAmount => ActualChangeReturned - ExpectedChange;
+
+    public int ReceiptCount => Expenses.Count(e => e.HasReceipt);
+    public int NoReceiptCount => Expenses.Count(e => !e.HasReceipt);
+    public decimal ReceiptAmount => Expenses.Where(e => e.HasReceipt).Sum(e => e.Amount);
+    public decimal NoReceiptAmount => Expenses.Where(e => !e.HasReceipt).Sum(e => e.Amount);
+    public Dictionary<string, decimal> ExpensesByDepartment => Expenses
+        .GroupBy(e => string.IsNullOrWhiteSpace(e.Allocation) ? "OTHER" : e.Allocation.Trim().ToUpperInvariant())
+        .ToDictionary(g => g.Key, g => g.Sum(x => x.Amount));
+    public Dictionary<DateTime, decimal> DailySpending => Expenses
+        .GroupBy(e => e.Date.Date)
+        .OrderBy(g => g.Key)
+        .ToDictionary(g => g.Key, g => g.Sum(x => x.Amount));
+
+    public List<BuyerExpenseLine> ExportSummaryLines
+    {
+        get
+        {
+            var ordered = Expenses
+                .OrderBy(e => e.Date.Date)
+                .ThenBy(e => e.AuditItemId)
+                .ToList();
+
+            var result = new List<BuyerExpenseLine>();
+
+            foreach (var item in ordered)
+            {
+                var desc = !string.IsNullOrWhiteSpace(item.Description) && item.Description != "EXPENSE" && item.Description != "NO RECEIPT"
+                    ? item.Description.Trim().ToUpperInvariant()
+                    : (!string.IsNullOrWhiteSpace(item.Item) ? item.Item.Trim().ToUpperInvariant() : "EXPENSE");
+
+                var alloc = string.IsNullOrWhiteSpace(item.Allocation) ? "DAYO" : item.Allocation.Trim().ToUpperInvariant();
+
+                var last = result.LastOrDefault();
+                if (last != null
+                    && last.Date.Date == item.Date.Date
+                    && string.Equals(last.Description, desc, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(last.Allocation, alloc, StringComparison.OrdinalIgnoreCase)
+                    && last.HasReceipt == item.HasReceipt)
+                {
+                    last.Amount += item.Amount;
+                    if (!string.IsNullOrWhiteSpace(item.Item) && !last.Item.Contains(item.Item))
+                    {
+                        last.Item = $"{last.Item}, {item.Item}";
+                    }
+                }
+                else
+                {
+                    result.Add(new BuyerExpenseLine
+                    {
+                        AuditItemId = item.AuditItemId,
+                        Date = item.Date.Date,
+                        Description = desc,
+                        Item = item.Item,
+                        Amount = item.Amount,
+                        Allocation = alloc,
+                        HasReceipt = item.HasReceipt
+                    });
+                }
+            }
+
+            return result;
+        }
+    }
 }
 
 public class PcfReleaseLine
@@ -274,10 +339,13 @@ public class PcfReleaseLine
 
 public class BuyerExpenseLine
 {
+    public int AuditItemId { get; set; }
     public DateTime Date { get; set; }
     public string Description { get; set; } = string.Empty;
+    public string Item { get; set; } = string.Empty;
     public decimal Amount { get; set; }
     public string Allocation { get; set; } = string.Empty;
+    public bool HasReceipt { get; set; } = true;
 }
 
 public class BranchAuditReportViewModel
@@ -450,4 +518,25 @@ public class PnlBranchTotalViewModel
     public decimal GrossProfit => Sales - Cogs;
     public decimal NetProfit => GrossProfit - Opex - MonthlyFixedCost - Other;
     public decimal NetProfitPercentage => Sales == 0m ? 0m : Math.Round(NetProfit / Sales * 100m, 2);
+}
+public class PcfMatrixViewModel
+{
+    public DateTime StartDate { get; set; }
+    public DateTime EndDate { get; set; }
+    public List<string> Custodians { get; set; } = new();
+    public List<PcfMatrixDateRow> Rows { get; set; } = new();
+    public Dictionary<string, decimal> ColumnTotals { get; set; } = new();
+    public decimal TotalPc { get; set; }
+    public decimal TotalExpenses { get; set; }
+    public decimal ExpectedChange => TotalPc - TotalExpenses;
+    public decimal ActualChangeReturned { get; set; }
+    public decimal ShortOverAmount => ActualChangeReturned - ExpectedChange;
+}
+
+public class PcfMatrixDateRow
+{
+    public DateTime Date { get; set; }
+    public Dictionary<string, decimal> AmountsByCustodian { get; set; } = new();
+    public Dictionary<string, string> NotesByCustodian { get; set; } = new();
+    public decimal RowTotal => AmountsByCustodian.Values.Sum();
 }

@@ -14,6 +14,7 @@ public class AuditSummaryFilterViewModel
     public int? ManagerId { get; set; }
     public decimal? BeginningBalanceOverride { get; set; }
     public decimal? HandedChangeOverride { get; set; }
+    public string? TableView { get; set; }
 }
 
 public class AuditSummaryViewModel
@@ -23,9 +24,12 @@ public class AuditSummaryViewModel
     public decimal BeginningBalance { get; set; }
     public bool IsBeginningBalanceOverridden { get; set; }
 
+    public string ActiveTableView { get; set; } = "Custodians";
     public PcfMatrixViewModel PcfMatrix { get; set; } = new();
-    public decimal TotalPc => PcfMatrix?.TotalPc ?? 0m;
-    public decimal TotalExpenses => PcfMatrix?.TotalExpenses ?? 0m;
+    public PcfMatrixViewModel BranchPcfMatrix { get; set; } = new();
+
+    public decimal TotalPc => (ActiveTableView == "Branches" ? BranchPcfMatrix?.TotalPc : PcfMatrix?.TotalPc) ?? 0m;
+    public decimal TotalExpenses => (ActiveTableView == "Branches" ? BranchPcfMatrix?.TotalExpenses : PcfMatrix?.TotalExpenses) ?? 0m;
     public decimal ActualChange => TotalPc - TotalExpenses;
     public decimal HandedChange { get; set; }
     public decimal ShortOver => HandedChange - ActualChange;

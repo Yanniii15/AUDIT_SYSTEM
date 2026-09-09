@@ -28,6 +28,7 @@
 
     <!-- Filter Bar Form -->
     <form method="get" asp-controller="Audits" asp-action="Summary" class="bg-surface-container-lowest border border-surface-border rounded-xl p-space-4 shadow-sm space-y-4">
+        <input type="hidden" name="TableView" id="filter-table-view" value="@Model.ActiveTableView" />
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
             <!-- Start Date -->
             <div class="flex flex-col">
@@ -135,21 +136,30 @@
 
     <!-- PCF Release Matrix & Liquidation Summary Section -->
     <div class="bg-surface-container-lowest border border-surface-border rounded-xl shadow-sm overflow-hidden">
-        <div class="px-space-6 py-space-4 border-b border-surface-border bg-surface-container-low flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div class="px-space-6 py-space-4 border-b border-surface-border bg-surface-container-low flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div>
                 <h3 class="font-headline-sm text-on-surface font-bold">PCF Release Matrix &amp; Liquidation Summary</h3>
                 <p class="text-xs text-on-surface-variant mt-0.5">
-                    Daily Petty Cash releases by custodian with beginning balance carry-forward and variance reconciliation.
+                    Daily Petty Cash releases with beginning balance carry-forward and variance reconciliation.
                 </p>
             </div>
-            <div class="flex items-center gap-2">
-                <span class="px-3 py-1 bg-primary/10 text-primary border border-primary/20 rounded-full text-[10px] font-label-caps uppercase font-bold">
-                    @(Model.Filter.StartDate?.ToString("MMM dd") ?? "START") - @(Model.Filter.EndDate?.ToString("MMM dd, yyyy") ?? "END")
-                </span>
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="text-[10px] uppercase font-bold text-on-surface-variant">SHOW PCF TABLE:</span>
+                <div class="inline-flex rounded-lg border border-surface-border bg-surface-container-highest/60 p-0.5" role="group">
+                    <button type="button" id="btn-pcf-custodians" onclick="togglePcfMatrixView('Custodians')" 
+                            class="px-3 py-1.5 text-xs font-bold uppercase rounded-md transition-all @(Model.ActiveTableView != "Branches" ? "bg-primary text-on-primary shadow-sm" : "text-on-surface-variant hover:text-on-surface")">
+                        Managers &amp; Owners
+                    </button>
+                    <button type="button" id="btn-pcf-branches" onclick="togglePcfMatrixView('Branches')" 
+                            class="px-3 py-1.5 text-xs font-bold uppercase rounded-md transition-all @(Model.ActiveTableView == "Branches" ? "bg-primary text-on-primary shadow-sm" : "text-on-surface-variant hover:text-on-surface")">
+                        CKR Main, Branch 4, Dayo
+                    </button>
+                </div>
             </div>
         </div>
 
-        <div class="overflow-x-auto">
+        <!-- Custodian Matrix View -->
+        <div id="pcf-matrix-custodians" class="overflow-x-auto @(Model.ActiveTableView == "Branches" ? "hidden" : "")">
             <table class="w-full text-left border-collapse text-sm">
                 <thead>
                     <tr class="bg-surface-container-low border-b border-surface-border text-xs uppercase text-on-surface-variant font-bold">
@@ -208,6 +218,75 @@
                         @foreach (var cust in Model.PcfMatrix.Custodians)
                         {
                             var colTotal = Model.PcfMatrix.ColumnTotals.GetValueOrDefault(cust, 0m);
+                            <td class="px-space-6 py-3 text-right font-bold text-yellow-950">
+                                ₱@colTotal.ToString("N2")
+                            </td>
+                        }
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <!-- Branch Matrix View (CKR Main, CKR Branch 4, Dayo, OTHERS) -->
+        <div id="pcf-matrix-branches" class="overflow-x-auto @(Model.ActiveTableView == "Branches" ? "" : "hidden")">
+            <table class="w-full text-left border-collapse text-sm">
+                <thead>
+                    <tr class="bg-surface-container-low border-b border-surface-border text-xs uppercase text-on-surface-variant font-bold">
+                        <th class="px-space-6 py-space-3 font-label-caps">DATE</th>
+                        @foreach (var col in Model.BranchPcfMatrix.Custodians)
+                        {
+                            <th class="px-space-6 py-space-3 font-label-caps text-right">@col</th>
+                        }
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-surface-border font-data-mono text-sm">
+                    @foreach (var row in Model.BranchPcfMatrix.Rows)
+                    {
+                        <tr class="hover:bg-surface-container-low/40 transition-colors">
+                            <td class="px-space-6 py-space-3 font-body-md text-on-surface font-semibold">@row.Date.ToString("MMMM dd, yyyy")</td>
+                            @foreach (var col in Model.BranchPcfMatrix.Custodians)
+                            {
+                                var amt = row.AmountsByCustodian.GetValueOrDefault(col, 0m);
+                                var note = row.NotesByCustodian.GetValueOrDefault(col, string.Empty);
+                                var isBeginning = note.Contains("BEGINNING", StringComparison.OrdinalIgnoreCase);
+
+                                <td class="px-space-6 py-space-3 text-right">
+                                    @if (amt > 0)
+                                    {
+                                        <span class="font-bold text-on-surface">₱@amt.ToString("N2")</span>
+                                        @if (isBeginning)
+                                        {
+                                            <span class="ml-1.5 px-1.5 py-0.5 bg-amber-500/20 text-amber-700 border border-amber-500/30 rounded text-[9px] font-extrabold uppercase tracking-wide">BEGINNING</span>
+                                        }
+                                        else if (!string.IsNullOrWhiteSpace(note))
+                                        {
+                                            <span class="block text-[10px] text-on-surface-variant font-body-md font-normal">@note</span>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <span class="text-on-surface-variant/40">-</span>
+                                    }
+                                </td>
+                            }
+                        </tr>
+                    }
+                    @if (!Model.BranchPcfMatrix.Rows.Any())
+                    {
+                        <tr>
+                            <td colspan="@(Model.BranchPcfMatrix.Custodians.Count + 1)" class="px-space-6 py-8 text-center text-on-surface-variant">
+                                No branch release records found for the selected date range.
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+                <!-- Yellow Highlighted Totals Row -->
+                <tfoot>
+                    <tr class="bg-yellow-200 text-yellow-950 font-data-mono font-extrabold border-t-2 border-yellow-400">
+                        <td class="px-space-6 py-3 uppercase font-label-caps text-xs">TOTAL</td>
+                        @foreach (var col in Model.BranchPcfMatrix.Custodians)
+                        {
+                            var colTotal = Model.BranchPcfMatrix.ColumnTotals.GetValueOrDefault(col, 0m);
                             <td class="px-space-6 py-3 text-right font-bold text-yellow-950">
                                 ₱@colTotal.ToString("N2")
                             </td>
@@ -540,3 +619,27 @@
         </div>
     </div>
 </div>
+
+<script>
+    function togglePcfMatrixView(view) {
+        const custView = document.getElementById('pcf-matrix-custodians');
+        const branchView = document.getElementById('pcf-matrix-branches');
+        const btnCust = document.getElementById('btn-pcf-custodians');
+        const btnBranch = document.getElementById('btn-pcf-branches');
+        const hiddenInput = document.getElementById('filter-table-view');
+
+        if (view === 'Branches') {
+            if (custView) custView.classList.add('hidden');
+            if (branchView) branchView.classList.remove('hidden');
+            if (btnBranch) btnBranch.className = 'px-3 py-1.5 text-xs font-bold uppercase rounded-md transition-all bg-primary text-on-primary shadow-sm';
+            if (btnCust) btnCust.className = 'px-3 py-1.5 text-xs font-bold uppercase rounded-md transition-all text-on-surface-variant hover:text-on-surface';
+            if (hiddenInput) hiddenInput.value = 'Branches';
+        } else {
+            if (custView) custView.classList.remove('hidden');
+            if (branchView) branchView.classList.add('hidden');
+            if (btnCust) btnCust.className = 'px-3 py-1.5 text-xs font-bold uppercase rounded-md transition-all bg-primary text-on-primary shadow-sm';
+            if (btnBranch) btnBranch.className = 'px-3 py-1.5 text-xs font-bold uppercase rounded-md transition-all text-on-surface-variant hover:text-on-surface';
+            if (hiddenInput) hiddenInput.value = 'Custodians';
+        }
+    }
+</script>

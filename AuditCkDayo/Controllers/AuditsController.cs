@@ -2413,7 +2413,30 @@ namespace AuditCkDayo.Controllers
                 EndDate = endDate
             };
 
+            var activeTableView = !string.IsNullOrWhiteSpace(filter.TableView)
+                ? filter.TableView
+                : (filter.ManagerId.HasValue ? "Branches" : "Custodians");
+            model.ActiveTableView = activeTableView;
+
+            // Pre-populate all active managers and owners for custodian view
+            var activeManagersAndOwners = await _context.Users
+                .AsNoTracking()
+                .Where(u => !u.IsDeleted && (u.Role == UserRole.Manager || u.Role == UserRole.Owner))
+                .OrderBy(u => u.Role)
+                .ThenBy(u => u.Name)
+                .Select(u => u.Name.Trim().ToUpperInvariant())
+                .Distinct()
+                .ToListAsync();
+
             var custodianNames = new List<string>();
+            foreach (var name in activeManagersAndOwners)
+            {
+                if (!custodianNames.Contains(name))
+                {
+                    custodianNames.Add(name);
+                }
+            }
+
             foreach (var r in allReleases)
             {
                 var name = ResolveSummaryReleaserName(r);
@@ -2485,6 +2508,54 @@ namespace AuditCkDayo.Controllers
             matrix.ActualChangeReturned = totalHandedChange;
             model.HandedChange = totalHandedChange;
             model.PcfMatrix = matrix;
+
+            // Build Branch PCF Matrix (CKR Main, CKR Branch 4, Dayo, OTHERS)
+            var branchMatrix = new PcfMatrixViewModel
+            {
+                StartDate = startDate,
+                EndDate = endDate,
+                Custodians = new List<string> { "CKR MAIN", "CKR BRANCH 4", "DAYO", "OTHERS" }
+            };
+
+            for (var dt = startDate; dt <= endDate; dt = dt.AddDays(1))
+            {
+                var dateRow = new PcfMatrixDateRow { Date = dt };
+                var dayReleases = allReleases.Where(r => r.ReleaseDate.Date == dt).ToList();
+
+                foreach (var col in branchMatrix.Custodians)
+                {
+                    var isOthers = col == "OTHERS";
+                    var colReleases = dayReleases.Where(r => ResolveSummaryBranchColumn(r) == col).ToList();
+                    var totalDayAmt = colReleases.Sum(r => r.Amount);
+
+                    if (isOthers && dt == startDate && beginningBalance > 0)
+                    {
+                        totalDayAmt += beginningBalance;
+                        dateRow.NotesByCustodian[col] = "BEGINNING";
+                    }
+
+                    dateRow.AmountsByCustodian[col] = totalDayAmt;
+
+                    var notes = string.Join(", ", colReleases.Select(r => r.Purpose).Where(p => !string.IsNullOrWhiteSpace(p)).Distinct());
+                    if (!string.IsNullOrWhiteSpace(notes))
+                    {
+                        dateRow.NotesByCustodian[col] = isOthers && dt == startDate && beginningBalance > 0
+                            ? $"BEGINNING; {notes}"
+                            : notes;
+                    }
+                }
+
+                branchMatrix.Rows.Add(dateRow);
+            }
+
+            foreach (var col in branchMatrix.Custodians)
+            {
+                branchMatrix.ColumnTotals[col] = branchMatrix.Rows.Sum(r => r.AmountsByCustodian.GetValueOrDefault(col, 0m));
+            }
+            branchMatrix.TotalPc = branchMatrix.ColumnTotals.Values.Sum();
+            branchMatrix.TotalExpenses = approvedAudits.SelectMany(a => a.Details).Sum(d => d.Total);
+            branchMatrix.ActualChangeReturned = totalHandedChange;
+            model.BranchPcfMatrix = branchMatrix;
 
             // 5. Manager Cash In and Cash Out Details
             var cashFlowsQuery = _context.TreasuryCashFlows
@@ -2598,6 +2669,37 @@ namespace AuditCkDayo.Controllers
             {
                 return r.Establishment.Name.Trim().ToUpperInvariant();
             }
+            return "OTHERS";
+        }
+
+        private static string ResolveSummaryBranchColumn(PcfRelease r)
+        {
+            var est = r.Establishment?.Name?.Trim() ?? string.Empty;
+            var purpose = r.Purpose?.Trim() ?? string.Empty;
+
+            if (est.Equals("CKR Main", StringComparison.OrdinalIgnoreCase) ||
+                est.Equals("Main", StringComparison.OrdinalIgnoreCase) ||
+                purpose.Contains("CKR Main", StringComparison.OrdinalIgnoreCase) ||
+                purpose.Contains("Main", StringComparison.OrdinalIgnoreCase))
+            {
+                return "CKR MAIN";
+            }
+
+            if (est.Equals("CKR Branch 4", StringComparison.OrdinalIgnoreCase) ||
+                est.Equals("Branch 4", StringComparison.OrdinalIgnoreCase) ||
+                purpose.Contains("CKR Branch 4", StringComparison.OrdinalIgnoreCase) ||
+                purpose.Contains("Branch 4", StringComparison.OrdinalIgnoreCase) ||
+                purpose.Contains("B4", StringComparison.OrdinalIgnoreCase))
+            {
+                return "CKR BRANCH 4";
+            }
+
+            if (est.Equals("Dayo", StringComparison.OrdinalIgnoreCase) ||
+                purpose.Contains("Dayo", StringComparison.OrdinalIgnoreCase))
+            {
+                return "DAYO";
+            }
+
             return "OTHERS";
         }
 
