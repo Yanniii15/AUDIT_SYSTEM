@@ -434,20 +434,57 @@ public class PnlReportViewModel
             TotalSales = confirmedSales.Sum(report => report.TotalGrossSales)
         };
 
-        model.Categories = approvedDetails
-            .Select(row => row.Detail)
-            .GroupBy(detail => new { Section = ResolvePnlSection(detail), CategoryName = NormalizeCategory(ResolvePnlCategoryName(detail)) })
+        // Unified list of all expenses (Audit Receipts + Daily Sales Expenses)
+        var allExpenses = new List<(PnlExpenseSection Section, string Category, string ItemName, decimal Amount, string Branch)>();
+
+        // 1. Add approved audit details
+        foreach (var row in approvedDetails)
+        {
+            var sec = ResolvePnlSection(row.Detail);
+            var cat = NormalizeCategory(ResolvePnlCategoryName(row.Detail));
+            var item = string.IsNullOrWhiteSpace(row.Detail.ItemName) ? cat : row.Detail.ItemName.Trim();
+            allExpenses.Add((sec, cat, item, row.Detail.Total, row.BranchName));
+        }
+
+        // 2. Add daily sales expenses from confirmed reports
+        foreach (var report in confirmedSales)
+        {
+            var branch = report.Establishment?.Name ?? "Unassigned";
+            var expenseLines = report.Lines?.Where(l => l.LineType == SalesReportLineType.ExpenseFromSales).ToList() ?? new List<SalesReportLine>();
+
+            if (expenseLines.Any())
+            {
+                foreach (var line in expenseLines)
+                {
+                    var (sec, cat) = ClassifyExpenseLine(line.Label);
+                    var item = !string.IsNullOrWhiteSpace(line.Label) ? line.Label.Trim() : "Daily Sales Expense";
+                    allExpenses.Add((sec, cat, item, line.Amount, branch));
+                }
+            }
+            else
+            {
+                var dailyPayout = report.CashOut > 0 ? report.CashOut : (report.RestoPcf + report.OpeningRestoPcf);
+                if (dailyPayout > 0)
+                {
+                    allExpenses.Add((PnlExpenseSection.OPEX, "Store Expenses from Sales", $"Daily Branch Payout ({report.BusinessDate:MM-dd})", dailyPayout, branch));
+                }
+            }
+        }
+
+        // Build Categories Breakdown
+        model.Categories = allExpenses
+            .GroupBy(e => new { e.Section, CategoryName = e.Category })
             .Select(group => new PnlCategoryTotalViewModel
             {
                 Section = group.Key.Section,
                 CategoryName = group.Key.CategoryName,
-                Amount = group.Sum(detail => detail.Total),
+                Amount = group.Sum(e => e.Amount),
                 Items = group
-                    .GroupBy(detail => string.IsNullOrWhiteSpace(detail.ItemName) ? group.Key.CategoryName : detail.ItemName.Trim())
+                    .GroupBy(e => e.ItemName)
                     .Select(itemGroup => new PnlExpenseItemViewModel
                     {
                         ItemName = itemGroup.Key,
-                        Amount = itemGroup.Sum(detail => detail.Total)
+                        Amount = itemGroup.Sum(e => e.Amount)
                     })
                     .OrderByDescending(item => item.Amount)
                     .ThenBy(item => item.ItemName)
@@ -457,8 +494,9 @@ public class PnlReportViewModel
             .ThenByDescending(category => category.Amount)
             .ToList();
 
+        // Build Branches Comparison
         var branchNames = confirmedSales.Select(report => report.Establishment?.Name ?? "Unassigned")
-            .Concat(approvedDetails.Select(row => row.BranchName))
+            .Concat(allExpenses.Select(e => e.Branch))
             .Distinct()
             .OrderBy(name => name)
             .ToList();
@@ -467,20 +505,72 @@ public class PnlReportViewModel
             .Select(branchName =>
             {
                 var branchSales = confirmedSales.Where(report => (report.Establishment?.Name ?? "Unassigned") == branchName).ToList();
-                var branchDetails = approvedDetails.Where(row => row.BranchName == branchName).Select(row => row.Detail).ToList();
+                var branchExp = allExpenses.Where(e => e.Branch == branchName).ToList();
                 return new PnlBranchTotalViewModel
                 {
                     BranchName = branchName,
                     Sales = branchSales.Sum(report => report.TotalGrossSales),
-                    Cogs = branchDetails.Where(detail => ResolvePnlSection(detail) == PnlExpenseSection.COGS).Sum(detail => detail.Total),
-                    Opex = branchDetails.Where(detail => ResolvePnlSection(detail) == PnlExpenseSection.OPEX).Sum(detail => detail.Total),
-                    MonthlyFixedCost = branchDetails.Where(detail => ResolvePnlSection(detail) == PnlExpenseSection.MonthlyFixedCost).Sum(detail => detail.Total),
-                    Other = branchDetails.Where(detail => ResolvePnlSection(detail) == PnlExpenseSection.Other).Sum(detail => detail.Total)
+                    Cogs = branchExp.Where(e => e.Section == PnlExpenseSection.COGS).Sum(e => e.Amount),
+                    Opex = branchExp.Where(e => e.Section == PnlExpenseSection.OPEX).Sum(e => e.Amount),
+                    MonthlyFixedCost = branchExp.Where(e => e.Section == PnlExpenseSection.MonthlyFixedCost).Sum(e => e.Amount),
+                    Other = branchExp.Where(e => e.Section == PnlExpenseSection.Other).Sum(e => e.Amount)
                 };
             })
             .ToList();
 
         return model;
+    }
+
+    private static (PnlExpenseSection Section, string Category) ClassifyExpenseLine(string? label)
+    {
+        var text = (label ?? string.Empty).Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(text)) return (PnlExpenseSection.Other, "Miscellaneous");
+
+        if (text.Contains("rice") || text.Contains("bigas") || text.Contains("oil") || text.Contains("mantika")
+            || text.Contains("pork") || text.Contains("chicken") || text.Contains("beef") || text.Contains("fish")
+            || text.Contains("meat") || text.Contains("vegetable") || text.Contains("gulay") || text.Contains("egg")
+            || text.Contains("garlic") || text.Contains("onion") || text.Contains("crispy fry") || text.Contains("magic sarap")
+            || text.Contains("condiment") || text.Contains("sauce") || text.Contains("sugar") || text.Contains("salt"))
+        {
+            return (PnlExpenseSection.COGS, "Food Ingredients");
+        }
+
+        if (text.Contains("beer") || text.Contains("red horse") || text.Contains("san miguel") || text.Contains("rh"))
+        {
+            return (PnlExpenseSection.COGS, "Beers");
+        }
+
+        if (text.Contains("beverage") || text.Contains("juice") || text.Contains("softdrink") || text.Contains("coke") || text.Contains("water"))
+        {
+            return (PnlExpenseSection.COGS, "Beverages");
+        }
+
+        if (text.Contains("cup") || text.Contains("plastic") || text.Contains("box") || text.Contains("bag") || text.Contains("packaging") || text.Contains("straw"))
+        {
+            return (PnlExpenseSection.COGS, "Packaging");
+        }
+
+        if (text.Contains("rent") || text.Contains("lease"))
+        {
+            return (PnlExpenseSection.MonthlyFixedCost, "Rent");
+        }
+
+        if (text.Contains("kuryente") || text.Contains("meralco") || text.Contains("electric") || text.Contains("primewater") || text.Contains("wifi") || text.Contains("internet") || text.Contains("gas") || text.Contains("lpg") || text.Contains("ice") || text.Contains("yelo"))
+        {
+            return (PnlExpenseSection.OPEX, "Utilities");
+        }
+
+        if (text.Contains("sahod") || text.Contains("payroll") || text.Contains("salary") || text.Contains("allowance"))
+        {
+            return (PnlExpenseSection.OPEX, "Salaries & Labor");
+        }
+
+        if (text.Contains("cleaning") || text.Contains("detergent") || text.Contains("soap") || text.Contains("repair") || text.Contains("maintenance"))
+        {
+            return (PnlExpenseSection.OPEX, "Store & Cleaning Supplies");
+        }
+
+        return (PnlExpenseSection.Other, "Miscellaneous");
     }
 
     private static bool DetailBelongsToEstablishment(AuditItem audit, AuditItemDetail detail, int establishmentId)

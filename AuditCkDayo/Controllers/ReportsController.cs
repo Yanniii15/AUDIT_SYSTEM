@@ -90,7 +90,10 @@ public class ReportsController : Controller
             .ThenInclude(detail => detail.AssignedEstablishment)
             .Include(a => a.Establishment)
             .ToListAsync();
-        var pnlSalesReports = await salesReportQuery.ToListAsync();
+        var pnlSalesReports = await salesReportQuery
+            .Include(s => s.Establishment)
+            .Include(s => s.Lines)
+            .ToListAsync();
 
         var model = new ReportsViewModel
         {

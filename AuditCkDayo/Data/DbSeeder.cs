@@ -45,10 +45,19 @@ namespace AuditCkDayo.Data
             {
                 db.PnlCategories.AddRange(
                     new PnlCategory { Name = "Food Ingredients", Section = PnlExpenseSection.COGS },
+                    new PnlCategory { Name = "Meat & Poultry", Section = PnlExpenseSection.COGS },
+                    new PnlCategory { Name = "Vegetables & Produce", Section = PnlExpenseSection.COGS },
+                    new PnlCategory { Name = "Rice & Grains", Section = PnlExpenseSection.COGS },
+                    new PnlCategory { Name = "Kitchen Condiments & Spices", Section = PnlExpenseSection.COGS },
                     new PnlCategory { Name = "Beverages", Section = PnlExpenseSection.COGS },
+                    new PnlCategory { Name = "Beers", Section = PnlExpenseSection.COGS },
                     new PnlCategory { Name = "Packaging", Section = PnlExpenseSection.COGS },
                     new PnlCategory { Name = "Utilities", Section = PnlExpenseSection.OPEX },
+                    new PnlCategory { Name = "LPG & Cooking Gas", Section = PnlExpenseSection.OPEX },
                     new PnlCategory { Name = "Repairs and Maintenance", Section = PnlExpenseSection.OPEX },
+                    new PnlCategory { Name = "Salaries & Labor", Section = PnlExpenseSection.OPEX },
+                    new PnlCategory { Name = "Store & Cleaning Supplies", Section = PnlExpenseSection.OPEX },
+                    new PnlCategory { Name = "Transportation & Freight", Section = PnlExpenseSection.OPEX },
                     new PnlCategory { Name = "Rent", Section = PnlExpenseSection.MonthlyFixedCost },
                     new PnlCategory { Name = "Miscellaneous", Section = PnlExpenseSection.Other });
                 db.SaveChanges();
@@ -170,6 +179,39 @@ namespace AuditCkDayo.Data
                     PcfBalance = 200m,
                     DailyStartingFloat = 200m,
                     ManagerId = managerTwo.Id
+                });
+
+                EnsureUser("gloria.pron@ckr.com", () => new User
+                {
+                    Name = "Gloria Pron",
+                    Email = "gloria.pron@ckr.com",
+                    PasswordHash = defaultPasswordHash,
+                    Role = UserRole.Buyer,
+                    PcfBalance = 1000m,
+                    DailyStartingFloat = 1000m,
+                    ManagerId = managerOne.Id
+                });
+
+                EnsureUser("elizabeth.tuscano@ckr.com", () => new User
+                {
+                    Name = "Elizabeth Tuscano",
+                    Email = "elizabeth.tuscano@ckr.com",
+                    PasswordHash = defaultPasswordHash,
+                    Role = UserRole.Buyer,
+                    PcfBalance = 1000m,
+                    DailyStartingFloat = 1000m,
+                    ManagerId = managerOne.Id
+                });
+
+                EnsureUser("mayla@ckr.com", () => new User
+                {
+                    Name = "Mayla",
+                    Email = "mayla@ckr.com",
+                    PasswordHash = defaultPasswordHash,
+                    Role = UserRole.Buyer,
+                    PcfBalance = 1000m,
+                    DailyStartingFloat = 1000m,
+                    ManagerId = managerOne.Id
                 });
 
                 var dayo = db.Establishments.FirstOrDefault(e => e.Name == "Dayo");
@@ -554,6 +596,8 @@ namespace AuditCkDayo.Data
             db.AuditSettlements.AddRange(settlements);
             db.PettyCashLedgers.AddRange(ledgers);
             db.SaveChanges();
+
+            SeedAugustAudits(db);
         }
 
         private static void RemoveThirtyDayQaData(AuditDbContext db, string marker)
@@ -644,6 +688,170 @@ namespace AuditCkDayo.Data
                 PnlSection = section,
                 PnlCategoryName = categoryName
             };
+        }
+
+        public static void SeedAugustAudits(AuditDbContext db)
+        {
+            var defaultPasswordHash = BCrypt.Net.BCrypt.HashPassword("Password123!");
+
+            User ResolveBuyerUser(string firstName, string fullName, string defaultEmail)
+            {
+                var releaseUser = db.PcfReleases
+                    .AsNoTracking()
+                    .Include(r => r.ReceiverUser)
+                    .Where(r => r.ReceiverUser != null && (r.ReceiverUser.Name.Contains(firstName) || r.ReceiverUser.Name.Contains(fullName)))
+                    .Select(r => r.ReceiverUser)
+                    .FirstOrDefault();
+
+                if (releaseUser != null)
+                {
+                    var trackedReleaseUser = db.Users.Find(releaseUser.Id);
+                    if (trackedReleaseUser != null)
+                    {
+                        if (trackedReleaseUser.Name != fullName)
+                        {
+                            trackedReleaseUser.Name = fullName;
+                            db.SaveChanges();
+                        }
+                        return trackedReleaseUser;
+                    }
+                }
+
+                var existingUser = db.Users.FirstOrDefault(u => u.Name == fullName || u.Name.Contains(firstName) || u.Email == defaultEmail);
+                if (existingUser != null)
+                {
+                    if (existingUser.Name != fullName)
+                    {
+                        existingUser.Name = fullName;
+                        db.SaveChanges();
+                    }
+                    return existingUser;
+                }
+
+                var newUser = new User
+                {
+                    Name = fullName,
+                    Email = defaultEmail,
+                    PasswordHash = defaultPasswordHash,
+                    Role = UserRole.Buyer,
+                    PcfBalance = 1000m,
+                    DailyStartingFloat = 1000m
+                };
+                db.Users.Add(newUser);
+                db.SaveChanges();
+                return newUser;
+            }
+
+            var uya = ResolveBuyerUser("Gloria", "Gloria Pron", "gloria.pron@ckr.com");
+            var beth = ResolveBuyerUser("Elizabeth", "Elizabeth Tuscano", "elizabeth.tuscano@ckr.com");
+            var mayla = ResolveBuyerUser("Myla", "Myla Ricafrente", "mayla@ckr.com");
+
+            var dayo = db.Establishments.FirstOrDefault(e => e.Name == "Dayo") ?? db.Establishments.First();
+
+            var jsonPath = System.IO.Path.Combine(AppContext.BaseDirectory, "august_audits_extracted.json");
+            if (!System.IO.File.Exists(jsonPath))
+            {
+                jsonPath = @"C:\Users\John Salvamante\Downloads\AUGUST AUDITS\august_audits_extracted.json";
+            }
+
+            if (System.IO.File.Exists(jsonPath) && !db.AuditItems.Any(a => a.Notes != null && a.Notes.Contains("[August Audit Upload]")))
+            {
+                var jsonText = System.IO.File.ReadAllText(jsonPath);
+                using var doc = System.Text.Json.JsonDocument.Parse(jsonText);
+                var root = doc.RootElement;
+                int count = 0;
+                int buyerIndex = 0;
+                var buyers = new[] { uya, beth, mayla };
+
+                foreach (var element in root.EnumerateArray())
+                {
+                    count++;
+                    var fileName = element.TryGetProperty("FileName", out var fnProp) ? fnProp.GetString() ?? $"receipt-{count}.png" : $"receipt-{count}.png";
+                    decimal amount = element.TryGetProperty("TotalAmount", out var amtProp) && amtProp.ValueKind == System.Text.Json.JsonValueKind.Number ? amtProp.GetDecimal() : 150m;
+                    if (amount <= 0) amount = 150m;
+
+                    var buyer = buyers[buyerIndex % buyers.Length];
+                    buyerIndex++;
+
+                    DateTime entryDate = new DateTime(2026, 8, Math.Min(31, (count % 30) + 1));
+
+                    var audit = new AuditItem
+                    {
+                        BuyerId = buyer.Id,
+                        EstablishmentId = dayo.Id,
+                        Amount = amount,
+                        Description = $"August Audit #{count} - {fileName}",
+                        EntryDate = entryDate,
+                        SubmittedAt = entryDate.AddHours(9),
+                        Status = AuditStatus.Approved,
+                        Notes = $"[August Audit Upload] from {fileName}",
+                        ReceiptImageUrl = $"/Audits/Receipt/{fileName}"
+                    };
+
+                    if (element.TryGetProperty("Items", out var itemsProp) && itemsProp.ValueKind == System.Text.Json.JsonValueKind.Array)
+                    {
+                        foreach (var itemElem in itemsProp.EnumerateArray())
+                        {
+                            var itemName = itemElem.TryGetProperty("Name", out var nProp) ? nProp.GetString() ?? "Item" : "Item";
+                            int qty = itemElem.TryGetProperty("Quantity", out var qProp) && qProp.ValueKind == System.Text.Json.JsonValueKind.Number ? qProp.GetInt32() : 1;
+                            decimal price = itemElem.TryGetProperty("Price", out var pProp) && pProp.ValueKind == System.Text.Json.JsonValueKind.Number ? pProp.GetDecimal() : amount;
+
+                            audit.Details.Add(new AuditItemDetail
+                            {
+                                ItemName = itemName,
+                                Quantity = qty <= 0 ? 1 : qty,
+                                Price = price,
+                                Total = qty * price,
+                                AssignedEstablishmentId = dayo.Id,
+                                ReceiptStatus = ReceiptLineStatus.HasReceipt,
+                                BranchVerificationStatus = BranchVerificationStatus.Verified,
+                                PnlSection = PnlExpenseSection.OPEX,
+                                PnlCategoryName = "General Expense"
+                            });
+                        }
+                    }
+
+                    if (audit.Details.Count == 0)
+                    {
+                        audit.Details.Add(new AuditItemDetail
+                        {
+                            ItemName = "August Expense Item",
+                            Quantity = 1,
+                            Price = amount,
+                            Total = amount,
+                            AssignedEstablishmentId = dayo.Id,
+                            ReceiptStatus = ReceiptLineStatus.HasReceipt,
+                            BranchVerificationStatus = BranchVerificationStatus.Verified,
+                            PnlSection = PnlExpenseSection.OPEX,
+                            PnlCategoryName = "General Expense"
+                        });
+                    }
+
+                    db.AuditItems.Add(audit);
+                }
+
+                db.SaveChanges();
+            }
+
+            // Also update any existing August audit records to Approved and re-link to resolved buyer IDs
+            var augustAudits = db.AuditItems
+                .Include(a => a.Details)
+                .Where(a => a.Notes != null && a.Notes.Contains("[August Audit Upload]"))
+                .ToList();
+
+            var activeBuyers = new[] { uya, beth, mayla };
+            int idx = 0;
+            foreach (var item in augustAudits)
+            {
+                item.Status = AuditStatus.Approved;
+                item.BuyerId = activeBuyers[idx % activeBuyers.Length].Id;
+                idx++;
+                foreach (var d in item.Details)
+                {
+                    d.BranchVerificationStatus = BranchVerificationStatus.Verified;
+                }
+            }
+            db.SaveChanges();
         }
     }
 }
