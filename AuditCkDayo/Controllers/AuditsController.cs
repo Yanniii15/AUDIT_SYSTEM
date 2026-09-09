@@ -2575,6 +2575,25 @@ namespace AuditCkDayo.Controllers
             var flows = await cashFlowsQuery.OrderBy(f => f.CashFlowDate).ThenBy(f => f.Id).ToListAsync();
 
             model.ManagerTreasuryFlow = TreasuryAuditReportViewModel.Build(flows, filter.ManagerId, startDate, endDate);
+
+            // Roll Beginning Balance into OTHERS column on startDate for Manager Daily Cash Flow
+            if (beginningBalance > 0)
+            {
+                var startRow = model.ManagerTreasuryFlow.CashInRows.FirstOrDefault(r => r.Date.Date == startDate.Date);
+                if (startRow == null)
+                {
+                    startRow = new TreasuryAuditCashInRowViewModel { Date = startDate.Date };
+                    model.ManagerTreasuryFlow.CashInRows.Insert(0, startRow);
+                }
+                startRow.Amounts["OTHERS"] = startRow.Amounts.GetValueOrDefault("OTHERS", 0m) + beginningBalance;
+
+                var othersCol = model.ManagerTreasuryFlow.CashInColumns.FirstOrDefault(c => c.Label == "OTHERS");
+                if (othersCol != null)
+                {
+                    othersCol.Total += beginningBalance;
+                }
+            }
+
             model.ManagerCashOutRows = model.ManagerTreasuryFlow.CashOutRows;
 
             // 6. Branch Audit (Expense Allocations)

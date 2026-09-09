@@ -28,8 +28,25 @@ public class AuditSummaryViewModel
     public PcfMatrixViewModel PcfMatrix { get; set; } = new();
     public PcfMatrixViewModel BranchPcfMatrix { get; set; } = new();
 
-    public decimal TotalPc => (ActiveTableView == "Branches" ? BranchPcfMatrix?.TotalPc : PcfMatrix?.TotalPc) ?? 0m;
-    public decimal TotalExpenses => (ActiveTableView == "Branches" ? BranchPcfMatrix?.TotalExpenses : PcfMatrix?.TotalExpenses) ?? 0m;
+    public decimal TotalPc
+    {
+        get
+        {
+            var pcfTotal = PcfMatrix?.TotalPc ?? 0m;
+            var managerTotal = ManagerTreasuryFlow?.CashInColumns?.Sum(c => c.Total) ?? 0m;
+            return Math.Max(pcfTotal, managerTotal);
+        }
+    }
+
+    public decimal TotalExpenses
+    {
+        get
+        {
+            var buyerTotal = BuyerAudits?.Sum(b => b.TotalExpenses) ?? 0m;
+            var pcfTotal = PcfMatrix?.TotalExpenses ?? 0m;
+            return Math.Max(buyerTotal, pcfTotal);
+        }
+    }
     public decimal ActualChange => TotalPc - TotalExpenses;
     public decimal HandedChange { get; set; }
     public decimal ShortOver => HandedChange - ActualChange;

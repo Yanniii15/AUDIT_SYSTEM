@@ -104,9 +104,9 @@
     }
     <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-space-4">
         <div class="bg-surface-container-lowest border border-surface-border rounded-xl p-4 shadow-sm">
-            <span class="block font-label-caps uppercase text-[10px] text-on-surface-variant font-bold">TOTAL PC</span>
+            <span class="block font-label-caps uppercase text-[10px] text-on-surface-variant font-bold">TOTAL IN</span>
             <span class="block font-data-mono text-primary font-extrabold text-xl mt-1">₱@Model.TotalPc.ToString("N2")</span>
-            <span class="block text-[10px] text-on-surface-variant mt-0.5">Releases + Beginning Bal.</span>
+            <span class="block text-[10px] text-on-surface-variant mt-0.5">Collections, PCF Change + Beg. Bal.</span>
         </div>
 
         <div class="bg-surface-container-lowest border border-surface-border rounded-xl p-4 shadow-sm">
@@ -133,65 +133,58 @@
             <span class="block text-[10px] text-on-surface-variant mt-0.5">Handed - Actual</span>
         </div>
     </div>
-
-    <!-- PCF Release Matrix & Liquidation Summary Section -->
-    <div class="bg-surface-container-lowest border border-surface-border rounded-xl shadow-sm overflow-hidden">
-        <div class="px-space-6 py-space-4 border-b border-surface-border bg-surface-container-low flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+    <!-- Manager Daily Cash Flow & Liquidation Summary Section -->
+    <div id="manager-flow-table-container" class="bg-surface-container-lowest border border-surface-border rounded-xl shadow-sm overflow-hidden">
+        <div class="px-space-6 py-space-4 border-b border-surface-border bg-surface-container-low flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
-                <h3 class="font-headline-sm text-on-surface font-bold">PCF Release Matrix &amp; Liquidation Summary</h3>
+                <h3 class="font-headline-sm text-on-surface font-bold">Manager Daily Cash Flow &amp; Liquidation Summary</h3>
                 <p class="text-xs text-on-surface-variant mt-0.5">
-                    Daily Petty Cash releases with beginning balance carry-forward and variance reconciliation.
+                    Inflows from branch sales received, returned PCF changes (CKR Main, Branch 4, Dayo), beginning balance roll-forward, and liquidation reconciliation.
                 </p>
             </div>
-            <div class="flex flex-wrap items-center gap-2">
-                <span class="text-[10px] uppercase font-bold text-on-surface-variant">SHOW PCF TABLE:</span>
-                <div class="inline-flex rounded-lg border border-surface-border bg-surface-container-highest/60 p-0.5" role="group">
-                    <button type="button" id="btn-pcf-custodians" onclick="togglePcfMatrixView('Custodians')" 
-                            class="px-3 py-1.5 text-xs font-bold uppercase rounded-md transition-all @(Model.ActiveTableView != "Branches" ? "bg-primary text-on-primary shadow-sm" : "text-on-surface-variant hover:text-on-surface")">
-                        Managers &amp; Owners
-                    </button>
-                    <button type="button" id="btn-pcf-branches" onclick="togglePcfMatrixView('Branches')" 
-                            class="px-3 py-1.5 text-xs font-bold uppercase rounded-md transition-all @(Model.ActiveTableView == "Branches" ? "bg-primary text-on-primary shadow-sm" : "text-on-surface-variant hover:text-on-surface")">
-                        CKR Main, Branch 4, Dayo
-                    </button>
-                </div>
+            <div class="flex items-center gap-2">
+                <button type="button" id="export-manager-flow-btn" onclick="exportManagerFlowImage()" 
+                        class="h-8 bg-surface-container text-primary border border-primary/20 px-3 rounded-lg font-label-caps uppercase text-[10px] font-bold tracking-wider inline-flex items-center gap-1 select-none hover:bg-primary/10 transition-colors cursor-pointer">
+                    <span class="material-symbols-outlined text-[15px]">photo_camera</span> Export Table Image
+                </button>
+                <span class="px-3 py-1 bg-primary/10 text-primary border border-primary/20 rounded-full text-[10px] font-label-caps uppercase font-bold">
+                    @(Model.Filter.StartDate?.ToString("MMM dd") ?? "START") - @(Model.Filter.EndDate?.ToString("MMM dd, yyyy") ?? "END")
+                </span>
             </div>
         </div>
 
-        <!-- Custodian Matrix View -->
-        <div id="pcf-matrix-custodians" class="overflow-x-auto @(Model.ActiveTableView == "Branches" ? "hidden" : "")">
+        <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse text-sm">
                 <thead>
-                    <tr class="bg-surface-container-low border-b border-surface-border text-xs uppercase text-on-surface-variant font-bold">
-                        <th class="px-space-6 py-space-3 font-label-caps">DATE</th>
-                        @foreach (var cust in Model.PcfMatrix.Custodians)
+                    <tr class="bg-surface-container-low border-b border-surface-border text-xs uppercase text-on-surface-variant font-bold sticky top-0 z-10">
+                        <th class="px-space-4 py-space-3 font-label-caps">Date</th>
+                        @foreach (var col in Model.ManagerTreasuryFlow.CashInColumns)
                         {
-                            <th class="px-space-6 py-space-3 font-label-caps text-right">@cust</th>
+                            <th class="px-space-4 py-space-3 font-label-caps text-right">@col.Label</th>
                         }
+                        <th class="px-space-4 py-space-3 font-label-caps text-right text-primary">TOTAL IN</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-surface-border font-data-mono text-sm">
-                    @foreach (var row in Model.PcfMatrix.Rows)
+                <tbody class="divide-y divide-surface-border font-data-mono text-xs">
+                    @foreach (var row in Model.ManagerTreasuryFlow.CashInRows)
                     {
+                        var rowTotal = row.Amounts.Values.Sum();
                         <tr class="hover:bg-surface-container-low/40 transition-colors">
-                            <td class="px-space-6 py-space-3 font-body-md text-on-surface font-semibold">@row.Date.ToString("MMMM dd, yyyy")</td>
-                            @foreach (var cust in Model.PcfMatrix.Custodians)
+                            <td class="px-space-4 py-space-3 font-body-md text-on-surface font-semibold whitespace-nowrap">@row.Date.ToString("MMMM dd, yyyy")</td>
+                            @foreach (var col in Model.ManagerTreasuryFlow.CashInColumns)
                             {
-                                var amt = row.AmountsByCustodian.GetValueOrDefault(cust, 0m);
-                                var note = row.NotesByCustodian.GetValueOrDefault(cust, string.Empty);
-                                var isBeginning = note.Contains("BEGINNING", StringComparison.OrdinalIgnoreCase);
+                                var amt = row.Amounts.GetValueOrDefault(col.Label, 0m);
+                                var isOthers = col.Label == "OTHERS";
+                                var isStart = row.Date.Date == (Model.Filter.StartDate?.Date ?? DateTime.Today);
+                                var isBeginning = isOthers && isStart && Model.BeginningBalance > 0;
 
-                                <td class="px-space-6 py-space-3 text-right">
+                                <td class="px-space-4 py-space-3 text-right">
                                     @if (amt > 0)
                                     {
                                         <span class="font-bold text-on-surface">₱@amt.ToString("N2")</span>
                                         @if (isBeginning)
                                         {
-                                            <span class="ml-1.5 px-1.5 py-0.5 bg-amber-500/20 text-amber-700 border border-amber-500/30 rounded text-[9px] font-extrabold uppercase tracking-wide">BEGINNING</span>
-                                        }
-                                        else if (!string.IsNullOrWhiteSpace(note))
-                                        {
-                                            <span class="block text-[10px] text-on-surface-variant font-body-md font-normal">@note</span>
+                                            <span class="ml-1 px-1 py-0.5 bg-amber-500/20 text-amber-700 border border-amber-500/30 rounded text-[9px] font-extrabold uppercase">BEGINNING</span>
                                         }
                                     }
                                     else
@@ -200,82 +193,16 @@
                                     }
                                 </td>
                             }
-                        </tr>
-                    }
-                    @if (!Model.PcfMatrix.Rows.Any())
-                    {
-                        <tr>
-                            <td colspan="@(Model.PcfMatrix.Custodians.Count + 1)" class="px-space-6 py-8 text-center text-on-surface-variant">
-                                No release records found for the selected date range.
+                            <td class="px-space-4 py-space-3 text-right text-audit-success font-extrabold text-sm">
+                                ₱@rowTotal.ToString("N2")
                             </td>
                         </tr>
                     }
-                </tbody>
-                <!-- Yellow Highlighted Totals Row (Matching User Spreadsheet) -->
-                <tfoot>
-                    <tr class="bg-yellow-200 text-yellow-950 font-data-mono font-extrabold border-t-2 border-yellow-400">
-                        <td class="px-space-6 py-3 uppercase font-label-caps text-xs">TOTAL</td>
-                        @foreach (var cust in Model.PcfMatrix.Custodians)
-                        {
-                            var colTotal = Model.PcfMatrix.ColumnTotals.GetValueOrDefault(cust, 0m);
-                            <td class="px-space-6 py-3 text-right font-bold text-yellow-950">
-                                ₱@colTotal.ToString("N2")
-                            </td>
-                        }
-                    </tr>
-                </tfoot>
-            </table>
-        </div>
-
-        <!-- Branch Matrix View (CKR Main, CKR Branch 4, Dayo, OTHERS) -->
-        <div id="pcf-matrix-branches" class="overflow-x-auto @(Model.ActiveTableView == "Branches" ? "" : "hidden")">
-            <table class="w-full text-left border-collapse text-sm">
-                <thead>
-                    <tr class="bg-surface-container-low border-b border-surface-border text-xs uppercase text-on-surface-variant font-bold">
-                        <th class="px-space-6 py-space-3 font-label-caps">DATE</th>
-                        @foreach (var col in Model.BranchPcfMatrix.Custodians)
-                        {
-                            <th class="px-space-6 py-space-3 font-label-caps text-right">@col</th>
-                        }
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-surface-border font-data-mono text-sm">
-                    @foreach (var row in Model.BranchPcfMatrix.Rows)
-                    {
-                        <tr class="hover:bg-surface-container-low/40 transition-colors">
-                            <td class="px-space-6 py-space-3 font-body-md text-on-surface font-semibold">@row.Date.ToString("MMMM dd, yyyy")</td>
-                            @foreach (var col in Model.BranchPcfMatrix.Custodians)
-                            {
-                                var amt = row.AmountsByCustodian.GetValueOrDefault(col, 0m);
-                                var note = row.NotesByCustodian.GetValueOrDefault(col, string.Empty);
-                                var isBeginning = note.Contains("BEGINNING", StringComparison.OrdinalIgnoreCase);
-
-                                <td class="px-space-6 py-space-3 text-right">
-                                    @if (amt > 0)
-                                    {
-                                        <span class="font-bold text-on-surface">₱@amt.ToString("N2")</span>
-                                        @if (isBeginning)
-                                        {
-                                            <span class="ml-1.5 px-1.5 py-0.5 bg-amber-500/20 text-amber-700 border border-amber-500/30 rounded text-[9px] font-extrabold uppercase tracking-wide">BEGINNING</span>
-                                        }
-                                        else if (!string.IsNullOrWhiteSpace(note))
-                                        {
-                                            <span class="block text-[10px] text-on-surface-variant font-body-md font-normal">@note</span>
-                                        }
-                                    }
-                                    else
-                                    {
-                                        <span class="text-on-surface-variant/40">-</span>
-                                    }
-                                </td>
-                            }
-                        </tr>
-                    }
-                    @if (!Model.BranchPcfMatrix.Rows.Any())
+                    @if (!Model.ManagerTreasuryFlow.CashInRows.Any())
                     {
                         <tr>
-                            <td colspan="@(Model.BranchPcfMatrix.Custodians.Count + 1)" class="px-space-6 py-8 text-center text-on-surface-variant">
-                                No branch release records found for the selected date range.
+                            <td colspan="@(Model.ManagerTreasuryFlow.CashInColumns.Count + 2)" class="px-space-6 py-8 text-center text-on-surface-variant font-body-md text-xs">
+                                No manager cash-in records found for this period.
                             </td>
                         </tr>
                     }
@@ -283,23 +210,24 @@
                 <!-- Yellow Highlighted Totals Row -->
                 <tfoot>
                     <tr class="bg-yellow-200 text-yellow-950 font-data-mono font-extrabold border-t-2 border-yellow-400">
-                        <td class="px-space-6 py-3 uppercase font-label-caps text-xs">TOTAL</td>
-                        @foreach (var col in Model.BranchPcfMatrix.Custodians)
+                        <td class="px-space-4 py-3 uppercase font-label-caps text-xs">TOTAL</td>
+                        @foreach (var col in Model.ManagerTreasuryFlow.CashInColumns)
                         {
-                            var colTotal = Model.BranchPcfMatrix.ColumnTotals.GetValueOrDefault(col, 0m);
-                            <td class="px-space-6 py-3 text-right font-bold text-yellow-950">
-                                ₱@colTotal.ToString("N2")
+                            <td class="px-space-4 py-3 text-right font-bold text-yellow-950">
+                                ₱@col.Total.ToString("N2")
                             </td>
                         }
+                        <td class="px-space-4 py-3 text-right font-extrabold text-primary text-sm">
+                            ₱@Model.ManagerTreasuryFlow.CashInColumns.Sum(c => c.Total).ToString("N2")
+                        </td>
                     </tr>
                 </tfoot>
             </table>
         </div>
-
         <!-- Matrix Summary Strip (Matching User Spreadsheet) -->
         <div class="p-space-4 bg-surface-container-low border-t border-surface-border grid grid-cols-2 sm:grid-cols-5 gap-3 font-data-mono text-sm">
             <div class="flex flex-col">
-                <span class="text-[10px] uppercase font-bold text-on-surface-variant">TOTAL PC:</span>
+                <span class="text-[10px] uppercase font-bold text-on-surface-variant">TOTAL IN:</span>
                 <span class="text-base font-extrabold text-primary">₱@Model.TotalPc.ToString("N2")</span>
             </div>
             <div class="flex flex-col">
@@ -477,83 +405,6 @@
                 </div>
             </div>
         }
-    </div>
-
-    <!-- Manager Daily Cash Flow (Treasury Inflow - Layout A) Section -->
-    <div id="manager-flow-table-container" class="bg-surface-container-lowest border border-surface-border rounded-xl shadow-sm overflow-hidden">
-        <div class="px-space-6 py-space-4 border-b border-surface-border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-surface-container-low">
-            <div>
-                <h3 class="font-headline-sm text-on-surface font-bold">Manager Daily Cash Flow (Treasury Inflow)</h3>
-                <p class="text-xs text-on-surface-variant mt-0.5">
-                    Inflows from branch sales received, returned PCF changes (CKR Main, Branch 4, Dayo), and non-establishment items under Others.
-                </p>
-            </div>
-            <div class="flex items-center gap-2">
-                <button type="button" id="export-manager-flow-btn" onclick="exportManagerFlowImage()" 
-                        class="h-8 bg-surface-container text-primary border border-primary/20 px-3 rounded-lg font-label-caps uppercase text-[10px] font-bold tracking-wider inline-flex items-center gap-1 select-none hover:bg-primary/10 transition-colors cursor-pointer">
-                    <span class="material-symbols-outlined text-[15px]">photo_camera</span> Export Table Image
-                </button>
-                <span class="px-3 py-1 bg-audit-success/10 text-audit-success border border-audit-success/20 rounded-full text-[10px] font-label-caps uppercase font-bold">
-                    Cash In
-                </span>
-            </div>
-        </div>
-
-        <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse text-sm">
-                <thead>
-                    <tr class="bg-surface-container-low border-b border-surface-border text-xs uppercase text-on-surface-variant font-bold sticky top-0 z-10">
-                        <th class="px-space-4 py-space-3 font-label-caps">Date</th>
-                        @foreach (var col in Model.ManagerTreasuryFlow.CashInColumns)
-                        {
-                            <th class="px-space-4 py-space-3 font-label-caps text-right">@col.Label</th>
-                        }
-                        <th class="px-space-4 py-space-3 font-label-caps text-right text-primary">TOTAL IN</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-surface-border font-data-mono text-xs">
-                    @foreach (var row in Model.ManagerTreasuryFlow.CashInRows)
-                    {
-                        var rowTotal = row.Amounts.Values.Sum();
-                        <tr class="hover:bg-surface-container-low/40 transition-colors">
-                            <td class="px-space-4 py-space-3 font-body-md text-on-surface font-semibold whitespace-nowrap">@row.Date.ToString("MMMM dd, yyyy")</td>
-                            @foreach (var col in Model.ManagerTreasuryFlow.CashInColumns)
-                            {
-                                var amt = row.Amounts.GetValueOrDefault(col.Label, 0m);
-                                <td class="px-space-4 py-space-3 text-right font-bold @(amt > 0 ? "text-on-surface" : "text-on-surface-variant/40")">
-                                    @(amt > 0 ? "₱" + amt.ToString("N2") : "-")
-                                </td>
-                            }
-                            <td class="px-space-4 py-space-3 text-right text-audit-success font-extrabold text-sm">
-                                ₱@rowTotal.ToString("N2")
-                            </td>
-                        </tr>
-                    }
-                    @if (!Model.ManagerTreasuryFlow.CashInRows.Any())
-                    {
-                        <tr>
-                            <td colspan="@(Model.ManagerTreasuryFlow.CashInColumns.Count + 2)" class="px-space-6 py-8 text-center text-on-surface-variant font-body-md text-xs">
-                                No manager cash-in records found for this period.
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-                <tfoot>
-                    <tr class="bg-yellow-100 text-yellow-950 font-data-mono font-extrabold border-t-2 border-yellow-300">
-                        <td class="px-space-4 py-3 uppercase font-label-caps text-xs">TOTAL</td>
-                        @foreach (var col in Model.ManagerTreasuryFlow.CashInColumns)
-                        {
-                            <td class="px-space-4 py-3 text-right font-bold text-yellow-950">
-                                ₱@col.Total.ToString("N2")
-                            </td>
-                        }
-                        <td class="px-space-4 py-3 text-right font-extrabold text-primary text-sm">
-                            ₱@Model.ManagerTreasuryFlow.CashInColumns.Sum(c => c.Total).ToString("N2")
-                        </td>
-                    </tr>
-                </tfoot>
-            </table>
-        </div>
     </div>
 
     <!-- Manager Cash Out Details Section -->
