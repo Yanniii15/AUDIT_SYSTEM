@@ -54,9 +54,10 @@ namespace AuditCkDayo.Controllers
                 return View("Upload");
             }
 
-            if (receipts.Count > 5)
+            var uploadLimit = User.IsInRole("Auditor") ? 25 : 10;
+            if (receipts.Count > uploadLimit)
             {
-                ModelState.AddModelError("", "You can upload up to 5 receipt images.");
+                ModelState.AddModelError("", $"You can upload up to {uploadLimit} receipt images.");
                 return View("Upload");
             }
 
@@ -206,9 +207,10 @@ namespace AuditCkDayo.Controllers
                 return View("Review", model);
             }
 
-            var selectedReviewerId = await ResolvePrivilegedReviewerIdAsync(model.SelectedReviewerId, buyer.Role, "SelectedReviewerId");
+            var selectedReviewerId = await ResolvePrivilegedReviewerIdAsync(model.SelectedReviewerId, buyer.Role, "SelectedReviewerId")
+                ?? (currentUser.Role == UserRole.BranchStaff ? currentUser.ManagerId : null);
 
-            var routesDirectlyToManager = model.CombinedDestinationId == "others";
+            var routesDirectlyToManager = model.CombinedDestinationId == "others" || currentUser.Role == UserRole.BranchStaff;
             // Parse CombinedDestinationId
             if (!string.IsNullOrEmpty(model.CombinedDestinationId))
             {
@@ -268,8 +270,9 @@ namespace AuditCkDayo.Controllers
             {
                 if (!isAuditor)
                 {
-                    // Deduct from the (shared) fund immediately
-                    await _pcfFund.DebitAsync(buyer, model.Amount);
+                    // Deduct from the active PCF fund immediately. Treasury-held PCF uses the
+                    // same spendable balance as the dashboard starting/current PCF.
+                    await _pcfFund.DebitAsync(buyer, model.Amount, adjustStartingFloat: buyer.IsTreasury);
                 }
 
                 var auditItem = new AuditItem
@@ -317,7 +320,8 @@ namespace AuditCkDayo.Controllers
                             }
                         }
 
-                        var pnlCategory = User.IsInRole("BranchStaff")
+                        var expenseSource = await ResolveExpenseSourceAsync(item.ExpenseSourceId, item.ExpenseSourceName);
+                        var pnlCategory = CanSetPnlCategories(currentUser.Role.ToString())
                             ? await ResolvePnlCategoryAsync(item.PnlCategoryId)
                             : null;
                         var detail = new AuditItemDetail
@@ -329,10 +333,12 @@ namespace AuditCkDayo.Controllers
                             AssignedEstablishmentId = assignedBranchId,
                             CostCenterId = costCenterId,
                             BranchVerificationStatus = (isAuditor || routesDirectlyToManager) ? BranchVerificationStatus.Verified : BranchVerificationStatus.Pending,
-                            AllocationNotes = item.AllocationNotes,
+                            AllocationNotes = ResolveAllocationNotes(item, currentUser.Role),
                             PnlCategoryId = pnlCategory?.Id,
                             PnlSection = pnlCategory?.Section ?? ResolveFallbackPnlSection(item),
-                            PnlCategoryName = pnlCategory?.Name ?? NormalizePnlFallbackName(ResolveFallbackPnlSection(item))
+                            PnlCategoryName = pnlCategory?.Name ?? NormalizePnlFallbackName(ResolveFallbackPnlSection(item)),
+                            ExpenseSourceId = expenseSource?.Id,
+                            ExpenseSourceName = ResolveExpenseSourceName(item, expenseSource)
                         };
                         auditItem.Details.Add(detail);
                     }
@@ -351,6 +357,40 @@ namespace AuditCkDayo.Controllers
                     Notes = $"Expense deduction for submitted AuditItem ID {auditItem.Id}: {model.Description}"
                 };
                 _context.PettyCashLedgers.Add(ledger);
+                if (buyer.IsTreasury)
+                {
+                    var cashFlowDate = DateTime.Today;
+                    var flow = await _context.TreasuryCashFlows
+                        .Include(f => f.Entries)
+                        .FirstOrDefaultAsync(f => f.CashFlowDate == cashFlowDate && f.TreasuryUserId == buyer.Id);
+
+                    if (flow == null)
+                    {
+                        var startingBalance = await GetCarryForwardStartingBalanceAsync(cashFlowDate, buyer.Id);
+                        flow = new TreasuryCashFlow
+                        {
+                            TreasuryUserId = buyer.Id,
+                            CashFlowDate = cashFlowDate,
+                            StartingBalance = startingBalance,
+                            Status = TreasuryCashFlowStatus.Open
+                        };
+                        _context.TreasuryCashFlows.Add(flow);
+                    }
+
+                    flow.Entries.Add(new CashFlowEntry
+                    {
+                        TreasuryCashFlow = flow,
+                        Direction = CashFlowDirection.Out,
+                        Category = CashFlowCategory.Expense,
+                        EstablishmentId = model.EstablishmentId,
+                        RelatedUserId = buyer.Id,
+                        Amount = model.Amount,
+                        Notes = model.Description,
+                        CreatedByUserId = buyer.Id,
+                        ConfirmedByUserId = buyer.Id
+                    });
+                    flow.RecomputeTotals();
+                }
                 await _context.SaveChangesAsync();
 
                 if (!isAuditor)
@@ -488,7 +528,7 @@ namespace AuditCkDayo.Controllers
             // Recalculate amount from items if items exist
             if (drafts[index].Items != null && drafts[index].Items.Count > 0)
             {
-                drafts[index].Amount = drafts[index].Items.Sum(item => item.Quantity * item.Price);
+                drafts[index].Amount = drafts[index].Items.Sum(item => item.Total);
             }
 
             SavePendingAuditDrafts(drafts);
@@ -507,7 +547,7 @@ namespace AuditCkDayo.Controllers
             }
 
             drafts[index].Items = items ?? new List<AuditCkDayo.Services.OcrItemResult>();
-            drafts[index].Amount = drafts[index].Items.Sum(item => item.Quantity * item.Price);
+            drafts[index].Amount = drafts[index].Items.Sum(item => item.Total);
 
             SavePendingAuditDrafts(drafts);
             return Json(new { success = true, newAmount = drafts[index].Amount });
@@ -568,8 +608,9 @@ namespace AuditCkDayo.Controllers
 
                 foreach (var draft in drafts)
                 {
-                    var routesDirectlyToManager = draft.CombinedDestinationId == "others";
-                    var selectedReviewerId = await ResolvePrivilegedReviewerIdAsync(draft.SelectedReviewerId, buyer.Role, "SelectedReviewerId");
+                    var routesDirectlyToManager = draft.CombinedDestinationId == "others" || buyer.Role == UserRole.BranchStaff;
+                    var selectedReviewerId = await ResolvePrivilegedReviewerIdAsync(draft.SelectedReviewerId, buyer.Role, "SelectedReviewerId")
+                        ?? (buyer.Role == UserRole.BranchStaff ? buyer.ManagerId : null);
                     await ApplyCombinedDestinationAsync(draft);
                     if (!draft.EstablishmentId.HasValue)
                     {
@@ -605,7 +646,8 @@ namespace AuditCkDayo.Controllers
                             ? int.Parse(item.CombinedDestinationId.Replace("branch-", ""))
                             : (int?)null;
 
-                        var pnlCategory = User.IsInRole("BranchStaff")
+                        var expenseSource = await ResolveExpenseSourceAsync(item.ExpenseSourceId, item.ExpenseSourceName);
+                        var pnlCategory = CanSetPnlCategories(buyer.Role.ToString())
                             ? await ResolvePnlCategoryAsync(item.PnlCategoryId)
                             : null;
                         auditItem.Details.Add(new AuditItemDetail
@@ -616,10 +658,12 @@ namespace AuditCkDayo.Controllers
                             Total = item.Total,
                             AssignedEstablishmentId = assignedBranchId,
                             BranchVerificationStatus = routesDirectlyToManager ? BranchVerificationStatus.Verified : BranchVerificationStatus.Pending,
-                            AllocationNotes = item.AllocationNotes,
+                            AllocationNotes = ResolveAllocationNotes(item, buyer.Role),
                             PnlCategoryId = pnlCategory?.Id,
                             PnlSection = pnlCategory?.Section ?? ResolveFallbackPnlSection(item),
-                            PnlCategoryName = pnlCategory?.Name ?? NormalizePnlFallbackName(ResolveFallbackPnlSection(item))
+                            PnlCategoryName = pnlCategory?.Name ?? NormalizePnlFallbackName(ResolveFallbackPnlSection(item)),
+                            ExpenseSourceId = expenseSource?.Id,
+                            ExpenseSourceName = ResolveExpenseSourceName(item, expenseSource)
                         });
                     }
 
@@ -692,6 +736,7 @@ namespace AuditCkDayo.Controllers
             IQueryable<AuditItem> query = _context.AuditItems
                 .Include(a => a.Buyer)
                 .Include(a => a.Establishment)
+                .Include(a => a.Images)
                 .Include(a => a.Details)
                     .ThenInclude(d => d.AssignedEstablishment)
                 .Include(a => a.Details)
@@ -832,6 +877,7 @@ namespace AuditCkDayo.Controllers
             var pendingAudits = await _context.AuditItems
                 .Include(a => a.Buyer)
                 .Include(a => a.Establishment)
+                .Include(a => a.Images)
                 .Include(a => a.Details)
                     .ThenInclude(d => d.AssignedEstablishment)
                 .Include(a => a.Details)
@@ -1008,6 +1054,114 @@ namespace AuditCkDayo.Controllers
         }
 
         [HttpGet]
+        [Authorize(Roles = "Auditor")]
+        public async Task<IActionResult> AuditorEdit(DateTime? date, int? buyerId, int? establishmentId)
+        {
+            DateTime targetDate;
+            if (date.HasValue)
+            {
+                targetDate = date.Value.Date;
+            }
+            else
+            {
+                var hasAuditsToday = await _context.AuditItems.AnyAsync(a => a.EntryDate.Date == DateTime.Today);
+                if (hasAuditsToday)
+                {
+                    targetDate = DateTime.Today;
+                }
+                else
+                {
+                    var recentWithAudits = await _context.AuditItems
+                        .Where(a => a.EntryDate <= DateTime.Today)
+                        .Select(a => (DateTime?)a.EntryDate)
+                        .MaxAsync();
+                    targetDate = recentWithAudits?.Date ?? await _context.AuditItems.Select(a => (DateTime?)a.EntryDate).MaxAsync() ?? DateTime.Today;
+                }
+            }
+
+            var query = _context.AuditItems
+                .AsNoTracking()
+                .Include(a => a.Buyer)
+                .Include(a => a.Establishment)
+                .Include(a => a.Images)
+                .Include(a => a.Details)
+                    .ThenInclude(d => d.ExpenseSource)
+                .Include(a => a.Details)
+                    .ThenInclude(d => d.AssignedEstablishment)
+                .Include(a => a.Details)
+                    .ThenInclude(d => d.CostCenter)
+                .Where(a => a.EntryDate.Date == targetDate);
+
+            if (buyerId.HasValue && buyerId.Value > 0)
+            {
+                query = query.Where(a => a.BuyerId == buyerId.Value);
+            }
+
+            if (establishmentId.HasValue && establishmentId.Value > 0)
+            {
+                query = query.Where(a => a.EstablishmentId == establishmentId.Value);
+            }
+
+            var audits = await query
+                .OrderByDescending(a => a.SubmittedAt ?? a.EntryDate)
+                .ThenByDescending(a => a.Id)
+                .ToListAsync();
+
+            var buyers = await _context.Users
+                .AsNoTracking()
+                .Where(u => u.Role == UserRole.Buyer && !u.IsDeleted)
+                .OrderBy(u => u.Name)
+                .Select(u => new SelectListItem
+                {
+                    Value = u.Id.ToString(),
+                    Text = u.Name,
+                    Selected = buyerId.HasValue && u.Id == buyerId.Value
+                })
+                .ToListAsync();
+            buyers.Insert(0, new SelectListItem { Value = "", Text = "All Buyers" });
+
+            var establishments = await _context.Establishments
+                .AsNoTracking()
+                .Where(e => e.IsActive)
+                .OrderBy(e => e.Name)
+                .Select(e => new SelectListItem
+                {
+                    Value = e.Id.ToString(),
+                    Text = e.Name,
+                    Selected = establishmentId.HasValue && e.Id == establishmentId.Value
+                })
+                .ToListAsync();
+            establishments.Insert(0, new SelectListItem { Value = "", Text = "All Establishments" });
+
+            var totalReceiptPhotos = audits.Sum(a => a.Images.Count > 0 ? a.Images.Count : (!string.IsNullOrEmpty(a.ReceiptImageUrl) ? 1 : 0));
+            var totalLineItems = audits.Sum(a => a.Details.Count);
+
+            ViewBag.SelectedDate = targetDate;
+            ViewBag.TotalAmount = audits.Sum(a => a.Amount);
+            ViewBag.TotalCount = audits.Count;
+            ViewBag.TotalReceiptPhotos = totalReceiptPhotos;
+            ViewBag.TotalLineItems = totalLineItems;
+            ViewBag.ApprovedCount = audits.Count(a => a.Status == AuditStatus.Approved);
+            ViewBag.PendingCount = audits.Count(a => a.Status != AuditStatus.Approved && a.Status != AuditStatus.Rejected && a.Status != AuditStatus.Cancelled);
+            ViewBag.Buyers = buyers;
+            ViewBag.Establishments = establishments;
+            ViewBag.SelectedBuyerId = buyerId;
+            ViewBag.SelectedEstablishmentId = establishmentId;
+
+            var recentDates = await _context.AuditItems
+                .AsNoTracking()
+                .Where(a => a.EntryDate <= DateTime.Today)
+                .GroupBy(a => a.EntryDate.Date)
+                .Select(g => new { Date = g.Key, Count = g.Count(), Total = g.Sum(x => x.Amount) })
+                .OrderByDescending(x => x.Date)
+                .Take(6)
+                .ToListAsync();
+            ViewBag.RecentActiveDates = recentDates.Select(x => (x.Date, x.Count, x.Total)).ToList();
+
+            return View(audits);
+        }
+
+        [HttpGet]
         [Authorize(Roles = "Buyer,Owner,Manager,BranchStaff,Admin,Auditor")]
         public async Task<IActionResult> Edit(int id)
         {
@@ -1077,7 +1231,10 @@ namespace AuditCkDayo.Controllers
                     AllocationNotes = d.AllocationNotes,
                     PnlCategoryId = d.PnlCategoryId ?? (d.PnlSection == PnlExpenseSection.COGS ? -1 : -2),
                     PnlSection = d.PnlCategory?.Section ?? d.PnlSection,
-                    PnlCategoryName = d.PnlCategory?.Name ?? d.PnlCategoryName
+                    PnlCategoryName = d.PnlCategory?.Name ?? d.PnlCategoryName,
+                    ExpenseSourceId = d.ExpenseSourceId,
+                    ExpenseSourceName = d.ExpenseSourceName ?? d.ExpenseSource?.Name,
+                    ReceiptStatus = d.ReceiptStatus
                 }).ToList()
             };
 
@@ -1177,7 +1334,7 @@ namespace AuditCkDayo.Controllers
                 var existingDetails = audit.Details.ToList();
                 _context.AuditItemDetails.RemoveRange(existingDetails);
                 audit.Details.Clear();
-                await AddAuditDetailsFromModelAsync(audit, model);
+                await AddAuditDetailsFromModelAsync(audit, model, role);
 
                 var existingImages = audit.Images.ToList();
                 _context.AuditItemImages.RemoveRange(existingImages);
@@ -1216,6 +1373,11 @@ namespace AuditCkDayo.Controllers
             {
                 await transaction.RollbackAsync();
                 throw;
+            }
+
+            if (role == "Auditor")
+            {
+                return RedirectToAction(nameof(AuditorEdit), new { date = audit.EntryDate.ToString("yyyy-MM-dd") });
             }
 
             return RedirectToAction("Index", "Home");
@@ -1592,6 +1754,16 @@ namespace AuditCkDayo.Controllers
 
             if (actionType == "Confirm")
             {
+                var availablePcf = await _pcfFund.GetAvailableBalanceAsync(request.Buyer);
+                if (request.DeclaredAmount > availablePcf)
+                {
+                    TempData["Error"] = $"Surrender amount changed because the current PCF balance is ₱{availablePcf:N2}, below the pending surrender amount of ₱{request.DeclaredAmount:N2}. Ask the branch to submit a new surrender for the remaining available cash.";
+                    return RedirectToAction(nameof(SurrenderQueue));
+                }
+            }
+
+            if (actionType == "Confirm")
+            {
                 using var transaction = await _context.Database.BeginTransactionAsync();
                 try
                 {
@@ -1815,7 +1987,7 @@ namespace AuditCkDayo.Controllers
                 || role == "Admin";
         }
 
-        private async Task AddAuditDetailsFromModelAsync(AuditItem audit, AuditSubmissionViewModel model)
+        private async Task AddAuditDetailsFromModelAsync(AuditItem audit, AuditSubmissionViewModel model, string? currentRole)
         {
             if (model.Items == null)
             {
@@ -1840,9 +2012,11 @@ namespace AuditCkDayo.Controllers
                     }
                 }
 
-                var pnlCategory = User.IsInRole("BranchStaff")
+                var pnlCategory = CanSetPnlCategories(currentRole)
                     ? await ResolvePnlCategoryAsync(item.PnlCategoryId)
                     : null;
+                var expenseSource = await ResolveExpenseSourceAsync(item.ExpenseSourceId, item.ExpenseSourceName);
+
                 audit.Details.Add(new AuditItemDetail
                 {
                     ItemName = itemName,
@@ -1851,10 +2025,13 @@ namespace AuditCkDayo.Controllers
                     Total = item.Total,
                     AssignedEstablishmentId = assignedBranchId,
                     CostCenterId = costCenterId,
-                    AllocationNotes = item.AllocationNotes,
+                    AllocationNotes = ResolveAllocationNotes(item, Enum.TryParse<UserRole>(currentRole, out var parsedRole) ? parsedRole : null),
                     PnlCategoryId = pnlCategory?.Id,
                     PnlSection = pnlCategory?.Section ?? ResolveFallbackPnlSection(item),
-                    PnlCategoryName = pnlCategory?.Name ?? NormalizePnlFallbackName(ResolveFallbackPnlSection(item))
+                    PnlCategoryName = pnlCategory?.Name ?? NormalizePnlFallbackName(ResolveFallbackPnlSection(item)),
+                    ExpenseSourceId = expenseSource?.Id,
+                    ExpenseSourceName = ResolveExpenseSourceName(item, expenseSource),
+                    ReceiptStatus = item.ReceiptStatus
                 });
             }
         }
@@ -1926,11 +2103,61 @@ namespace AuditCkDayo.Controllers
             ViewBag.ReviewerUsers = new SelectList(reviewers, "Id", "Name");
         }
 
+        private static bool CanSetPnlCategories(string? role)
+        {
+            return role == UserRole.Owner.ToString()
+                || role == UserRole.Manager.ToString()
+                || role == UserRole.Admin.ToString();
+        }
+
         private async Task<PnlCategory?> ResolvePnlCategoryAsync(int? categoryId)
         {
             return categoryId.HasValue && categoryId.Value > 0
                 ? await _context.PnlCategories.FirstOrDefaultAsync(category => category.Id == categoryId.Value && category.IsActive)
                 : null;
+        }
+
+        private async Task<ExpenseSource?> ResolveExpenseSourceAsync(int? sourceId, string? sourceName)
+        {
+            if (sourceId.HasValue && sourceId.Value > 0)
+            {
+                return await _context.ExpenseSources.FirstOrDefaultAsync(source => source.Id == sourceId.Value && source.IsActive);
+            }
+
+            var normalizedName = sourceName?.Trim();
+            if (string.IsNullOrWhiteSpace(normalizedName))
+            {
+                return null;
+            }
+
+            return await _context.ExpenseSources.FirstOrDefaultAsync(source => source.Name == normalizedName && source.IsActive);
+        }
+
+        private static string? ResolveExpenseSourceName(OcrItemResult item, ExpenseSource? source)
+        {
+            if (source != null)
+            {
+                return source.Name;
+            }
+
+            return string.IsNullOrWhiteSpace(item.ExpenseSourceName) ? null : item.ExpenseSourceName.Trim();
+        }
+
+        private static string? ResolveAllocationNotes(OcrItemResult item, UserRole? role)
+        {
+            if (!string.IsNullOrWhiteSpace(item.AllocationNotes))
+            {
+                return item.AllocationNotes;
+            }
+
+            if (role == UserRole.Auditor
+                && string.Equals(item.CombinedDestinationId, "others", StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(item.Name))
+            {
+                return item.Name.Trim();
+            }
+
+            return null;
         }
 
         private static PnlExpenseSection ResolveFallbackPnlSection(OcrItemResult item)
@@ -1967,7 +2194,7 @@ namespace AuditCkDayo.Controllers
 
             ViewBag.CombinedDestinations = combinedList;
             ViewBag.LineDestinations = combinedList
-                .Where(item => item.Value.StartsWith("branch-"))
+                .Where(item => item.Value.StartsWith("branch-") || item.Value == "others")
                 .ToList();
 
             var pnlCategories = await _context.PnlCategories
@@ -1985,6 +2212,20 @@ namespace AuditCkDayo.Controllers
             pnlCategories.Add(new SelectListItem { Value = "-1", Text = "Other - COGS" });
             pnlCategories.Add(new SelectListItem { Value = "-2", Text = "Other - OPEX" });
             ViewBag.PnlCategories = pnlCategories;
+
+            var expenseSources = await _context.ExpenseSources
+                .AsNoTracking()
+                .Where(source => source.IsActive)
+                .OrderBy(source => source.Name)
+                .Select(source => new SelectListItem
+                {
+                    Value = source.Id.ToString(),
+                    Text = source.Name
+                })
+                .ToListAsync();
+            expenseSources.Add(new SelectListItem { Value = "-1", Text = "Others" });
+            expenseSources.Insert(0, new SelectListItem { Value = "", Text = "-- Select Source --" });
+            ViewBag.ExpenseSources = expenseSources;
 
             var reviewers = await _context.Users
                 .AsNoTracking()
@@ -2013,6 +2254,398 @@ namespace AuditCkDayo.Controllers
                 .OrderByDescending(f => f.CashFlowDate)
                 .Select(f => f.ClosingBalance)
                 .FirstOrDefaultAsync();
+        }
+
+        [HttpGet]
+        [Authorize(Roles = "Owner,Auditor,Admin")]
+        public async Task<IActionResult> Summary(AuditSummaryFilterViewModel filter)
+        {
+            var today = DateTime.Today;
+            var startDate = filter.StartDate?.Date ?? new DateTime(today.Year, today.Month, 1);
+            var endDate = filter.EndDate?.Date ?? today;
+            if (endDate < startDate)
+            {
+                (startDate, endDate) = (endDate, startDate);
+            }
+            filter.StartDate = startDate;
+            filter.EndDate = endDate;
+
+            // Beginning Balance calculation
+            decimal beginningBalance;
+            bool isOverridden = false;
+            if (filter.BeginningBalanceOverride.HasValue)
+            {
+                beginningBalance = filter.BeginningBalanceOverride.Value;
+                isOverridden = true;
+            }
+            else
+            {
+                var priorSurrender = await _context.SurrenderRequests
+                    .AsNoTracking()
+                    .Where(s => s.RequestDate < startDate && (s.Status == SurrenderStatus.Confirmed || s.Status == SurrenderStatus.Pending))
+                    .Where(s => !filter.BuyerId.HasValue || s.BuyerId == filter.BuyerId.Value)
+                    .OrderByDescending(s => s.RequestDate)
+                    .Select(s => s.ConfirmedAmount ?? s.DeclaredAmount)
+                    .FirstOrDefaultAsync();
+
+                beginningBalance = priorSurrender;
+            }
+
+            var model = new AuditSummaryViewModel
+            {
+                Filter = filter,
+                BeginningBalance = beginningBalance,
+                IsBeginningBalanceOverridden = isOverridden
+            };
+
+            // 1. PCF Releases Query
+            var releasesQuery = _context.PcfReleases
+                .AsNoTracking()
+                .Include(r => r.ReceiverUser)
+                .Include(r => r.ReleasedByTreasuryUser)
+                .Include(r => r.Establishment)
+                .Where(r => r.ReleaseDate >= startDate && r.ReleaseDate < endDate.AddDays(1));
+
+            if (filter.BuyerId.HasValue)
+            {
+                releasesQuery = releasesQuery.Where(r => r.ReceiverUserId == filter.BuyerId.Value);
+            }
+            if (filter.ManagerId.HasValue)
+            {
+                releasesQuery = releasesQuery.Where(r => r.ReleasedByTreasuryUserId == filter.ManagerId.Value);
+            }
+            if (filter.EstablishmentId.HasValue)
+            {
+                releasesQuery = releasesQuery.Where(r => r.EstablishmentId == filter.EstablishmentId.Value);
+            }
+
+            var allReleases = await releasesQuery
+                .OrderBy(r => r.ReleaseDate)
+                .ThenBy(r => r.Id)
+                .ToListAsync();
+
+            // 2. Approved Audits & Details Query
+            var auditsQuery = _context.AuditItems
+                .AsNoTracking()
+                .Include(a => a.Buyer)
+                .Include(a => a.Establishment)
+                .Include(a => a.Details)
+                    .ThenInclude(d => d.AssignedEstablishment)
+                .Include(a => a.Details)
+                    .ThenInclude(d => d.CostCenter)
+                .Include(a => a.Details)
+                    .ThenInclude(d => d.ExpenseSource)
+                .Where(a => a.Status == AuditStatus.Approved)
+                .Where(a => a.EntryDate >= startDate && a.EntryDate < endDate.AddDays(1));
+
+            if (filter.BuyerId.HasValue)
+            {
+                auditsQuery = auditsQuery.Where(a => a.BuyerId == filter.BuyerId.Value);
+            }
+            if (filter.EstablishmentId.HasValue)
+            {
+                auditsQuery = auditsQuery.Where(a => a.EstablishmentId == filter.EstablishmentId.Value || a.Details.Any(d => d.AssignedEstablishmentId == filter.EstablishmentId.Value));
+            }
+
+            var approvedAudits = await auditsQuery.ToListAsync();
+
+            // 3. Build Buyer Audits (Buyer Liquidation Packets)
+            var buyersQuery = _context.Users
+                .AsNoTracking()
+                .Where(u => u.Role == UserRole.Buyer && !u.IsDeleted);
+
+            if (filter.BuyerId.HasValue)
+            {
+                buyersQuery = buyersQuery.Where(u => u.Id == filter.BuyerId.Value);
+            }
+
+            var activeBuyers = await buyersQuery.OrderBy(u => u.Name).ToListAsync();
+            var buyerAudits = new List<BuyerAuditReportViewModel>();
+
+            foreach (var buyer in activeBuyers)
+            {
+                var buyerReleases = allReleases
+                    .Where(r => r.ReceiverUserId == buyer.Id)
+                    .OrderBy(r => r.ReleaseDate)
+                    .Select(r => new PcfReleaseLine
+                    {
+                        Date = r.ReleaseDate,
+                        Amount = r.Amount,
+                        IssuedBy = ResolveSummaryReleaserName(r)
+                    })
+                    .ToList();
+
+                var buyerAuditItems = approvedAudits.Where(a => a.BuyerId == buyer.Id).ToList();
+                var buyerDetails = buyerAuditItems.SelectMany(a => a.Details).ToList();
+                var buyerExpenses = BuildSummaryBuyerExpenseLines(buyerDetails);
+
+                if (!buyerReleases.Any() && !buyerExpenses.Any())
+                {
+                    continue;
+                }
+
+                var buyerActualChange = await _context.SurrenderRequests
+                    .AsNoTracking()
+                    .Where(s => s.BuyerId == buyer.Id && s.RequestDate >= startDate && s.RequestDate < endDate.AddDays(1))
+                    .Where(s => s.Status == SurrenderStatus.Confirmed || s.Status == SurrenderStatus.Pending)
+                    .OrderByDescending(s => s.RequestDate)
+                    .Select(s => s.ConfirmedAmount ?? s.DeclaredAmount)
+                    .FirstOrDefaultAsync();
+
+                var buyerReport = new BuyerAuditReportViewModel
+                {
+                    BuyerId = buyer.Id,
+                    BuyerName = buyer.Name,
+                    Releases = buyerReleases,
+                    Expenses = buyerExpenses,
+                    ActualChangeReturned = buyerActualChange
+                };
+
+                buyerAudits.Add(buyerReport);
+            }
+
+            model.BuyerAudits = buyerAudits;
+
+            // 4. Build PCF Matrix with BEGINNING row under OTHERS
+            var matrix = new PcfMatrixViewModel
+            {
+                StartDate = startDate,
+                EndDate = endDate
+            };
+
+            var custodianNames = new List<string>();
+            foreach (var r in allReleases)
+            {
+                var name = ResolveSummaryReleaserName(r);
+                if (!string.Equals(name, "OTHERS", StringComparison.OrdinalIgnoreCase) && !custodianNames.Contains(name))
+                {
+                    custodianNames.Add(name);
+                }
+            }
+
+            // Always ensure OTHERS is the last column
+            custodianNames.Add("OTHERS");
+            matrix.Custodians = custodianNames;
+
+            for (var dt = startDate; dt <= endDate; dt = dt.AddDays(1))
+            {
+                var dateRow = new PcfMatrixDateRow { Date = dt };
+                var dayReleases = allReleases.Where(r => r.ReleaseDate.Date == dt).ToList();
+
+                foreach (var cust in custodianNames)
+                {
+                    var isOthers = string.Equals(cust, "OTHERS", StringComparison.OrdinalIgnoreCase);
+                    var custReleases = dayReleases.Where(r =>
+                    {
+                        var name = ResolveSummaryReleaserName(r);
+                        return string.Equals(name, cust, StringComparison.OrdinalIgnoreCase);
+                    }).ToList();
+
+                    var totalDayAmt = custReleases.Sum(r => r.Amount);
+
+                    if (isOthers && dt == startDate && beginningBalance > 0)
+                    {
+                        totalDayAmt += beginningBalance;
+                        dateRow.NotesByCustodian[cust] = "BEGINNING";
+                    }
+
+                    dateRow.AmountsByCustodian[cust] = totalDayAmt;
+
+                    var notes = string.Join(", ", custReleases.Select(r => r.Purpose).Where(p => !string.IsNullOrWhiteSpace(p)).Distinct());
+                    if (!string.IsNullOrWhiteSpace(notes))
+                    {
+                        dateRow.NotesByCustodian[cust] = isOthers && dt == startDate && beginningBalance > 0
+                            ? $"BEGINNING; {notes}"
+                            : notes;
+                    }
+                }
+
+                matrix.Rows.Add(dateRow);
+            }
+
+            foreach (var cust in custodianNames)
+            {
+                matrix.ColumnTotals[cust] = matrix.Rows.Sum(r => r.AmountsByCustodian.GetValueOrDefault(cust, 0m));
+            }
+
+            matrix.TotalPc = matrix.ColumnTotals.Values.Sum();
+            matrix.TotalExpenses = approvedAudits.SelectMany(a => a.Details).Sum(d => d.Total);
+
+            // Handed change
+            decimal totalHandedChange = 0m;
+            if (filter.HandedChangeOverride.HasValue)
+            {
+                totalHandedChange = filter.HandedChangeOverride.Value;
+            }
+            else
+            {
+                totalHandedChange = buyerAudits.Sum(b => b.ActualChangeReturned);
+            }
+
+            matrix.ActualChangeReturned = totalHandedChange;
+            model.HandedChange = totalHandedChange;
+            model.PcfMatrix = matrix;
+
+            // 5. Manager Cash In and Cash Out Details
+            var cashFlowsQuery = _context.TreasuryCashFlows
+                .AsNoTracking()
+                .Include(f => f.TreasuryUser)
+                .Include(f => f.Entries).ThenInclude(e => e.Establishment)
+                .Include(f => f.Entries).ThenInclude(e => e.RelatedUser)
+                .Include(f => f.Entries).ThenInclude(e => e.CostCenter)
+                .Include(f => f.Entries).ThenInclude(e => e.ReportedByUser)
+                .Where(f => f.CashFlowDate >= startDate && f.CashFlowDate <= endDate);
+
+            if (filter.ManagerId.HasValue)
+            {
+                cashFlowsQuery = cashFlowsQuery.Where(f => f.TreasuryUserId == filter.ManagerId.Value);
+            }
+
+            var flows = await cashFlowsQuery.OrderBy(f => f.CashFlowDate).ThenBy(f => f.Id).ToListAsync();
+
+            model.ManagerCashInRows = flows
+                .SelectMany(f => f.Entries
+                    .Where(e => e.Direction == CashFlowDirection.In)
+                    .Select(e => new TreasuryAuditCashOutRowViewModel
+                    {
+                        Date = f.CashFlowDate,
+                        Description = !string.IsNullOrWhiteSpace(e.Notes) ? e.Notes : e.Category.ToString().ToUpperInvariant(),
+                        Category = e.Category.ToString(),
+                        TreasuryHandlerName = f.TreasuryUser?.Name ?? e.ReportedByUser?.Name ?? "Manager",
+                        Amount = e.Amount
+                    }))
+                .OrderBy(r => r.Date)
+                .ToList();
+
+            model.ManagerCashOutRows = flows
+                .SelectMany(f => f.Entries
+                    .Where(e => e.Direction == CashFlowDirection.Out)
+                    .Select(e => new TreasuryAuditCashOutRowViewModel
+                    {
+                        Date = f.CashFlowDate,
+                        Description = !string.IsNullOrWhiteSpace(e.Notes) ? e.Notes : e.Category.ToString().ToUpperInvariant(),
+                        Category = e.Category.ToString(),
+                        TreasuryHandlerName = f.TreasuryUser?.Name ?? e.ReportedByUser?.Name ?? "Manager",
+                        Amount = e.Amount
+                    }))
+                .OrderBy(r => r.Date)
+                .ToList();
+
+            // 6. Branch Audit (Expense Allocations)
+            var branchExpensesQuery = _context.AuditItemDetails
+                .AsNoTracking()
+                .Include(ad => ad.AuditItem)
+                    .ThenInclude(a => a.Establishment)
+                .Include(ad => ad.AssignedEstablishment)
+                .Where(ad => ad.AuditItem.Status == AuditStatus.Approved)
+                .Where(ad => ad.AuditItem.EntryDate >= startDate && ad.AuditItem.EntryDate < endDate.AddDays(1));
+
+            if (filter.EstablishmentId.HasValue)
+            {
+                branchExpensesQuery = branchExpensesQuery.Where(ad => (ad.AssignedEstablishmentId ?? ad.AuditItem.EstablishmentId) == filter.EstablishmentId.Value);
+            }
+
+            var branchDetails = await branchExpensesQuery
+                .OrderBy(ad => ad.AuditItem.EntryDate)
+                .ToListAsync();
+
+            model.BranchAudit = new BranchAuditReportViewModel
+            {
+                BranchId = filter.EstablishmentId,
+                BranchName = filter.EstablishmentId.HasValue
+                    ? (await _context.Establishments.AsNoTracking().Where(e => e.Id == filter.EstablishmentId.Value).Select(e => e.Name).FirstOrDefaultAsync() ?? "All Branches")
+                    : "All Branches",
+                Expenses = branchDetails.Select(ad => new BranchExpenseLine
+                {
+                    Date = ad.AuditItem.EntryDate,
+                    Description = !string.IsNullOrWhiteSpace(ad.ItemName) ? ad.ItemName : ad.AuditItem.Description,
+                    Amount = ad.Total,
+                    Allocation = ad.AssignedEstablishment?.Name ?? ad.AuditItem.Establishment?.Name ?? "DAYO"
+                }).ToList()
+            };
+
+            // 7. Populate ViewBags for SelectLists
+            var establishments = await _context.Establishments
+                .AsNoTracking()
+                .OrderBy(e => e.Name)
+                .ToListAsync();
+            ViewBag.Establishments = new SelectList(establishments, "Id", "Name", filter.EstablishmentId);
+
+            var buyers = await _context.Users
+                .AsNoTracking()
+                .Where(u => !u.IsDeleted && u.Role == UserRole.Buyer)
+                .OrderBy(u => u.Name)
+                .ToListAsync();
+            ViewBag.Buyers = new SelectList(buyers, "Id", "Name", filter.BuyerId);
+
+            var managers = await _context.Users
+                .AsNoTracking()
+                .Where(u => !u.IsDeleted && (u.Role == UserRole.Manager || u.Role == UserRole.Owner))
+                .OrderBy(u => u.Name)
+                .ToListAsync();
+            ViewBag.Managers = new SelectList(managers, "Id", "Name", filter.ManagerId);
+
+            return View(model);
+        }
+
+        private static string ResolveSummaryReleaserName(PcfRelease r)
+        {
+            if (r.ReleasedByTreasuryUser != null && !string.IsNullOrWhiteSpace(r.ReleasedByTreasuryUser.Name))
+            {
+                return r.ReleasedByTreasuryUser.Name.Trim().ToUpperInvariant();
+            }
+            if (r.Establishment != null && !string.IsNullOrWhiteSpace(r.Establishment.Name))
+            {
+                return r.Establishment.Name.Trim().ToUpperInvariant();
+            }
+            return "OTHERS";
+        }
+
+        private static List<BuyerExpenseLine> BuildSummaryBuyerExpenseLines(IEnumerable<AuditItemDetail> details)
+        {
+            return details
+                .GroupBy(ad => new
+                {
+                    AuditItemId = ad.AuditItemId,
+                    Date = ad.AuditItem?.EntryDate.Date ?? DateTime.Today,
+                    Description = !string.IsNullOrWhiteSpace(ad.ExpenseSourceName) ? ad.ExpenseSourceName.Trim() : (ad.ExpenseSource != null ? ad.ExpenseSource.Name.Trim() : "NO RECEIPT"),
+                    Item = ad.ItemName,
+                    Allocation = ResolveSummaryExpenseAllocation(ad),
+                    HasReceipt = ad.ReceiptStatus != ReceiptLineStatus.NoReceipt
+                })
+                .OrderBy(g => g.Key.Date)
+                .ThenBy(g => g.Key.AuditItemId)
+                .Select(g => new BuyerExpenseLine
+                {
+                    AuditItemId = g.Key.AuditItemId,
+                    Date = g.Key.Date,
+                    Description = g.Key.Description,
+                    Item = g.Key.Item,
+                    Amount = g.Sum(x => x.Total),
+                    Allocation = g.Key.Allocation,
+                    HasReceipt = g.Key.HasReceipt
+                })
+                .ToList();
+        }
+
+        private static string ResolveSummaryExpenseAllocation(AuditItemDetail detail)
+        {
+            if (!string.IsNullOrWhiteSpace(detail.AllocationNotes))
+            {
+                return detail.AllocationNotes.Trim();
+            }
+
+            if (detail.AssignedEstablishment != null)
+            {
+                return detail.AssignedEstablishment.Name;
+            }
+
+            if (detail.CostCenter != null)
+            {
+                return detail.CostCenter.Name;
+            }
+
+            return detail.AuditItem?.Establishment?.Name ?? "OTHERS";
         }
 
     }

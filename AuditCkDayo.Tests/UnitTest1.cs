@@ -370,6 +370,62 @@ namespace AuditCkDayo.Tests
         }
 
         [Fact]
+        public async Task Edit_Get_ReturnsUserEditModelForAdmin()
+        {
+            using (var context = new AuditDbContext(_options))
+            {
+                await SeedDataAsync(context);
+                var controller = CreateController(context, 1, "Admin");
+
+                var result = await controller.Edit(3);
+
+                var viewResult = Assert.IsType<ViewResult>(result);
+                var model = Assert.IsType<UserEditViewModel>(viewResult.Model);
+                Assert.Equal(3, model.Id);
+                Assert.Equal("Charlie Buyer", model.Name);
+                Assert.Equal("charlie@test.com", model.Email);
+                Assert.Equal(UserRole.Buyer, model.Role);
+                Assert.Equal(2, model.ManagerId);
+            }
+        }
+
+        [Fact]
+        public async Task Edit_Post_UpdatesEditableUserFieldsForAdmin()
+        {
+            using (var context = new AuditDbContext(_options))
+            {
+                await SeedDataAsync(context);
+                context.Establishments.Add(new Establishment { Id = 10, Name = "CKR Main" });
+                await context.SaveChangesAsync();
+                var controller = CreateController(context, 1, "Admin");
+
+                var result = await controller.Edit(3, new UserEditViewModel
+                {
+                    Id = 3,
+                    Name = "Charlie Staff",
+                    Email = "charlie.staff@test.com",
+                    Role = UserRole.BranchStaff,
+                    ManagerId = 2,
+                    EstablishmentId = 10,
+                    IsTreasury = true
+                });
+
+                var redirectResult = Assert.IsType<RedirectToActionResult>(result);
+                Assert.Equal("Register", redirectResult.ActionName);
+                Assert.Equal("Account", redirectResult.ControllerName);
+                Assert.Equal("User 'Charlie Staff' updated successfully.", controller.TempData["Message"]);
+
+                var user = await context.Users.FindAsync(3);
+                Assert.Equal("Charlie Staff", user!.Name);
+                Assert.Equal("charlie.staff@test.com", user.Email);
+                Assert.Equal(UserRole.BranchStaff, user.Role);
+                Assert.Equal(2, user.ManagerId);
+                Assert.Equal(10, user.EstablishmentId);
+                Assert.True(user.IsTreasury);
+            }
+        }
+
+        [Fact]
         public async Task Delete_UserWithUploadedDocuments_ArchivesUserInsteadOfHardDeleting()
         {
             using (var context = new AuditDbContext(_options))
@@ -403,6 +459,87 @@ namespace AuditCkDayo.Tests
         }
 
 
+    public class PcfMonitorControllerTests : IDisposable
+    {
+        private readonly SqliteConnection _connection;
+        private readonly DbContextOptions<AuditDbContext> _options;
+
+        public PcfMonitorControllerTests()
+        {
+            _connection = new SqliteConnection("Filename=:memory:");
+            _connection.Open();
+            _options = new DbContextOptionsBuilder<AuditDbContext>()
+                .UseSqlite(_connection)
+                .Options;
+
+            using var context = new AuditDbContext(_options);
+            context.Database.EnsureCreated();
+        }
+
+        public void Dispose()
+        {
+            _connection.Dispose();
+        }
+
+        [Fact]
+        public async Task Index_ForCoveringManagerIncludesCoveredManagersPcfHolders()
+        {
+            using var context = new AuditDbContext(_options);
+            var maymay = new User { Id = 2, Name = "Maymay", Email = "maymay@test.com", PasswordHash = "hash", Role = UserRole.Manager, PcfBalance = 500m, DailyStartingFloat = 500m };
+            var chelsea = new User { Id = 10, Name = "Chelsea", Email = "chelsea@test.com", PasswordHash = "hash", Role = UserRole.Manager, PcfBalance = 700m, DailyStartingFloat = 700m };
+            var maymayBuyer = new User { Id = 11, Name = "Maymay Buyer", Email = "maymay-buyer@test.com", PasswordHash = "hash", Role = UserRole.Buyer, ManagerId = maymay.Id, PcfBalance = 1000m, DailyStartingFloat = 1000m };
+            var chelseaBuyer = new User { Id = 12, Name = "Chelsea Buyer", Email = "chelsea-buyer@test.com", PasswordHash = "hash", Role = UserRole.Buyer, ManagerId = chelsea.Id, PcfBalance = 2000m, DailyStartingFloat = 2000m };
+            var otherBuyer = new User { Id = 13, Name = "Other Buyer", Email = "other-buyer@test.com", PasswordHash = "hash", Role = UserRole.Buyer, ManagerId = null, PcfBalance = 3000m, DailyStartingFloat = 3000m };
+            context.Users.AddRange(maymay, chelsea, maymayBuyer, chelseaBuyer, otherBuyer);
+            context.ManagerCoverages.Add(new ManagerCoverage
+            {
+                Id = 1,
+                CoveredManagerId = maymay.Id,
+                CoveringManagerId = chelsea.Id,
+                StartDate = DateTime.Today.AddDays(-1),
+                EndDate = DateTime.Today.AddDays(1),
+                Scope = CoverageScope.All,
+                CreatedByUserId = chelsea.Id,
+                IsActive = true
+            });
+            await context.SaveChangesAsync();
+
+            var controller = CreateController(context, chelsea.Id, "Manager");
+
+            var result = await controller.Index();
+
+            var view = Assert.IsType<ViewResult>(result);
+            var model = Assert.IsType<PcfMonitorViewModel>(view.Model);
+            var names = model.Items.Select(i => i.Name).ToList();
+            Assert.Contains("Chelsea", names);
+            Assert.Contains("Chelsea Buyer", names);
+            Assert.Contains("Maymay Buyer", names);
+            Assert.DoesNotContain("Other Buyer", names);
+        }
+
+        private static PcfMonitorController CreateController(AuditDbContext context, int currentUserId, string currentUserRole)
+        {
+            var claims = new List<Claim>
+            {
+                new Claim(ClaimTypes.NameIdentifier, currentUserId.ToString()),
+                new Claim(ClaimTypes.Role, currentUserRole)
+            };
+
+            var httpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"))
+            };
+
+            return new PcfMonitorController(context, new CoverageService(context))
+            {
+                ControllerContext = new ControllerContext
+                {
+                    HttpContext = httpContext
+                }
+            };
+        }
+    }
+
     public class FallbackOcrServiceTests
     {
         [Fact]
@@ -424,6 +561,16 @@ namespace AuditCkDayo.Tests
             Assert.NotNull(result);
             Assert.Null(result.TransactionDate);
             Assert.Equal(0m, result.TotalAmount);
+        }
+
+        [Fact]
+        public void GoogleGeminiOcrService_ReceiptOcrUsesGemini36FlashEndpoint()
+        {
+            var servicePath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AuditCkDayo", "Services", "GoogleGeminiOcrService.cs"));
+            var serviceSource = File.ReadAllText(servicePath);
+
+            Assert.Contains("models/gemini-3.6-flash:generateContent", serviceSource);
+            Assert.DoesNotContain("models/gemini-1.5-flash:generateContent", serviceSource);
         }
 
         [Fact]
@@ -498,6 +645,10 @@ namespace AuditCkDayo.Tests
             Assert.Equal(6796.40m, result.GCashAmount);
             Assert.Equal(594.20m, result.CreditAmount);
             Assert.Equal(3981.00m, result.OtherPaymentAmount);
+            Assert.Equal(new[] { 1607m, 759m, 183.35m, 1538.05m, 1614m, 325m, 770m }, result.GCashLines.Select(l => l.Amount).ToArray());
+            Assert.Equal(new[] { 2224m, 651m, 1106m }, result.BankTransferLines.Select(l => l.Amount).ToArray());
+            Assert.Equal(new[] { 253m, 241.20m, 100m }, result.CreditLines.Select(l => l.Amount).ToArray());
+            Assert.Equal(new[] { 650m, 180m }, result.ExpenseFromSalesLines.Select(l => l.Amount).ToArray());
         }
     }
     public class FakeOcrService : IOcrService
@@ -639,6 +790,274 @@ namespace AuditCkDayo.Tests
             };
         }
 
+        private static IFormFile CreateAuditFormFile(string filename, string content = "image")
+        {
+            var bytes = System.Text.Encoding.UTF8.GetBytes(content);
+            var stream = new MemoryStream(bytes);
+            return new FormFile(stream, 0, bytes.Length, "receipts", filename)
+            {
+                Headers = new HeaderDictionary(),
+                ContentType = "image/jpeg"
+            };
+        }
+
+        [Fact]
+        public void AuditApprovalViews_PassAllReceiptImagesToFullAuditViewer()
+        {
+            foreach (var relativeViewPath in new[] { "VerifyList.cshtml", "BranchVerifyList.cshtml" })
+            {
+                var viewPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AuditCkDayo", "Views", "Audits", relativeViewPath));
+                var view = File.ReadAllText(viewPath);
+
+                Assert.Contains("data-receipt-urls", view);
+                Assert.Contains("audit.Images?.OrderBy", view);
+                Assert.Contains("viewer-receipt-thumbnails", view);
+                Assert.Contains("renderReceiptImages", view);
+            }
+        }
+        [Fact]
+        public async Task Edit_Get_PopulatesExpenseSourceAndReceiptStatus()
+        {
+            using (var context = new AuditDbContext(_options))
+            {
+                var buyer = new User { Id = 101, Name = "Buyer", Email = "buyer101@test.com", PasswordHash = "hash", Role = UserRole.Buyer };
+                var branch = new Establishment { Id = 101, Name = "Branch 101" };
+                var source = new ExpenseSource { Id = 101, Name = "Hardware Store", IsActive = true };
+                context.Users.Add(buyer);
+                context.Establishments.Add(branch);
+                context.ExpenseSources.Add(source);
+
+                var audit = new AuditItem
+                {
+                    Id = 201,
+                    BuyerId = buyer.Id,
+                    EstablishmentId = branch.Id,
+                    Amount = 500m,
+                    Status = AuditStatus.AwaitingBranchVerification
+                };
+                audit.Details.Add(new AuditItemDetail
+                {
+                    ItemName = "Screws",
+                    Quantity = 2,
+                    Price = 250m,
+                    Total = 500m,
+                    ExpenseSourceId = source.Id,
+                    ExpenseSourceName = "Hardware Store",
+                    ReceiptStatus = ReceiptLineStatus.NoReceipt
+                });
+
+                context.AuditItems.Add(audit);
+                await context.SaveChangesAsync();
+
+                var auditor = new User { Id = 102, Name = "Auditor User", Email = "auditor102@test.com", PasswordHash = "hash", Role = UserRole.Auditor };
+                context.Users.Add(auditor);
+                await context.SaveChangesAsync();
+
+                var controller = CreateController(context, auditor.Id, "Auditor");
+                var result = await controller.Edit(audit.Id);
+
+                var viewResult = Assert.IsType<ViewResult>(result);
+                var model = Assert.IsType<AuditSubmissionViewModel>(viewResult.Model);
+
+                Assert.Single(model.Items);
+                Assert.Equal(source.Id, model.Items[0].ExpenseSourceId);
+                Assert.Equal("Hardware Store", model.Items[0].ExpenseSourceName);
+                Assert.Equal(ReceiptLineStatus.NoReceipt, model.Items[0].ReceiptStatus);
+            }
+        }
+
+        [Fact]
+        public async Task Edit_Post_SavesExpenseSourceAndReceiptStatus()
+        {
+            using (var context = new AuditDbContext(_options))
+            {
+                var buyer = new User { Id = 103, Name = "Buyer 103", Email = "buyer103@test.com", PasswordHash = "hash", Role = UserRole.Buyer, PcfBalance = 1000m };
+                var branch = new Establishment { Id = 103, Name = "Branch 103" };
+                var source = new ExpenseSource { Id = 103, Name = "Parking Lot", IsActive = true };
+                context.Users.Add(buyer);
+                context.Establishments.Add(branch);
+                context.ExpenseSources.Add(source);
+
+                var audit = new AuditItem
+                {
+                    Id = 202,
+                    BuyerId = buyer.Id,
+                    EstablishmentId = branch.Id,
+                    Amount = 100m,
+                    Status = AuditStatus.AwaitingBranchVerification
+                };
+                audit.Details.Add(new AuditItemDetail
+                {
+                    ItemName = "Old item",
+                    Quantity = 1,
+                    Price = 100m,
+                    Total = 100m
+                });
+
+                context.AuditItems.Add(audit);
+                await context.SaveChangesAsync();
+
+                var auditor = new User { Id = 104, Name = "Auditor 104", Email = "auditor104@test.com", PasswordHash = "hash", Role = UserRole.Auditor };
+                context.Users.Add(auditor);
+                await context.SaveChangesAsync();
+
+                var controller = CreateController(context, auditor.Id, "Auditor");
+                var model = new AuditSubmissionViewModel
+                {
+                    AuditId = audit.Id,
+                    EstablishmentId = branch.Id,
+                    CombinedDestinationId = $"branch-{branch.Id}",
+                    Amount = 150m,
+                    Description = "Updated audit",
+                    EntryDate = DateTime.Today,
+                    Items = new List<OcrItemResult>
+                    {
+                        new OcrItemResult
+                        {
+                            Name = "Parking",
+                            Quantity = 1,
+                            Price = 150m,
+                            Total = 150m,
+                            ExpenseSourceId = source.Id,
+                            ReceiptStatus = ReceiptLineStatus.NoReceipt
+                        }
+                    }
+                };
+
+                var result = await controller.Edit(audit.Id, model);
+                Assert.IsType<RedirectToActionResult>(result);
+
+                var updatedAudit = await context.AuditItems.Include(a => a.Details).SingleAsync(a => a.Id == audit.Id);
+                Assert.Single(updatedAudit.Details);
+                Assert.Equal("Parking", updatedAudit.Details.First().ItemName);
+                Assert.Equal(source.Id, updatedAudit.Details.First().ExpenseSourceId);
+                Assert.Equal("Parking Lot", updatedAudit.Details.First().ExpenseSourceName);
+                Assert.Equal(ReceiptLineStatus.NoReceipt, updatedAudit.Details.First().ReceiptStatus);
+            }
+        }
+
+        [Fact]
+        public async Task ProcessUpload_AllowsTwentyFiveReceiptImagesForAuditorOnly()
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedDataAsync(context);
+
+            var buyerController = CreateController(context, 3, "Buyer");
+            var buyerElevenReceipts = Enumerable.Range(1, 11)
+                .Select(i => CreateAuditFormFile($"buyer-receipt-{i}.jpg"))
+                .ToList();
+
+            var buyerResult = await buyerController.ProcessUpload(buyerElevenReceipts);
+
+            Assert.IsType<ViewResult>(buyerResult);
+            Assert.False(buyerController.ModelState.IsValid);
+            Assert.Contains(buyerController.ModelState[string.Empty]!.Errors, e => e.ErrorMessage.Contains("up to 10", StringComparison.OrdinalIgnoreCase));
+
+            var auditorController = CreateController(context, 6, "Auditor");
+            var auditorTwentyFiveReceipts = Enumerable.Range(1, 25)
+                .Select(i => CreateAuditFormFile($"auditor-receipt-{i}.jpg"))
+                .ToList();
+
+            var auditorResult = await auditorController.ProcessUpload(auditorTwentyFiveReceipts);
+
+            Assert.IsType<RedirectToActionResult>(auditorResult);
+
+            var tooManyAuditorController = CreateController(context, 6, "Auditor");
+            var auditorTwentySixReceipts = Enumerable.Range(1, 26)
+                .Select(i => CreateAuditFormFile($"auditor-receipt-{i}.jpg"))
+                .ToList();
+
+            var auditorTooManyResult = await tooManyAuditorController.ProcessUpload(auditorTwentySixReceipts);
+
+            Assert.IsType<ViewResult>(auditorTooManyResult);
+            Assert.False(tooManyAuditorController.ModelState.IsValid);
+            Assert.Contains(tooManyAuditorController.ModelState[string.Empty]!.Errors, e => e.ErrorMessage.Contains("up to 25", StringComparison.OrdinalIgnoreCase));
+
+            var uploadViewPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AuditCkDayo", "Views", "Audits", "Upload.cshtml"));
+            var uploadView = File.ReadAllText(uploadViewPath);
+            Assert.Contains("var uploadLimit = User.IsInRole(\"Auditor\") ? 25 : 10;", uploadView);
+            Assert.Contains("const uploadLimit = @uploadLimit;", uploadView);
+        }
+
+        [Fact]
+        public void DashboardHistory_UsesThirtyRecordPagination()
+        {
+            var controllerPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AuditCkDayo", "Controllers", "HomeController.cs"));
+            var modelPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AuditCkDayo", "ViewModels", "DashboardViewModel.cs"));
+            var viewPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AuditCkDayo", "Views", "Home", "Index.cshtml"));
+            var controller = File.ReadAllText(controllerPath);
+            var model = File.ReadAllText(modelPath);
+            var view = File.ReadAllText(viewPath);
+
+            Assert.Contains("model.HistoryPageSize = 30", controller);
+            Assert.Contains(".Skip((model.HistoryPage - 1) * model.HistoryPageSize)", controller);
+            Assert.Contains(".Take(model.HistoryPageSize)", controller);
+            Assert.Contains("public int HistoryPageSize { get; set; } = 30;", model);
+            Assert.Contains("@Model.HistoricalStartRecord-@Model.HistoricalEndRecord of @Model.HistoricalTotalCount", view);
+            Assert.Contains("asp-route-HistoryPage", view);
+        }
+
+        [Fact]
+        public void AuditReviewViews_AllowEditingLineTotalsDirectly()
+        {
+            var reviewPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AuditCkDayo", "Views", "Audits", "Review.cshtml"));
+            var batchReviewPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AuditCkDayo", "Views", "Audits", "BatchReview.cshtml"));
+            var review = File.ReadAllText(reviewPath);
+            var batchReview = File.ReadAllText(batchReviewPath);
+
+            Assert.DoesNotContain("total-input\" type=\"number\" step=\"0.01\" min=\"0.00\" readonly", review);
+            Assert.Contains("currentItems.reduce((sum, item) => sum + (parseFloat(item.total) || 0), 0)", batchReview);
+            Assert.Contains("data-field=\"total\"", batchReview);
+        }
+
+        [Fact]
+        public void AuditReviewViews_RecalculatePriceWhenLineTotalChanges()
+        {
+            var reviewPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AuditCkDayo", "Views", "Audits", "Review.cshtml"));
+            var batchReviewPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AuditCkDayo", "Views", "Audits", "BatchReview.cshtml"));
+            var review = File.ReadAllText(reviewPath);
+            var batchReview = File.ReadAllText(batchReviewPath);
+
+            Assert.Contains("calculateRowPriceFromTotal(row)", review);
+            Assert.Contains("priceInput.value = (total / qty).toFixed(2)", review);
+            Assert.Contains("currentItems[idx].price = currentItems[idx].total / currentItems[idx].qty", batchReview);
+            Assert.Contains("row.querySelector('input[data-field=\"price\"]').value = currentItems[idx].price.toFixed(2)", batchReview);
+        }
+
+        [Fact]
+        public void UpdateAuditDraftItems_UsesEditedLineTotalsForDraftAmount()
+        {
+            var session = new FakeSession();
+            var drafts = new List<AuditSubmissionViewModel>
+            {
+                new AuditSubmissionViewModel
+                {
+                    ReceiptImageUrl = "/Audits/Receipt/sample.jpg",
+                    ReceiptImageUrls = new List<string> { "/Audits/Receipt/sample.jpg" },
+                    Description = "Draft",
+                    Amount = 0m,
+                    Items = new List<OcrItemResult>()
+                }
+            };
+            session.SetString("PendingAuditDrafts:3", JsonSerializer.Serialize(drafts));
+            using var context = new AuditDbContext(_options);
+            var controller = CreateController(context, 3, "Buyer", session);
+            var editedItems = new List<OcrItemResult>
+            {
+                new OcrItemResult { Name = "Crispy Fry", Quantity = 6, Price = 20m, Total = 126m }
+            };
+
+            var result = controller.UpdateAuditDraftItems(0, editedItems);
+
+            var json = Assert.IsType<JsonResult>(result);
+            var payload = JsonSerializer.Serialize(json.Value);
+            Assert.Contains("\"newAmount\":126", payload);
+            var savedDraftsJson = session.GetString("PendingAuditDrafts:3");
+            var savedDrafts = JsonSerializer.Deserialize<List<AuditSubmissionViewModel>>(savedDraftsJson!);
+            Assert.Equal(126m, savedDrafts![0].Amount);
+            Assert.Equal(126m, savedDrafts[0].Items[0].Total);
+        }
+
         [Fact]
         public async Task SubmitAudit_CreatesBranchQueueItemAndNotifiesOnlyAssignedBranchStaff()
         {
@@ -684,6 +1103,51 @@ namespace AuditCkDayo.Tests
                 Assert.Equal("/Audits/BranchVerifyList", assignedBranchNotification.LinkUrl);
                 Assert.False(await context.Notifications.AnyAsync(n => n.UserId == 6));
                 Assert.False(await context.Notifications.AnyAsync(n => n.UserId == 2 && n.Category == "AuditSubmit"));
+            }
+        }
+
+        [Fact]
+        public async Task SubmitAudit_TreasuryUserReceiptDeductsStartingPcfAndRecordsTreasuryCashOut()
+        {
+            using (var context = new AuditDbContext(_options))
+            {
+                await SeedDataAsync(context);
+                var chelsea = await context.Users.SingleAsync(u => u.Id == 2);
+                chelsea.IsTreasury = true;
+                chelsea.PcfBalance = 30000m;
+                chelsea.DailyStartingFloat = 30000m;
+                await context.SaveChangesAsync();
+                var controller = CreateController(context, 2, "Manager");
+                var model = new AuditCkDayo.ViewModels.AuditSubmissionViewModel
+                {
+                    EstablishmentId = 1,
+                    CombinedDestinationId = "branch-1",
+                    Amount = 5000m,
+                    Description = "Chelsea receipt expense",
+                    EntryDate = DateTime.Today,
+                    ReceiptImageUrl = "/Audits/Receipt/chelsea-expense.png",
+                    ReceiptImageUrls = new List<string> { "/Audits/Receipt/chelsea-expense.png" },
+                    Items = new List<OcrItemResult>
+                    {
+                        new OcrItemResult { Name = "Audit Item", Quantity = 1, Price = 5000m, Total = 5000m }
+                    }
+                };
+
+                var submitResult = await controller.SubmitAudit(model);
+
+                Assert.IsType<RedirectToActionResult>(submitResult);
+                var savedChelsea = await context.Users.AsNoTracking().SingleAsync(u => u.Id == 2);
+                Assert.Equal(25000m, savedChelsea.PcfBalance);
+                Assert.Equal(25000m, savedChelsea.DailyStartingFloat);
+                var flow = await context.TreasuryCashFlows
+                    .Include(f => f.Entries)
+                    .AsNoTracking()
+                    .SingleAsync(f => f.TreasuryUserId == 2 && f.CashFlowDate == DateTime.Today);
+                var cashOut = Assert.Single(flow.Entries);
+                Assert.Equal(CashFlowDirection.Out, cashOut.Direction);
+                Assert.Equal(CashFlowCategory.Expense, cashOut.Category);
+                Assert.Equal(5000m, cashOut.Amount);
+                Assert.Equal("Chelsea receipt expense", cashOut.Notes);
             }
         }
 
@@ -1297,7 +1761,157 @@ namespace AuditCkDayo.Tests
         }
 
         [Fact]
-        public async Task SubmitAudit_BranchStaffPersistsPnlCategoriesOnReceiptLines()
+        public async Task SubmitAudit_SavesSelectedExpenseSourcePerLine()
+        {
+            using (var context = new AuditDbContext(_options))
+            {
+                await SeedDataAsync(context);
+                context.ExpenseSources.Add(new ExpenseSource { Id = 1, Name = "MARKET", IsActive = true });
+                await context.SaveChangesAsync();
+
+                var controller = CreateController(context, 3, "Buyer");
+                var model = new AuditSubmissionViewModel
+                {
+                    EstablishmentId = 1,
+                    CombinedDestinationId = "branch-1",
+                    Amount = 21m,
+                    Description = "Source selection receipt",
+                    EntryDate = DateTime.Today,
+                    ReceiptImageUrl = "/Audits/Receipt/source.png",
+                    ReceiptImageUrls = new List<string> { "/Audits/Receipt/source.png" },
+                    Items = new List<OcrItemResult>
+                    {
+                        new OcrItemResult { Name = "Orange", Quantity = 1, Price = 21m, Total = 21m, CombinedDestinationId = "branch-1", ExpenseSourceId = 1 }
+                    }
+                };
+
+                var result = await controller.SubmitAudit(model);
+
+                Assert.IsType<RedirectToActionResult>(result);
+                var audit = await context.AuditItems
+                    .Include(a => a.Details)
+                    .SingleAsync(a => a.Description == "Source selection receipt");
+                Assert.Contains(audit.Details, detail => detail.ItemName == "Orange" && detail.ExpenseSourceId == 1 && detail.ExpenseSourceName == "MARKET");
+            }
+        }
+
+
+        [Fact]
+        public async Task SubmitAudit_AuditorOthersLineUsesItemDescriptionAsAllocationNotes()
+        {
+            using (var context = new AuditDbContext(_options))
+            {
+                context.Users.Add(new User { Id = 7, Name = "Audrey Auditor", Email = "audrey@test.com", PasswordHash = "hash", Role = UserRole.Auditor, PcfBalance = 500m, DailyStartingFloat = 500m });
+                await context.SaveChangesAsync();
+
+                await SeedDataAsync(context);
+                var auditorController = CreateController(context, 7, "Auditor");
+                var auditorModel = new AuditSubmissionViewModel
+                {
+                    EstablishmentId = 1,
+                    SelectedBuyerId = 3,
+                    CombinedDestinationId = "branch-1",
+                    Amount = 180m,
+                    Description = "Auditor other allocation receipt",
+                    EntryDate = DateTime.Today,
+                    ReceiptImageUrl = "/Audits/Receipt/auditor-other.png",
+                    ReceiptImageUrls = new List<string> { "/Audits/Receipt/auditor-other.png" },
+                    Items = new List<OcrItemResult>
+                    {
+                        new OcrItemResult { Name = "Birthday balloons", Quantity = 1, Price = 80m, Total = 80m, CombinedDestinationId = "others" },
+                        new OcrItemResult { Name = "Branch cups", Quantity = 1, Price = 100m, Total = 100m, CombinedDestinationId = "branch-1" }
+                    }
+                };
+
+                var auditorResult = await auditorController.SubmitAudit(auditorModel);
+
+                Assert.IsType<RedirectToActionResult>(auditorResult);
+                var auditorAudit = await context.AuditItems
+                    .Include(a => a.Details)
+                    .SingleAsync(a => a.Description == "Auditor other allocation receipt");
+                Assert.Contains(auditorAudit.Details, detail => detail.ItemName == "Birthday balloons" && detail.AllocationNotes == "Birthday balloons");
+                Assert.Contains(auditorAudit.Details, detail => detail.ItemName == "Branch cups" && detail.AllocationNotes == null);
+
+                var buyerController = CreateController(context, 3, "Buyer");
+                var buyerModel = new AuditSubmissionViewModel
+                {
+                    EstablishmentId = 1,
+                    CombinedDestinationId = "branch-1",
+                    Amount = 80m,
+                    Description = "Buyer other allocation receipt",
+                    EntryDate = DateTime.Today,
+                    ReceiptImageUrl = "/Audits/Receipt/buyer-other.png",
+                    ReceiptImageUrls = new List<string> { "/Audits/Receipt/buyer-other.png" },
+                    Items = new List<OcrItemResult>
+                    {
+                        new OcrItemResult { Name = "Buyer balloons", Quantity = 1, Price = 80m, Total = 80m, CombinedDestinationId = "others" }
+                    }
+                };
+
+                var buyerResult = await buyerController.SubmitAudit(buyerModel);
+
+                Assert.IsType<RedirectToActionResult>(buyerResult);
+                var buyerAudit = await context.AuditItems
+                    .Include(a => a.Details)
+                    .SingleAsync(a => a.Description == "Buyer other allocation receipt");
+                Assert.Contains(buyerAudit.Details, detail => detail.ItemName == "Buyer balloons" && detail.AllocationNotes == null);
+            }
+        }
+
+        [Fact]
+        public async Task AuditorEdit_ReturnsReceiptsForTargetDateAndHasAuditorAuthorization()
+        {
+            using (var context = new AuditDbContext(_options))
+            {
+                await SeedDataAsync(context);
+                context.Users.Add(new User { Id = 7, Name = "Audrey Auditor", Email = "audrey@test.com", PasswordHash = "hash", Role = UserRole.Auditor });
+                var targetDate = new DateTime(2026, 8, 28);
+                context.AuditItems.AddRange(
+                    new AuditItem
+                    {
+                        Id = 51,
+                        BuyerId = 3,
+                        EstablishmentId = 1,
+                        Amount = 1475m,
+                        Description = "TH Receipt",
+                        EntryDate = targetDate,
+                        Status = AuditStatus.Approved,
+                        Details = new List<AuditItemDetail>
+                        {
+                            new AuditItemDetail { ItemName = "Pork", ExpenseSourceName = "TH", Quantity = 1, Price = 1475m, Total = 1475m, AssignedEstablishmentId = 1 }
+                        }
+                    },
+                    new AuditItem
+                    {
+                        Id = 52,
+                        BuyerId = 3,
+                        EstablishmentId = 1,
+                        Amount = 500m,
+                        Description = "Other date",
+                        EntryDate = targetDate.AddDays(-1),
+                        Status = AuditStatus.Approved
+                    }
+                );
+                await context.SaveChangesAsync();
+
+                var controller = CreateController(context, 7, "Auditor");
+                var method = typeof(AuditsController).GetMethod(nameof(AuditsController.AuditorEdit));
+                var authAttr = method?.GetCustomAttributes(typeof(AuthorizeAttribute), false).FirstOrDefault() as AuthorizeAttribute;
+                Assert.NotNull(authAttr);
+                Assert.Equal("Auditor", authAttr.Roles);
+
+                var result = await controller.AuditorEdit(targetDate, null, null);
+                var viewResult = Assert.IsType<ViewResult>(result);
+                var model = Assert.IsAssignableFrom<IEnumerable<AuditItem>>(viewResult.Model);
+                var list = model.ToList();
+                Assert.Single(list);
+                Assert.Equal(51, list[0].Id);
+                Assert.Equal(1475m, controller.ViewBag.TotalAmount);
+            }
+        }
+
+        [Fact]
+        public async Task SubmitAudit_BranchStaffRoutesToManagerAndManagerSetsPnlCategories()
         {
             using (var context = new AuditDbContext(_options))
             {
@@ -1322,8 +1936,8 @@ namespace AuditCkDayo.Tests
                     ReceiptImageUrls = new List<string> { "/Audits/Receipt/pnl-receipt.png" },
                     Items = new List<OcrItemResult>
                     {
-                        new OcrItemResult { Name = "San Mig", Quantity = 1, Price = 80m, Total = 80m, PnlCategoryId = 20 },
-                        new OcrItemResult { Name = "Gas", Quantity = 1, Price = 100m, Total = 100m, PnlCategoryId = 21 }
+                        new OcrItemResult { Name = "San Mig", Quantity = 1, Price = 80m, Total = 80m, CombinedDestinationId = "branch-1", PnlCategoryId = 20 },
+                        new OcrItemResult { Name = "Gas", Quantity = 1, Price = 100m, Total = 100m, CombinedDestinationId = "branch-1", PnlCategoryId = 21 }
                     }
                 };
 
@@ -1333,8 +1947,146 @@ namespace AuditCkDayo.Tests
                 var savedAudit = await context.AuditItems
                     .Include(a => a.Details)
                     .SingleAsync(a => a.Description == "Branch categorized receipt");
-                Assert.Contains(savedAudit.Details, detail => detail.PnlCategoryId == 20 && detail.PnlSection == PnlExpenseSection.COGS && detail.PnlCategoryName == "Beers");
-                Assert.Contains(savedAudit.Details, detail => detail.PnlCategoryId == 21 && detail.PnlSection == PnlExpenseSection.OPEX && detail.PnlCategoryName == "LPG");
+                Assert.Equal(AuditStatus.AwaitingManagerApproval, savedAudit.Status);
+                Assert.Equal(2, savedAudit.AssignedReviewerId);
+                Assert.All(savedAudit.Details, detail => Assert.Null(detail.PnlCategoryId));
+
+                var branchVerifyController = CreateController(context, 8, "BranchStaff");
+                var branchVerifyResult = await branchVerifyController.BranchVerifyList();
+                var branchVerifyView = Assert.IsType<ViewResult>(branchVerifyResult);
+                var branchVerifyItems = Assert.IsAssignableFrom<IEnumerable<AuditItem>>(branchVerifyView.Model);
+                Assert.Empty(branchVerifyItems);
+
+                var managerController = CreateController(context, 2, "Manager");
+                var editModel = new AuditSubmissionViewModel
+                {
+                    EstablishmentId = 1,
+                    CombinedDestinationId = "branch-1",
+                    Amount = 180m,
+                    Description = "Branch categorized receipt",
+                    EntryDate = DateTime.Today,
+                    ReceiptImageUrl = "/Audits/Receipt/pnl-receipt.png",
+                    ReceiptImageUrls = new List<string> { "/Audits/Receipt/pnl-receipt.png" },
+                    Items = new List<OcrItemResult>
+                    {
+                        new OcrItemResult { Name = "San Mig", Quantity = 1, Price = 80m, Total = 80m, CombinedDestinationId = "branch-1", PnlCategoryId = 20 },
+                        new OcrItemResult { Name = "Gas", Quantity = 1, Price = 100m, Total = 100m, CombinedDestinationId = "branch-1", PnlCategoryId = 21 }
+                    }
+                };
+
+                var editResult = await managerController.Edit(savedAudit.Id, editModel);
+                Assert.IsType<RedirectToActionResult>(editResult);
+
+                var categorizedAudit = await context.AuditItems
+                    .Include(a => a.Details)
+                    .SingleAsync(a => a.Description == "Branch categorized receipt");
+                Assert.Contains(categorizedAudit.Details, detail => detail.PnlCategoryId == 20 && detail.PnlSection == PnlExpenseSection.COGS && detail.PnlCategoryName == "Beers");
+                Assert.Contains(categorizedAudit.Details, detail => detail.PnlCategoryId == 21 && detail.PnlSection == PnlExpenseSection.OPEX && detail.PnlCategoryName == "LPG");
+            }
+        }
+
+        [Fact]
+        public async Task Index_BranchStaffDashboardKeepsEstablishmentPcfValues()
+        {
+            using (var context = new AuditDbContext(_options))
+            {
+                await SeedDataAsync(context);
+                var establishment = await context.Establishments.SingleAsync(e => e.Id == 1);
+                establishment.PcfBalance = 250m;
+                establishment.DailyStartingFloat = 500m;
+                await context.SaveChangesAsync();
+
+                var homeController = new HomeController(NullLogger<HomeController>.Instance, context)
+                {
+                    ControllerContext = CreateController(context, 5, "BranchStaff").ControllerContext
+                };
+
+                var result = await homeController.Index(new DashboardViewModel());
+
+                Assert.IsType<ViewResult>(result);
+                Assert.Null(homeController.ViewBag.DisplayStartingPcf);
+                Assert.Null(homeController.ViewBag.DisplayCurrentPcf);
+                Assert.False((bool)homeController.ViewBag.UseManagerDashboardPcf);
+            }
+        }
+
+        [Fact]
+        public async Task Index_ManagerDashboardUsesStoredStartingPcf()
+        {
+            using (var context = new AuditDbContext(_options))
+            {
+                await SeedDataAsync(context);
+                var manager = await context.Users.SingleAsync(u => u.Id == 2);
+                manager.PcfBalance = 1000m;
+                manager.DailyStartingFloat = 500m;
+                context.PettyCashLedgers.Add(new PettyCashLedger
+                {
+                    UserId = 2,
+                    TransactionType = LedgerTransactionType.VaultFunding,
+                    Amount = 1000m,
+                    ResultingBalance = 1000m,
+                    Timestamp = DateTime.Today.AddHours(9),
+                    Notes = "New manager PCF today"
+                });
+                await context.SaveChangesAsync();
+
+                var homeController = new HomeController(NullLogger<HomeController>.Instance, context)
+                {
+                    ControllerContext = CreateController(context, 2, "Manager").ControllerContext
+                };
+
+                var result = await homeController.Index(new DashboardViewModel());
+
+                Assert.IsType<ViewResult>(result);
+                Assert.Equal(500m, (decimal)homeController.ViewBag.DisplayStartingPcf);
+                Assert.Equal(1000m, (decimal)homeController.ViewBag.DisplayCurrentPcf);
+                Assert.Equal(1000m, (decimal)homeController.ViewBag.ManagerPcfReceivedToday);
+                Assert.Equal(0m, (decimal)homeController.ViewBag.ManagerPcfGivenOutToday);
+            }
+        }
+
+        [Fact]
+        public async Task Index_ManagerRole_DoesNotRecalculateOpeningPcfBelowStoredStartingFloat()
+        {
+            using (var context = new AuditDbContext(_options))
+            {
+                await SeedDataAsync(context);
+                var manager = await context.Users.SingleAsync(u => u.Id == 2);
+                manager.PcfBalance = 0m;
+                manager.DailyStartingFloat = 0m;
+                context.PettyCashLedgers.AddRange(
+                    new PettyCashLedger
+                    {
+                        UserId = 2,
+                        TransactionType = LedgerTransactionType.VaultFunding,
+                        Amount = 1000m,
+                        ResultingBalance = 1000m,
+                        Timestamp = DateTime.Today.AddHours(9),
+                        Notes = "Received today"
+                    },
+                    new PettyCashLedger
+                    {
+                        UserId = 2,
+                        TransactionType = LedgerTransactionType.ExpenseDeduction,
+                        Amount = -700m,
+                        ResultingBalance = 300m,
+                        Timestamp = DateTime.Today.AddHours(10),
+                        Notes = "Used today"
+                    });
+                await context.SaveChangesAsync();
+
+                var homeController = new HomeController(NullLogger<HomeController>.Instance, context)
+                {
+                    ControllerContext = CreateController(context, 2, "Manager").ControllerContext
+                };
+
+                var result = await homeController.Index(new DashboardViewModel());
+
+                Assert.IsType<ViewResult>(result);
+                Assert.Equal(0m, (decimal)homeController.ViewBag.DisplayStartingPcf);
+                Assert.Equal(0m, (decimal)homeController.ViewBag.DisplayCurrentPcf);
+                Assert.Equal(1000m, (decimal)homeController.ViewBag.ManagerPcfReceivedToday);
+                Assert.Equal(700m, (decimal)homeController.ViewBag.ManagerPcfGivenOutToday);
             }
         }
 
@@ -1507,6 +2259,25 @@ namespace AuditCkDayo.Tests
         }
 
         [Fact]
+        public void TreasuryEditEntry_ViewContainsUnconfirmSalesReportForm()
+        {
+            var viewPath = Path.GetFullPath(Path.Combine(
+                AppContext.BaseDirectory,
+                "..", "..", "..", "..",
+                "AuditCkDayo",
+                "Views",
+                "Treasury",
+                "EditEntry.cshtml"));
+
+            var view = File.ReadAllText(viewPath);
+
+            Assert.Contains("CanUnconfirmSalesReport", view);
+            Assert.Contains("UnconfirmSalesReport", view);
+            Assert.Contains("Unconfirm Sales Report", view);
+            Assert.Contains("This will remove the sales cash-in from Treasury", view);
+        }
+
+        [Fact]
         public void BranchVerifyList_ViewContainsFullAuditModalControls()
         {
             var viewPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AuditCkDayo", "Views", "Audits", "BranchVerifyList.cshtml"));
@@ -1550,25 +2321,82 @@ namespace AuditCkDayo.Tests
             Assert.Contains("block lg:table-row-group", view);
         }
 
+
         [Fact]
-        public void Review_ViewLimitsPnlCategoriesToBranchStaffAndShowsLineDestinationsForOthers()
+        public void Reports_ViewUsesSpreadsheetStyleBuyerExpenseDates()
+        {
+            var viewPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AuditCkDayo", "Views", "Reports", "Index.cshtml"));
+            var view = File.ReadAllText(viewPath);
+
+            Assert.Contains("previousExpenseDate", view);
+            Assert.Contains("currentExpenseDate", view);
+            Assert.Contains("currentExpenseDate == previousExpenseDate ? string.Empty", view);
+            Assert.Contains("<th class=\"px-4 py-2.5 bg-surface-container-low\">Allocation</th>", view);
+        }
+
+        [Fact]
+        public void Review_ViewLetsBranchStaffSetDestinationsAndManagersSetPnlCategories()
         {
             var viewPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AuditCkDayo", "Views", "Audits", "Review.cshtml"));
             var view = File.ReadAllText(viewPath);
             var lineItemsStart = view.IndexOf("Extracted Line Items", StringComparison.Ordinal);
             var lineItemsEnd = view.IndexOf("Submit / Batch Buttons", lineItemsStart, StringComparison.Ordinal);
-            Assert.Contains("var isBranchStaff = User.IsInRole(\"BranchStaff\")", view);
+            Assert.Contains("var canSetPnlCategories = User.IsInRole(\"Owner\") || User.IsInRole(\"Manager\") || User.IsInRole(\"Admin\")", view);
             var lineItemsMarkup = view.Substring(lineItemsStart, lineItemsEnd - lineItemsStart);
 
-            Assert.Contains("@if (isBranchStaff)", lineItemsMarkup);
+            Assert.Contains("@if (canSetPnlCategories)", lineItemsMarkup);
             Assert.Contains("Items[i].PnlCategoryId", lineItemsMarkup);
             Assert.Contains("ViewBag.PnlCategories", view);
             Assert.Contains("Items[i].CombinedDestinationId", lineItemsMarkup);
             Assert.Contains("ViewBag.LineDestinations", view);
+            Assert.Contains("Items[i].ExpenseSourceId", lineItemsMarkup);
+            Assert.Contains("Items[i].ExpenseSourceName", lineItemsMarkup);
+            Assert.Contains("ViewBag.ExpenseSources", view);
+            Assert.Contains("expense-source-select-template", view);
+            Assert.Contains("expense-source-name-input\" placeholder=\"Type source if not listed...\" disabled", lineItemsMarkup);
+            Assert.Contains("function updateExpenseSourceNameVisibility", view);
+            Assert.Contains("sourceSelect.value === '-1'", view);
+            var controllerPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AuditCkDayo", "Controllers", "AuditsController.cs"));
+            var controller = File.ReadAllText(controllerPath);
+            Assert.Contains("Value = \"-1\", Text = \"Others\"", controller);
+            Assert.Contains("item.Value.StartsWith(\"branch-\") || item.Value == \"others\"", controller);
             Assert.Contains("syncLineDestinationsWithMain", view);
             Assert.Contains("pnl-category-select-template", view);
             Assert.Contains("data-follows-main-allocation", view);
             Assert.Contains("select.dataset.followsMainAllocation !== 'false'", view);
+        }
+
+        [Fact]
+        public void Review_ViewRestrictsSourceColumnToBuyersAndAuditors()
+        {
+            var viewPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AuditCkDayo", "Views", "Audits", "Review.cshtml"));
+            var view = File.ReadAllText(viewPath);
+            var lineItemsStart = view.IndexOf("Extracted Line Items", StringComparison.Ordinal);
+            var lineItemsEnd = view.IndexOf("Submit / Batch Buttons", lineItemsStart, StringComparison.Ordinal);
+            var lineItemsMarkup = view.Substring(lineItemsStart, lineItemsEnd - lineItemsStart);
+
+            Assert.Contains("var canSetExpenseSources = User.IsInRole(\"Buyer\") || User.IsInRole(\"Auditor\")", view);
+            Assert.Contains("@if (canSetExpenseSources)", lineItemsMarkup);
+            Assert.Contains("Store / Source", lineItemsMarkup);
+            Assert.Contains("Items[i].ExpenseSourceId", lineItemsMarkup);
+            Assert.Contains("Items[i].ExpenseSourceName", lineItemsMarkup);
+        }
+
+
+        [Fact]
+        public void Review_ViewShowsPerLineCustomAllocationInputForOthers()
+        {
+            var viewPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AuditCkDayo", "Views", "Audits", "Review.cshtml"));
+            var view = File.ReadAllText(viewPath);
+            var lineItemsStart = view.IndexOf("Extracted Line Items", StringComparison.Ordinal);
+            var lineItemsEnd = view.IndexOf("Submit / Batch Buttons", lineItemsStart, StringComparison.Ordinal);
+            var lineItemsMarkup = view.Substring(lineItemsStart, lineItemsEnd - lineItemsStart);
+
+            Assert.Contains("Items[i].AllocationNotes", lineItemsMarkup);
+            Assert.Contains("line-allocation-notes-input", lineItemsMarkup);
+            Assert.Contains("updateLineAllocationNotesVisibility", view);
+            Assert.Contains("Items_${idx}__AllocationNotes", view);
+            Assert.Contains("Specify custom allocation for this line", view);
         }
 
         [Fact]
@@ -1729,6 +2557,76 @@ namespace AuditCkDayo.Tests
         }
 
         [Fact]
+        public async Task ActionSurrender_BranchStaffSurrenderResetsSharedStartingFloatToRemainingBalance()
+        {
+            using (var context = new AuditDbContext(_options))
+            {
+                await SeedDataAsync(context);
+                var branchStaff = await context.Users.SingleAsync(u => u.Id == 5);
+                branchStaff.ManagerId = 2;
+                var establishment = await context.Establishments.SingleAsync(e => e.Id == 1);
+                establishment.PcfBalance = 19306m;
+                establishment.DailyStartingFloat = 30000m;
+                context.SurrenderRequests.Add(new SurrenderRequest
+                {
+                    BuyerId = 5,
+                    AssignedReceiverId = 2,
+                    DeclaredAmount = 9306m,
+                    Status = SurrenderStatus.Pending,
+                    RequestDate = DateTime.UtcNow
+                });
+                await context.SaveChangesAsync();
+
+                var controller = CreateController(context, 2, "Manager");
+                var requestId = await context.SurrenderRequests.Select(s => s.Id).SingleAsync();
+
+                var result = await controller.ActionSurrender(requestId, "Confirm", "late expenses surrendered");
+
+                Assert.IsType<RedirectToActionResult>(result);
+                await context.Entry(establishment).ReloadAsync();
+                Assert.Equal(10000m, establishment.PcfBalance);
+                Assert.Equal(10000m, establishment.DailyStartingFloat);
+            }
+        }
+
+        [Fact]
+        public async Task ActionSurrender_DoesNotConfirmWhenSharedFundDroppedBelowPendingAmount()
+        {
+            using (var context = new AuditDbContext(_options))
+            {
+                await SeedDataAsync(context);
+                var branchStaff = await context.Users.SingleAsync(u => u.Id == 5);
+                branchStaff.ManagerId = 2;
+                var establishment = await context.Establishments.SingleAsync(e => e.Id == 1);
+                establishment.PcfBalance = 114m;
+                establishment.DailyStartingFloat = 8114m;
+                context.SurrenderRequests.Add(new SurrenderRequest
+                {
+                    BuyerId = 5,
+                    AssignedReceiverId = 2,
+                    DeclaredAmount = 8000m,
+                    Status = SurrenderStatus.Pending,
+                    RequestDate = DateTime.UtcNow.AddHours(-1)
+                });
+                await context.SaveChangesAsync();
+
+                var controller = CreateController(context, 2, "Manager");
+                var requestId = await context.SurrenderRequests.Select(s => s.Id).SingleAsync();
+
+                var result = await controller.ActionSurrender(requestId, "Confirm", "received late cash");
+
+                Assert.IsType<RedirectToActionResult>(result);
+                var request = await context.SurrenderRequests.SingleAsync();
+                Assert.Equal(SurrenderStatus.Pending, request.Status);
+                await context.Entry(establishment).ReloadAsync();
+                Assert.Equal(114m, establishment.PcfBalance);
+                Assert.Empty(await context.CashFlowEntries.ToListAsync());
+                Assert.Empty(await context.PettyCashLedgers.ToListAsync());
+                Assert.Contains("changed", controller.TempData["Error"]?.ToString());
+            }
+        }
+
+        [Fact]
         public async Task GoogleGeminiOcrService_IntegratesWithRealApiSuccessfully()
         {
             // Load API key from user secrets or environment
@@ -1746,9 +2644,9 @@ namespace AuditCkDayo.Tests
                 }
             }
 
-            if (string.IsNullOrEmpty(apiKey))
+            if (string.IsNullOrWhiteSpace(apiKey) || apiKey == "YOUR_GEMINI_API_KEY" || !apiKey.StartsWith("AIzaSy"))
             {
-                return; // Skip if no API key configured
+                return; // Skip if no real Gemini API key configured
             }
 
             var mockConfig = new MockConfiguration(apiKey);
@@ -2186,18 +3084,19 @@ namespace AuditCkDayo.Tests
             }, new[]
             {
                 new SalesReport { EstablishmentId = 1, Establishment = new Establishment { Id = 1, Name = "MAIN" }, BusinessDate = new DateTime(2026, 5, 1), GrossSales = 35000m, Status = SalesReportStatus.Confirmed },
-                new SalesReport { EstablishmentId = 2, Establishment = new Establishment { Id = 2, Name = "BRANCH 4" }, BusinessDate = new DateTime(2026, 5, 2), GrossSales = 15000m, Status = SalesReportStatus.Confirmed },
+                new SalesReport { EstablishmentId = 2, Establishment = new Establishment { Id = 2, Name = "BRANCH 4" }, BusinessDate = new DateTime(2026, 5, 2), GrossSales = 999999m, OpeningGrossSales = 25921.30m, ClosingGrossSales = 36073.75m, Status = SalesReportStatus.Confirmed },
                 new SalesReport { EstablishmentId = 1, Establishment = new Establishment { Id = 1, Name = "MAIN" }, BusinessDate = new DateTime(2026, 5, 3), GrossSales = 999m, Status = SalesReportStatus.Draft }
             }, new DateTime(2026, 5, 1), new DateTime(2026, 5, 31));
 
-            Assert.Equal(50000m, report.TotalSales);
+            Assert.Equal(96995.05m, report.TotalSales);
             Assert.Equal(400m, report.CogsTotal);
-            Assert.Equal(49600m, report.GrossProfit);
+            Assert.Equal(96595.05m, report.GrossProfit);
             Assert.Equal(1000m, report.OpexTotal);
             Assert.Equal(5000m, report.MonthlyFixedCostTotal);
-            Assert.Equal(43550m, report.NetProfit);
-            Assert.Equal(87.10m, report.NetProfitPercentage);
+            Assert.Equal(90545.05m, report.NetProfit);
+            Assert.Equal(93.35m, report.NetProfitPercentage);
             Assert.Contains(report.Categories, category => category.Section == PnlExpenseSection.COGS && category.CategoryName == "Beer" && category.Amount == 200m);
+            Assert.Contains(report.Branches, branch => branch.BranchName == "BRANCH 4" && branch.Sales == 61995.05m);
         }
 
         [Fact]
@@ -2446,7 +3345,6 @@ namespace AuditCkDayo.Tests
                 TempData = new TempDataDictionary(httpContext, new FakeTempDataProvider())
             };
         }
-
         [Fact]
         public void Index_LoadsSelectedDayEntriesAndReturnsRecomputedTotals()
         {
@@ -2742,6 +3640,57 @@ namespace AuditCkDayo.Tests
         }
 
         [Fact]
+        public async Task CloseTreasury_UpdatesNextDraftFlowStartingBalanceAndTotals()
+        {
+            var closingDate = new DateTime(2026, 8, 30);
+            var nextDate = new DateTime(2026, 8, 31);
+
+            using (var context = new AuditDbContext(_options))
+            {
+                var user = new User { Name = "Treasury Owner", Email = "close-forward-sync@test.com", PasswordHash = "hash", Role = UserRole.Owner, IsTreasury = true };
+                context.Users.Add(user);
+                context.SaveChanges();
+
+                var flow = new TreasuryCashFlow
+                {
+                    TreasuryUserId = user.Id,
+                    CashFlowDate = closingDate,
+                    StartingBalance = 1000m,
+                    Status = TreasuryCashFlowStatus.Open
+                };
+                flow.Entries.Add(new CashFlowEntry { Direction = CashFlowDirection.In, Category = CashFlowCategory.Sales, Amount = 500m, CreatedByUserId = user.Id, ConfirmedByUserId = user.Id });
+                flow.Entries.Add(new CashFlowEntry { Direction = CashFlowDirection.Out, Category = CashFlowCategory.Expense, Amount = 200m, CreatedByUserId = user.Id, ConfirmedByUserId = user.Id });
+
+                var staleNextFlow = new TreasuryCashFlow
+                {
+                    TreasuryUserId = user.Id,
+                    CashFlowDate = nextDate,
+                    StartingBalance = 400m,
+                    Status = TreasuryCashFlowStatus.Draft
+                };
+                staleNextFlow.Entries.Add(new CashFlowEntry { Direction = CashFlowDirection.Out, Category = CashFlowCategory.Others, Amount = 100m, CreatedByUserId = user.Id, ConfirmedByUserId = user.Id });
+
+                context.TreasuryCashFlows.AddRange(flow, staleNextFlow);
+                context.SaveChanges();
+            }
+
+            using (var context = new AuditDbContext(_options))
+            {
+                var controller = CreateController(context);
+                var result = await controller.CloseTreasury(closingDate);
+
+                Assert.IsType<RedirectToActionResult>(result);
+
+                var nextFlow = context.TreasuryCashFlows
+                    .Include(f => f.Entries)
+                    .Single(f => f.CashFlowDate.Date == nextDate);
+                Assert.Equal(1300m, nextFlow.StartingBalance);
+                Assert.Equal(1300m, nextFlow.NetCashFlow);
+                Assert.Equal(1200m, nextFlow.ClosingBalance);
+            }
+        }
+
+        [Fact]
         public async Task CloseTreasury_DoesNotCreateFlowAndRedirectsWhenNoneExists()
         {
             using (var context = new AuditDbContext(_options))
@@ -2985,7 +3934,343 @@ namespace AuditCkDayo.Tests
                 Assert.Contains(flows, f => f.TreasuryUserId == 20 && f.TotalCashIn == 200m);
             }
         }
+
+
+        [Fact]
+        public async Task UnconfirmSalesReport_RemovesSalesCashInAndReturnsReportToDraft()
+        {
+            using var context = new AuditDbContext(_options);
+
+            var manager = new User
+            {
+                Id = 1,
+                Name = "Manager Mina",
+                Email = "manager@test.com",
+                PasswordHash = "hash",
+                Role = UserRole.Manager
+            };
+            var branch = new Establishment
+            {
+                Id = 4,
+                Name = "CKR Branch 4",
+                IsOperatingBranch = true,
+                IsActive = true
+            };
+            var document = new DocumentRecord
+            {
+                Id = 292,
+                DocumentType = DocumentType.DailySalesReport,
+                UploadedByUserId = manager.Id,
+                UploadedByUser = manager,
+                UploadedAt = new DateTime(2026, 9, 6, 4, 0, 0, DateTimeKind.Utc),
+                ImageUrl = "/SalesReports/Image/sample.jpg",
+                OcrStatus = OcrStatus.Parsed,
+                ReviewStatus = DocumentReviewStatus.Confirmed,
+                ConfirmedByUserId = manager.Id,
+                ConfirmedAt = new DateTime(2026, 9, 6, 4, 49, 55, DateTimeKind.Utc)
+            };
+            var report = new SalesReport
+            {
+                Id = 279,
+                DocumentRecordId = document.Id,
+                DocumentRecord = document,
+                EstablishmentId = branch.Id,
+                Establishment = branch,
+                BusinessDate = new DateTime(2026, 9, 5),
+                HandoverDate = new DateTime(2026, 9, 6),
+                GrossSales = 23002m,
+                ConfirmedCashToHandover = 23002m,
+                Status = SalesReportStatus.Confirmed,
+                ConfirmedByUserId = manager.Id,
+                ConfirmedAt = new DateTime(2026, 9, 6, 4, 49, 55, DateTimeKind.Utc)
+            };
+            var flow = new TreasuryCashFlow
+            {
+                Id = 63,
+                TreasuryUserId = manager.Id,
+                TreasuryUser = manager,
+                CashFlowDate = new DateTime(2026, 9, 6),
+                StartingBalance = 79811.25m,
+                Status = TreasuryCashFlowStatus.Open
+            };
+            var salesEntry = new CashFlowEntry
+            {
+                Id = 1082,
+                TreasuryCashFlowId = flow.Id,
+                TreasuryCashFlow = flow,
+                Direction = CashFlowDirection.In,
+                Category = CashFlowCategory.Sales,
+                EstablishmentId = branch.Id,
+                Establishment = branch,
+                SourceDocumentId = document.Id,
+                SourceDocument = document,
+                Amount = 23002m,
+                Notes = "Sales handover for 2026-09-05",
+                CreatedByUserId = manager.Id,
+                CreatedByUser = manager,
+                ConfirmedByUserId = manager.Id
+            };
+            var pcfEntry = new CashFlowEntry
+            {
+                Id = 1083,
+                TreasuryCashFlowId = flow.Id,
+                TreasuryCashFlow = flow,
+                Direction = CashFlowDirection.Out,
+                Category = CashFlowCategory.PcfRelease,
+                EstablishmentId = branch.Id,
+                Establishment = branch,
+                Amount = 5000m,
+                Notes = "PCF",
+                CreatedByUserId = manager.Id,
+                CreatedByUser = manager,
+                ConfirmedByUserId = manager.Id
+            };
+
+            flow.Entries.Add(salesEntry);
+            flow.Entries.Add(pcfEntry);
+            flow.RecomputeTotals();
+
+            context.Users.Add(manager);
+            context.Establishments.Add(branch);
+            context.DocumentRecords.Add(document);
+            context.SalesReports.Add(report);
+            context.TreasuryCashFlows.Add(flow);
+            context.CashFlowEntries.AddRange(salesEntry, pcfEntry);
+            await context.SaveChangesAsync();
+
+            var controller = CreateController(context);
+
+            var result = await controller.UnconfirmSalesReport(salesEntry.Id);
+
+            var redirect = Assert.IsType<RedirectToActionResult>(result);
+            Assert.Equal("Index", redirect.ActionName);
+            Assert.Equal(new DateTime(2026, 9, 6), redirect.RouteValues!["date"]);
+
+            Assert.Null(await context.CashFlowEntries.FindAsync(salesEntry.Id));
+            Assert.NotNull(await context.CashFlowEntries.FindAsync(pcfEntry.Id));
+
+            var savedReport = await context.SalesReports.SingleAsync(r => r.Id == report.Id);
+            Assert.Equal(SalesReportStatus.Draft, savedReport.Status);
+            Assert.Null(savedReport.ConfirmedByUserId);
+            Assert.Null(savedReport.ConfirmedAt);
+
+            var savedDocument = await context.DocumentRecords.SingleAsync(d => d.Id == document.Id);
+            Assert.Equal(DocumentReviewStatus.Draft, savedDocument.ReviewStatus);
+            Assert.Null(savedDocument.ConfirmedByUserId);
+            Assert.Null(savedDocument.ConfirmedAt);
+
+            var savedFlow = await context.TreasuryCashFlows
+                .Include(f => f.Entries)
+                .SingleAsync(f => f.Id == flow.Id);
+            Assert.Equal(0m, savedFlow.TotalCashIn);
+            Assert.Equal(5000m, savedFlow.TotalCashOut);
+            Assert.Equal(79811.25m, savedFlow.NetCashFlow);
+            Assert.Equal(74811.25m, savedFlow.ClosingBalance);
+            Assert.Equal("Sales report unconfirmed. Treasury cash-in was removed and the branch can edit the report again.", controller.TempData["Message"]);
+        }
+
+        [Fact]
+        public async Task UnconfirmSalesReport_DoesNotChangeClosedTreasuryFlow()
+        {
+            using var context = new AuditDbContext(_options);
+
+            var manager = new User { Id = 1, Name = "Manager", Email = "manager@test.com", PasswordHash = "hash", Role = UserRole.Manager };
+            var branch = new Establishment { Id = 1, Name = "Branch 1", IsOperatingBranch = true, IsActive = true };
+            var document = new DocumentRecord
+            {
+                Id = 501,
+                DocumentType = DocumentType.DailySalesReport,
+                UploadedByUserId = manager.Id,
+                ImageUrl = "/sales.jpg",
+                OcrStatus = OcrStatus.Parsed,
+                ReviewStatus = DocumentReviewStatus.Confirmed,
+                ConfirmedByUserId = manager.Id,
+                ConfirmedAt = DateTime.UtcNow
+            };
+            var report = new SalesReport
+            {
+                Id = 502,
+                DocumentRecordId = document.Id,
+                EstablishmentId = branch.Id,
+                BusinessDate = new DateTime(2026, 9, 5),
+                HandoverDate = new DateTime(2026, 9, 6),
+                Status = SalesReportStatus.Confirmed,
+                ConfirmedByUserId = manager.Id,
+                ConfirmedAt = DateTime.UtcNow
+            };
+            var flow = new TreasuryCashFlow
+            {
+                Id = 503,
+                TreasuryUserId = manager.Id,
+                CashFlowDate = new DateTime(2026, 9, 6),
+                StartingBalance = 1000m,
+                Status = TreasuryCashFlowStatus.Closed
+            };
+            var entry = new CashFlowEntry
+            {
+                Id = 504,
+                TreasuryCashFlowId = flow.Id,
+                TreasuryCashFlow = flow,
+                Direction = CashFlowDirection.In,
+                Category = CashFlowCategory.Sales,
+                SourceDocumentId = document.Id,
+                SourceDocument = document,
+                Amount = 500m,
+                CreatedByUserId = manager.Id,
+                CreatedByUser = manager
+            };
+
+            flow.Entries.Add(entry);
+            flow.RecomputeTotals();
+            context.Users.Add(manager);
+            context.Establishments.Add(branch);
+            context.DocumentRecords.Add(document);
+            context.SalesReports.Add(report);
+            context.TreasuryCashFlows.Add(flow);
+            context.CashFlowEntries.Add(entry);
+            await context.SaveChangesAsync();
+
+            var controller = CreateController(context);
+
+            var result = await controller.UnconfirmSalesReport(entry.Id);
+
+            var redirect = Assert.IsType<RedirectToActionResult>(result);
+            Assert.Equal("Index", redirect.ActionName);
+            Assert.Equal(new DateTime(2026, 9, 6), redirect.RouteValues!["date"]);
+            Assert.NotNull(await context.CashFlowEntries.FindAsync(entry.Id));
+            Assert.Equal(SalesReportStatus.Confirmed, (await context.SalesReports.FindAsync(report.Id))!.Status);
+            Assert.Equal("This entry belongs to a closed/locked treasury day and cannot be unconfirmed.", controller.TempData["Error"]);
+        }
+
+        [Fact]
+        public async Task UnconfirmSalesReport_DoesNotChangeNonSalesEntry()
+        {
+            using var context = new AuditDbContext(_options);
+
+            var manager = new User { Id = 1, Name = "Manager", Email = "manager@test.com", PasswordHash = "hash", Role = UserRole.Manager };
+            var flow = new TreasuryCashFlow
+            {
+                Id = 601,
+                TreasuryUserId = manager.Id,
+                CashFlowDate = new DateTime(2026, 9, 6),
+                StartingBalance = 1000m,
+                Status = TreasuryCashFlowStatus.Open
+            };
+            var entry = new CashFlowEntry
+            {
+                Id = 602,
+                TreasuryCashFlowId = flow.Id,
+                TreasuryCashFlow = flow,
+                Direction = CashFlowDirection.In,
+                Category = CashFlowCategory.ChangePcf,
+                Amount = 300m,
+                Notes = "Change PCF surrendered",
+                CreatedByUserId = manager.Id,
+                CreatedByUser = manager
+            };
+
+            flow.Entries.Add(entry);
+            flow.RecomputeTotals();
+            context.Users.Add(manager);
+            context.TreasuryCashFlows.Add(flow);
+            context.CashFlowEntries.Add(entry);
+            await context.SaveChangesAsync();
+
+            var controller = CreateController(context);
+
+            var result = await controller.UnconfirmSalesReport(entry.Id);
+
+            var redirect = Assert.IsType<RedirectToActionResult>(result);
+            Assert.Equal("EditEntry", redirect.ActionName);
+            Assert.Equal(entry.Id, redirect.RouteValues!["id"]);
+            Assert.NotNull(await context.CashFlowEntries.FindAsync(entry.Id));
+            Assert.Equal("Only linked sales cash-in entries can be unconfirmed from Treasury.", controller.TempData["Error"]);
+        }
+
+        [Fact]
+        public async Task EditEntry_SetsCanUnconfirmSalesReportForConfirmedSalesCashIn()
+        {
+            using var context = new AuditDbContext(_options);
+
+            var manager = new User { Id = 1, Name = "Manager", Email = "manager@test.com", PasswordHash = "hash", Role = UserRole.Manager };
+            var branch = new Establishment { Id = 1, Name = "Branch 1", IsOperatingBranch = true, IsActive = true };
+            var document = new DocumentRecord
+            {
+                Id = 701,
+                DocumentType = DocumentType.DailySalesReport,
+                UploadedByUserId = manager.Id,
+                ImageUrl = "/sales.jpg",
+                OcrStatus = OcrStatus.Parsed,
+                ReviewStatus = DocumentReviewStatus.Confirmed
+            };
+            var report = new SalesReport
+            {
+                Id = 702,
+                DocumentRecordId = document.Id,
+                EstablishmentId = 1,
+                BusinessDate = new DateTime(2026, 9, 5),
+                HandoverDate = new DateTime(2026, 9, 6),
+                Status = SalesReportStatus.Confirmed
+            };
+            var flow = new TreasuryCashFlow
+            {
+                Id = 703,
+                TreasuryUserId = manager.Id,
+                CashFlowDate = new DateTime(2026, 9, 6),
+                StartingBalance = 1000m,
+                Status = TreasuryCashFlowStatus.Open
+            };
+            var entry = new CashFlowEntry
+            {
+                Id = 704,
+                TreasuryCashFlowId = flow.Id,
+                TreasuryCashFlow = flow,
+                Direction = CashFlowDirection.In,
+                Category = CashFlowCategory.Sales,
+                SourceDocumentId = document.Id,
+                SourceDocument = document,
+                Amount = 500m,
+                CreatedByUserId = manager.Id,
+                CreatedByUser = manager
+            };
+
+            context.Users.Add(manager);
+            context.Establishments.Add(branch);
+            context.DocumentRecords.Add(document);
+            context.SalesReports.Add(report);
+            context.TreasuryCashFlows.Add(flow);
+            context.CashFlowEntries.Add(entry);
+            await context.SaveChangesAsync();
+
+            var controller = CreateController(context);
+
+            var result = await controller.EditEntry(entry.Id);
+
+            Assert.IsType<ViewResult>(result);
+            Assert.True((bool)controller.ViewBag.CanUnconfirmSalesReport);
+            Assert.Equal(report.Id, controller.ViewBag.LinkedSalesReportId);
+        }
+        [Fact]
+        public void PcmToWav_ProducesValid44ByteRiffHeader()
+        {
+            byte[] dummyPcm = new byte[48000]; // 1 second of 24kHz 16-bit mono audio
+            var wav = TreasuryAudioExportService.PcmToWav(dummyPcm, 24000, 1, 16);
+
+            Assert.Equal(dummyPcm.Length + 44, wav.Length);
+            Assert.Equal("RIFF", System.Text.Encoding.ASCII.GetString(wav, 0, 4));
+            Assert.Equal("WAVE", System.Text.Encoding.ASCII.GetString(wav, 8, 4));
+            Assert.Equal("fmt ", System.Text.Encoding.ASCII.GetString(wav, 12, 4));
+            Assert.Equal("data", System.Text.Encoding.ASCII.GetString(wav, 36, 4));
+        }
     }
+
+
+
+
+
+
+
+
     public class PcfReleaseUsabilityTests : IDisposable
     {
         private readonly SqliteConnection _connection;
@@ -3076,6 +4361,15 @@ namespace AuditCkDayo.Tests
                     PasswordHash = "hash",
                     Role = UserRole.BranchStaff,
                     EstablishmentId = 1
+                },
+                new User
+                {
+                    Id = 3,
+                    Name = "Receiving Treasury Manager",
+                    Email = "receiving-treasury-manager@test.com",
+                    PasswordHash = "hash",
+                    Role = UserRole.Manager,
+                    IsTreasury = true
                 },
                 new User
                 {
@@ -3177,6 +4471,81 @@ namespace AuditCkDayo.Tests
             Assert.Equal(2, entry.RelatedUserId);
             Assert.Equal("Branch replenishment", entry.Notes);
             Assert.Equal(1, entry.CreatedByUserId);
+        }
+
+        [Fact]
+        public async Task ReleasePcf_PostToTreasuryUserAlsoAddsReceiverCashInEntry()
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedReleaseLookupsAsync(context);
+            var releaseDate = new DateTime(2026, 8, 15);
+            var controller = CreateController(context, currentUserId: 1);
+
+            await controller.ReleasePcf(new PcfReleaseViewModel
+            {
+                ReleaseDate = releaseDate,
+                Amount = 900m,
+                ReceiverUserId = 3,
+                Purpose = "Manager treasury transfer"
+            });
+
+            var flows = await context.TreasuryCashFlows
+                .Include(f => f.Entries)
+                .AsNoTracking()
+                .Where(f => f.CashFlowDate == releaseDate)
+                .OrderBy(f => f.TreasuryUserId)
+                .ToListAsync();
+
+            var releasingFlow = Assert.Single(flows, f => f.TreasuryUserId == 1);
+            Assert.Equal(0m, releasingFlow.TotalCashIn);
+            Assert.Equal(900m, releasingFlow.TotalCashOut);
+            var releasingEntry = Assert.Single(releasingFlow.Entries);
+            Assert.Equal(CashFlowDirection.Out, releasingEntry.Direction);
+            Assert.Equal(CashFlowCategory.PcfRelease, releasingEntry.Category);
+            Assert.Equal(3, releasingEntry.RelatedUserId);
+            Assert.Equal(1, releasingEntry.CreatedByUserId);
+
+            var receivingFlow = Assert.Single(flows, f => f.TreasuryUserId == 3);
+            Assert.Equal(900m, receivingFlow.TotalCashIn);
+            Assert.Equal(0m, receivingFlow.TotalCashOut);
+            Assert.Equal(900m, receivingFlow.ClosingBalance);
+            var receivingEntry = Assert.Single(receivingFlow.Entries);
+            Assert.Equal(CashFlowDirection.In, receivingEntry.Direction);
+            Assert.Equal(CashFlowCategory.PcfRelease, receivingEntry.Category);
+            Assert.Equal(1, receivingEntry.RelatedUserId);
+            Assert.Equal(1, receivingEntry.CreatedByUserId);
+            Assert.Equal(3, receivingEntry.ConfirmedByUserId);
+            Assert.Equal("Manager treasury transfer", receivingEntry.Notes);
+        }
+
+        [Fact]
+        public async Task ReleasePcf_PostFromTreasuryUserDeductsOwnCurrentAndStartingPcf()
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedReleaseLookupsAsync(context);
+            var releasingTreasury = await context.Users.SingleAsync(u => u.Id == 3);
+            releasingTreasury.PcfBalance = 30000m;
+            releasingTreasury.DailyStartingFloat = 30000m;
+            await context.SaveChangesAsync();
+            var releaseDate = new DateTime(2026, 8, 16);
+            var controller = CreateController(context, currentUserId: 3);
+
+            await controller.ReleasePcf(new PcfReleaseViewModel
+            {
+                ReleaseDate = releaseDate,
+                Amount = 8000m,
+                ReceiverUserId = 2,
+                EstablishmentId = 1,
+                Purpose = "Chelsea cash out"
+            });
+
+            var savedTreasury = await context.Users.AsNoTracking().SingleAsync(u => u.Id == 3);
+            Assert.Equal(22000m, savedTreasury.PcfBalance);
+            Assert.Equal(22000m, savedTreasury.DailyStartingFloat);
+            var releaserLedger = await context.PettyCashLedgers.AsNoTracking().SingleAsync(l => l.UserId == 3 && l.Amount < 0m);
+            Assert.Equal(LedgerTransactionType.ExpenseDeduction, releaserLedger.TransactionType);
+            Assert.Equal(-8000m, releaserLedger.Amount);
+            Assert.Equal(22000m, releaserLedger.ResultingBalance);
         }
 
         [Fact]
@@ -3713,7 +5082,7 @@ namespace AuditCkDayo.Tests
             _connection.Dispose();
         }
 
-        private static SalesReportsController CreateController(AuditDbContext context, int currentUserId = 1, string currentUserRole = "Owner")
+        private static SalesReportsController CreateController(AuditDbContext context, int currentUserId = 1, string currentUserRole = "Owner", IOcrService? ocrService = null, CoverageService? coverageService = null)
         {
             var claims = new List<Claim>
             {
@@ -3726,7 +5095,7 @@ namespace AuditCkDayo.Tests
                 User = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"))
             };
 
-            return new SalesReportsController(context, new FakeOcrService())
+            return new SalesReportsController(context, ocrService ?? new FakeOcrService(), coverageService)
             {
                 ControllerContext = new ControllerContext
                 {
@@ -3864,7 +5233,7 @@ namespace AuditCkDayo.Tests
         }
 
         [Fact]
-        public void SalesReportReview_ShowsUploadMetadataAsEditableFields()
+        public void SalesReportReview_ShowsUploadMetadataAndReadOnlyInputter()
         {
             var viewPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AuditCkDayo", "Views", "SalesReports", "Review.cshtml"));
             var view = File.ReadAllText(viewPath);
@@ -3873,11 +5242,168 @@ namespace AuditCkDayo.Tests
             Assert.Contains("<select asp-for=\"EstablishmentId\"", view);
             Assert.Contains("<input asp-for=\"BusinessDate\"", view);
             Assert.Contains("<input asp-for=\"HandoverDate\"", view);
-            Assert.Contains("<input asp-for=\"CashierName\"", view);
+            Assert.Contains("Inputted By", view);
+            Assert.Contains("@Model.ClosingInputtedByName", view);
+            Assert.DoesNotContain("<input asp-for=\"CashierName\"", view);
             Assert.DoesNotContain("type=\"hidden\" asp-for=\"EstablishmentId\"", view);
             Assert.DoesNotContain("type=\"hidden\" asp-for=\"BusinessDate\"", view);
             Assert.DoesNotContain("type=\"hidden\" asp-for=\"HandoverDate\"", view);
             Assert.DoesNotContain("type=\"hidden\" asp-for=\"CashierName\"", view);
+        }
+
+        [Fact]
+        public void SalesReportUpload_DoesNotSubmitRemovedCashierFieldOrMentionOcr()
+        {
+            var viewPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AuditCkDayo", "Views", "SalesReports", "Upload.cshtml"));
+            var view = File.ReadAllText(viewPath);
+
+            Assert.DoesNotContain("document.getElementById('cashierName')", view);
+            Assert.DoesNotContain("formData.append('cashierName'", view);
+            Assert.DoesNotContain("Processing OCR", view);
+            Assert.Contains("Uploading log book", view);
+        }
+
+        [Fact]
+        public void SalesReportManagerReview_ShowsOpeningAndClosingInputterNames()
+        {
+            var viewPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AuditCkDayo", "Views", "SalesReports", "ReviewManager.cshtml"));
+            var view = File.ReadAllText(viewPath);
+
+            Assert.Contains("Opening Inputted By", view);
+            Assert.Contains("@Model.OpeningInputtedByName", view);
+            Assert.Contains("Closing Inputted By", view);
+            Assert.Contains("@Model.ClosingInputtedByName", view);
+        }
+
+
+        [Fact]
+        public void SalesReportLists_RenderInputterSummaryInsteadOfLegacyCashierName()
+        {
+            var indexPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AuditCkDayo", "Views", "SalesReports", "Index.cshtml"));
+            var homePath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AuditCkDayo", "Views", "Home", "Index.cshtml"));
+            var indexView = File.ReadAllText(indexPath);
+            var homeView = File.ReadAllText(homePath);
+
+            Assert.Contains("report.InputtedBySummary", indexView);
+            Assert.Contains("report.InputtedBySummary", homeView);
+            Assert.DoesNotContain("string.IsNullOrWhiteSpace(report.CashierName) ? \"—\" : report.CashierName", indexView);
+            Assert.DoesNotContain("string.IsNullOrWhiteSpace(report.CashierName) ? \"—\" : report.CashierName", homeView);
+        }
+        [Fact]
+        public void SalesReportExports_RenderSectionOnlySalesTotals()
+        {
+            var reviewPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AuditCkDayo", "Views", "SalesReports", "Review.cshtml"));
+            var managerReviewPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AuditCkDayo", "Views", "SalesReports", "ReviewManager.cshtml"));
+
+            foreach (var viewPath in new[] { reviewPath, managerReviewPath })
+            {
+                var view = File.ReadAllText(viewPath);
+                var exportStart = view.IndexOf("function exportReportAsImage(section)", StringComparison.Ordinal);
+                var captureStart = view.IndexOf("document.body.appendChild(reportContainer);", exportStart, StringComparison.Ordinal);
+
+                Assert.True(exportStart >= 0, $"Export function was not found in {viewPath}.");
+                Assert.True(captureStart > exportStart, $"Export markup body was not found in {viewPath}.");
+
+                var exportMarkup = view.Substring(exportStart, captureStart - exportStart);
+                Assert.Contains("const combinedGross = \"@Model.CombinedGrossSales.ToString(\"N2\")\";", exportMarkup);
+                Assert.Contains("Total Gross Sales (Opening + Closing)", exportMarkup);
+                Assert.Contains("₱ ${isOpening ? grossVal : combinedGross}", exportMarkup);
+                Assert.Contains("${isOpening ? 'Opening' : 'Closing'} Gross Sales", exportMarkup);
+                Assert.Contains("₱ ${grossVal}", exportMarkup);
+                Assert.DoesNotContain("CombinedGrossSales</span>", exportMarkup);
+            }
+        }
+
+        [Fact]
+        public void OpeningReview_ShowsExportReportImageButton()
+        {
+            var viewPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AuditCkDayo", "Views", "SalesReports", "OpeningReview.cshtml"));
+            var view = File.ReadAllText(viewPath);
+
+            Assert.Contains("Export Report Image", view);
+            Assert.Contains("Export Opening Sales", view);
+            Assert.Contains("function exportReportAsImage(section)", view);
+            Assert.Contains("OpeningGCashLines", view);
+            Assert.Contains("renderDetailedLines('G-Cash Sales', gcashItems, gcashVal)", view);
+        }
+
+        [Fact]
+        public void ClosingReconciliation_ShowsHardSalesBetweenBeverageAndOtherSales()
+        {
+            var reviewPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AuditCkDayo", "Views", "SalesReports", "Review.cshtml"));
+            var managerReviewPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AuditCkDayo", "Views", "SalesReports", "ReviewManager.cshtml"));
+
+            foreach (var viewPath in new[] { reviewPath, managerReviewPath })
+            {
+                var view = File.ReadAllText(viewPath);
+                var beverageIndex = view.IndexOf("Beverage Sales", StringComparison.Ordinal);
+                if (beverageIndex < 0)
+                {
+                    beverageIndex = view.IndexOf("Beverages Sales", StringComparison.Ordinal);
+                }
+                var hardIndex = view.IndexOf("Hard Sales", StringComparison.Ordinal);
+                var otherIndex = view.IndexOf("Other Sales", StringComparison.Ordinal);
+
+                Assert.True(beverageIndex >= 0, $"Beverage/Beverages Sales was not found in {viewPath}.");
+                Assert.True(hardIndex > beverageIndex, $"Hard Sales should appear after Beverage/Beverages Sales in {viewPath}.");
+                Assert.True(otherIndex > hardIndex, $"Other Sales should appear after Hard Sales in {viewPath}.");
+            }
+        }
+
+        [Fact]
+        public void SalesReportExports_RenderHardAndOtherSalesTotals()
+        {
+            var reviewPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AuditCkDayo", "Views", "SalesReports", "Review.cshtml"));
+            var managerReviewPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AuditCkDayo", "Views", "SalesReports", "ReviewManager.cshtml"));
+
+            foreach (var viewPath in new[] { reviewPath, managerReviewPath })
+            {
+                var view = File.ReadAllText(viewPath);
+                var exportStart = view.IndexOf("function exportReportAsImage(section)", StringComparison.Ordinal);
+                var captureStart = view.IndexOf("document.body.appendChild(reportContainer);", exportStart, StringComparison.Ordinal);
+
+                Assert.True(exportStart >= 0, $"Export function was not found in {viewPath}.");
+                Assert.True(captureStart > exportStart, $"Export markup body was not found in {viewPath}.");
+
+                var exportMarkup = view.Substring(exportStart, captureStart - exportStart);
+                Assert.Contains("const hardVal = isOpening ? \"@Model.OpeningHardSales.ToString(\"N2\")\" : \"@Model.HardSales.ToString(\"N2\")\";", exportMarkup);
+                Assert.Contains("<span>Hard Sales</span>", exportMarkup);
+                Assert.Contains("₱ ${hardVal}", exportMarkup);
+                Assert.Contains("<span>Other Sales</span>", exportMarkup);
+                Assert.Contains("₱ ${otherVal}", exportMarkup);
+            }
+        }
+
+        [Fact]
+        public void SalesReportHardSalesTotals_UseOpeningPlusClosingHardSales()
+        {
+            var viewModel = new SalesReportReviewViewModel
+            {
+                OpeningHardSales = 100.25m,
+                HardSales = 200.75m
+            };
+
+            Assert.Equal(301.00m, viewModel.CombinedHardSales);
+        }
+
+        [Fact]
+        public void SalesReportGrossTotals_UseOpeningPlusClosingGrossSales()
+        {
+            var viewModel = new SalesReportReviewViewModel
+            {
+                GrossSales = 61995.05m,
+                OpeningGrossSales = 25921.30m,
+                ClosingGrossSales = 36073.75m
+            };
+            var report = new SalesReport
+            {
+                GrossSales = 61995.05m,
+                OpeningGrossSales = 25921.30m,
+                ClosingGrossSales = 36073.75m
+            };
+
+            Assert.Equal(61995.05m, viewModel.CombinedGrossSales);
+            Assert.Equal(61995.05m, report.TotalGrossSales);
         }
 
         private static string CreateSalesReportImageFile(string fileName)
@@ -4020,7 +5546,8 @@ namespace AuditCkDayo.Tests
             Assert.Equal(SalesReportStatus.Draft, savedReport.Status);
             Assert.Null(savedReport.ConfirmedByUserId);
             Assert.Null(savedReport.ConfirmedAt);
-            Assert.Equal("Updated Cashier", savedReport.CashierName);
+            Assert.Equal("Initial Cashier", savedReport.CashierName);
+            Assert.Equal(1, savedReport.ClosingInputtedByUserId);
             Assert.Equal(1500m, savedReport.ConfirmedCashToHandover);
 
             var savedDocument = await context.DocumentRecords.AsNoTracking().SingleAsync();
@@ -4041,6 +5568,7 @@ namespace AuditCkDayo.Tests
 
             var model = BuildReviewModel(report, 4788m); // Cash Sales 4788m
             model.ClosingGrossSales = 5773m;
+            model.GrossSales = 999999m;
             model.FoodSales = 5913m;
             model.BeerSales = 795m;
             model.BeverageSales = 100m;
@@ -4079,6 +5607,7 @@ namespace AuditCkDayo.Tests
 
             Assert.Equal(SalesReportStatus.PendingManagerVerification, savedReport.Status);
             Assert.Equal(5773m, savedReport.ClosingGrossSales);
+            Assert.Equal(6273m, savedReport.GrossSales);
             Assert.Equal(5913m, savedReport.FoodSales);
             Assert.Equal(795m, savedReport.BeerSales);
             Assert.Equal(100m, savedReport.BeverageSales);
@@ -4218,6 +5747,113 @@ namespace AuditCkDayo.Tests
         }
 
         [Fact]
+        public async Task Index_ForCoveringManagerIncludesCoveredManagersPendingSalesReports()
+        {
+            using var context = new AuditDbContext(_options);
+            var report = await SeedDraftSalesReportAsync(context);
+
+            var coveredManager = new User
+            {
+                Id = 4,
+                Name = "Covered Manager",
+                Email = "covered-manager@test.com",
+                PasswordHash = "hash",
+                Role = UserRole.Manager
+            };
+            var coveringManager = new User
+            {
+                Id = 5,
+                Name = "Covering Manager",
+                Email = "covering-manager@test.com",
+                PasswordHash = "hash",
+                Role = UserRole.Manager
+            };
+            context.Users.AddRange(coveredManager, coveringManager);
+
+            var staff = await context.Users.FindAsync(2);
+            staff!.ManagerId = coveredManager.Id;
+            report.Status = SalesReportStatus.PendingManagerVerification;
+            report.DocumentRecord.ReviewStatus = DocumentReviewStatus.PendingManagerVerification;
+            context.ManagerCoverages.Add(new ManagerCoverage
+            {
+                CoveredManagerId = coveredManager.Id,
+                CoveringManagerId = coveringManager.Id,
+                StartDate = DateTime.Today,
+                EndDate = DateTime.Today,
+                Scope = CoverageScope.SalesReports,
+                CreatedByUserId = 1,
+                IsActive = true
+            });
+            await context.SaveChangesAsync();
+
+            var controller = CreateController(context, coveringManager.Id, "Manager", coverageService: new CoverageService(context));
+
+            var result = await controller.Index();
+
+            var viewResult = Assert.IsType<ViewResult>(result);
+            var model = Assert.IsAssignableFrom<IEnumerable<SalesReport>>(viewResult.Model);
+            var visibleReport = Assert.Single(model);
+            Assert.Equal(report.Id, visibleReport.Id);
+        }
+
+        [Fact]
+        public async Task Review_ForCoveringManagerAllowsCoveredManagersSalesReportAndPostsToCoveringTreasury()
+        {
+            using var context = new AuditDbContext(_options);
+            var report = await SeedDraftSalesReportAsync(context);
+
+            var coveredManager = new User
+            {
+                Id = 4,
+                Name = "Covered Manager",
+                Email = "covered-manager-review@test.com",
+                PasswordHash = "hash",
+                Role = UserRole.Manager
+            };
+            var coveringManager = new User
+            {
+                Id = 5,
+                Name = "Covering Manager",
+                Email = "covering-manager-review@test.com",
+                PasswordHash = "hash",
+                Role = UserRole.Manager,
+                IsTreasury = true
+            };
+            context.Users.AddRange(coveredManager, coveringManager);
+
+            var staff = await context.Users.FindAsync(2);
+            staff!.ManagerId = coveredManager.Id;
+            report.Status = SalesReportStatus.PendingManagerVerification;
+            report.DocumentRecord.ReviewStatus = DocumentReviewStatus.PendingManagerVerification;
+            context.ManagerCoverages.Add(new ManagerCoverage
+            {
+                CoveredManagerId = coveredManager.Id,
+                CoveringManagerId = coveringManager.Id,
+                StartDate = DateTime.Today,
+                EndDate = DateTime.Today,
+                Scope = CoverageScope.SalesReports,
+                CreatedByUserId = 1,
+                IsActive = true
+            });
+            await context.SaveChangesAsync();
+
+            var controller = CreateController(context, coveringManager.Id, "Manager", coverageService: new CoverageService(context));
+            var model = BuildReviewModel(report, 1500m);
+
+            var getResult = await controller.Review(report.Id);
+            var postResult = await controller.Review(model, "Confirm");
+
+            var redirect = Assert.IsType<RedirectToActionResult>(postResult);
+            Assert.Equal(nameof(SalesReportsController.Review), redirect.ActionName);
+
+            var entry = Assert.Single(await context.CashFlowEntries.AsNoTracking().ToListAsync());
+            var entryFlowTreasuryUserId = await context.TreasuryCashFlows.Where(f => f.Id == entry.TreasuryCashFlowId).Select(f => f.TreasuryUserId).SingleAsync();
+            Assert.Equal(coveringManager.Id, entryFlowTreasuryUserId);
+            Assert.Equal(coveringManager.Id, entry.ConfirmedByUserId);
+            Assert.Equal(1500m, entry.Amount);
+        }
+
+        [Fact]
         public async Task Image_ForBranchStaffOutsideAssignedBranchIsForbidden()
         {
             using var context = new AuditDbContext(_options);
@@ -4342,6 +5978,45 @@ namespace AuditCkDayo.Tests
             await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync());
         }
 
+        [Fact]
+        public void SalesReportBranchReview_UsesClosingLogbookImagesForPreview()
+        {
+            var viewPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AuditCkDayo", "Views", "SalesReports", "Review.cshtml"));
+            var view = File.ReadAllText(viewPath);
+            var previewStart = view.IndexOf("<!-- Left Column: Sales Report Images Preview -->", StringComparison.Ordinal);
+            var formStart = view.IndexOf("<!-- Right Column: Reconciliation Form -->", StringComparison.Ordinal);
+
+            Assert.True(previewStart >= 0);
+            Assert.True(formStart > previewStart);
+            var previewSection = view.Substring(previewStart, formStart - previewStart);
+            Assert.Contains("reviewImageUrls", previewSection);
+            Assert.DoesNotContain("Model.ImageUrls", previewSection);
+        }
+
+        [Fact]
+        public async Task Review_UploadedClosingLogbookImages_AreSavedAsClosingImagesOnly()
+        {
+            using var context = new AuditDbContext(_options);
+            var report = await SeedDraftSalesReportAsync(context);
+            report.ImageUrls = new List<string> { "/SalesReports/Image/opening.jpg" };
+            report.ClosingImageUrls = new List<string> { "/SalesReports/Image/closing-existing.jpg" };
+            await context.SaveChangesAsync();
+            var controller = CreateController(context, 2, "BranchStaff");
+            var model = BuildReviewModel(report, 900m);
+            var uploadedClosingImages = new List<IFormFile> { CreateMockFormFile("closing-new.jpg", "closing") };
+
+            var result = await controller.Review(model, "SaveDraft", uploadedClosingImages);
+
+            var redirect = Assert.IsType<RedirectToActionResult>(result);
+            Assert.Equal(nameof(SalesReportsController.Review), redirect.ActionName);
+            var savedReport = await context.SalesReports.AsNoTracking().SingleAsync();
+            Assert.Single(savedReport.ImageUrls);
+            Assert.Equal("/SalesReports/Image/opening.jpg", savedReport.ImageUrls[0]);
+            Assert.Equal(2, savedReport.ClosingImageUrls.Count);
+            Assert.Equal("/SalesReports/Image/closing-existing.jpg", savedReport.ClosingImageUrls[0]);
+            Assert.Contains(savedReport.ClosingImageUrls, url => url.StartsWith("/SalesReports/Image/", StringComparison.Ordinal) && url.EndsWith(".jpg", StringComparison.Ordinal));
+        }
+
         private static IFormFile CreateMockFormFile(string filename, string content)
         {
             var bytes = System.Text.Encoding.UTF8.GetBytes(content);
@@ -4411,11 +6086,110 @@ namespace AuditCkDayo.Tests
             var report = await context.SalesReports.Include(r => r.DocumentRecord).OrderByDescending(r => r.Id).FirstAsync();
             Assert.Equal(1, report.EstablishmentId);
             Assert.Equal(SalesReportStatus.Draft, report.Status);
-            Assert.Equal("Cashier Main", report.CashierName);
+            Assert.Null(report.CashierName);
+            Assert.Equal(1, report.OpeningInputtedByUserId);
             Assert.NotNull(report.ImageUrls);
             Assert.Equal(2, report.ImageUrls.Count);
             Assert.Contains("/SalesReports/Image/", report.ImageUrls[0]);
             Assert.Contains("/SalesReports/Image/", report.ImageUrls[1]);
+        }
+
+        [Fact]
+        public async Task Upload_OpeningSkipsOcrAndLeavesManualDraft()
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedDraftSalesReportAsync(context);
+            var ocrService = new CountingSalesReportOcrService(new SalesReportOcrResult
+            {
+                GrossSales = 2000m,
+                ConfirmedCashToHandover = 800m,
+                GCashLines =
+                {
+                    new SalesReportOcrPaymentLine { Amount = 100m },
+                    new SalesReportOcrPaymentLine { Amount = 250m }
+                },
+                BankTransferLines =
+                {
+                    new SalesReportOcrPaymentLine { Label = "BDO", Amount = 300m }
+                }
+            });
+            var controller = CreateController(context, ocrService: ocrService);
+            var images = new List<IFormFile> { CreateMockFormFile("opening.jpg", "image") };
+
+            var result = await controller.Upload(1, new DateTime(2026, 8, 10), new DateTime(2026, 8, 11), "Cashier Main", images, reportSection: 1);
+
+            var redirect = Assert.IsType<RedirectToActionResult>(result);
+            Assert.Equal(nameof(SalesReportsController.OpeningReview), redirect.ActionName);
+
+            var report = await context.SalesReports
+                .Include(r => r.Lines)
+                .Include(r => r.DocumentRecord)
+                .OrderByDescending(r => r.Id)
+                .FirstAsync();
+            var openingLines = report.Lines.Where(l => l.Section == SalesReportSection.Opening).ToList();
+
+            Assert.Equal(0, ocrService.ParseSalesReportCallCount);
+            Assert.Equal(OcrStatus.Failed, report.DocumentRecord.OcrStatus);
+            Assert.Empty(openingLines);
+        }
+
+        private sealed class CountingSalesReportOcrService : IOcrService
+        {
+            private readonly SalesReportOcrResult _result;
+            public int ParseSalesReportCallCount { get; private set; }
+
+            public CountingSalesReportOcrService(SalesReportOcrResult result)
+            {
+                _result = result;
+            }
+
+            public Task<OcrResult> ParseReceiptAsync(List<Stream> receiptStreams)
+            {
+                return Task.FromResult(new OcrResult());
+            }
+
+            public Task<SalesReportOcrResult> ParseSalesReportAsync(Stream imageStream)
+            {
+                ParseSalesReportCallCount++;
+                return Task.FromResult(_result);
+            }
+        }
+        [Fact]
+        public async Task OpeningReview_SaveDraft_RecordsLoggedInAccountAsOpeningInputter()
+        {
+            using var context = new AuditDbContext(_options);
+            var report = await SeedDraftSalesReportAsync(context);
+            var controller = CreateController(context, currentUserId: 2, currentUserRole: "BranchStaff");
+            var model = BuildReviewModel(report, 900m);
+            model.OpeningGrossSales = 1000m;
+            model.OpeningCashSales = 900m;
+
+            var result = await controller.OpeningReview(model, "SaveDraft");
+
+            var redirect = Assert.IsType<RedirectToActionResult>(result);
+            Assert.Equal(nameof(SalesReportsController.OpeningReview), redirect.ActionName);
+            var savedReport = await context.SalesReports.Include(r => r.OpeningInputtedByUser).AsNoTracking().SingleAsync(r => r.Id == report.Id);
+            Assert.Equal(2, savedReport.OpeningInputtedByUserId);
+            Assert.Equal("Branch Staff", savedReport.OpeningInputtedByUser!.Name);
+            Assert.NotEqual("Updated Cashier", savedReport.CashierName);
+        }
+
+        [Fact]
+        public async Task Review_SaveDraft_RecordsLoggedInAccountAsClosingInputter()
+        {
+            using var context = new AuditDbContext(_options);
+            var report = await SeedDraftSalesReportAsync(context);
+            var controller = CreateController(context, currentUserId: 2, currentUserRole: "BranchStaff");
+            var model = BuildReviewModel(report, 900m);
+
+            var result = await controller.Review(model, "SaveDraft");
+
+            var redirect = Assert.IsType<RedirectToActionResult>(result);
+            Assert.Equal(nameof(SalesReportsController.Review), redirect.ActionName);
+            var savedReport = await context.SalesReports.Include(r => r.ClosingInputtedByUser).AsNoTracking().SingleAsync(r => r.Id == report.Id);
+            Assert.Equal(2, savedReport.ClosingInputtedByUserId);
+            Assert.Equal("Branch Staff", savedReport.ClosingInputtedByUser!.Name);
+            Assert.NotEqual("Updated Cashier", savedReport.CashierName);
         }
     }
 
@@ -4777,7 +6551,7 @@ namespace AuditCkDayo.Tests
                     Amount = 100m,
                     Description = "Old CKR receipt",
                     Status = AuditStatus.Approved,
-                    Details = new List<AuditItemDetail> { new AuditItemDetail { ItemName = "Old line", Quantity = 1, Price = 100m, Total = 100m } }
+                    Details = new List<AuditItemDetail> { new AuditItemDetail { ItemName = "Old line", ExpenseSourceName = "MARKET", Quantity = 1, Price = 100m, Total = 100m } }
                 },
                 new AuditItem
                 {
@@ -4787,7 +6561,7 @@ namespace AuditCkDayo.Tests
                     Amount = 200m,
                     Description = "Split receipt",
                     Status = AuditStatus.Approved,
-                    Details = new List<AuditItemDetail> { new AuditItemDetail { ItemName = "Dayo line", Quantity = 1, Price = 200m, Total = 200m, AssignedEstablishmentId = 2 } }
+                    Details = new List<AuditItemDetail> { new AuditItemDetail { ItemName = "Dayo line", ExpenseSourceName = "CAL MANOK", Quantity = 1, Price = 200m, Total = 200m, AssignedEstablishmentId = 2 } }
                 });
             await context.SaveChangesAsync();
 
@@ -4831,6 +6605,119 @@ namespace AuditCkDayo.Tests
             Assert.Equal(500m, cashOut.Amount);
         }
 
+
+        [Fact]
+        public async Task ExportBuyerAuditExcel_UsesSourcesAllocationsAndDateFilters()
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedReportBaseAsync(context);
+            context.AuditItems.AddRange(
+                new AuditItem
+                {
+                    Id = 31,
+                    BuyerId = 3,
+                    EstablishmentId = 1,
+                    EntryDate = new DateTime(2026, 8, 27),
+                    Amount = 2970m,
+                    Description = "Filtered receipt",
+                    Status = AuditStatus.Approved,
+                    Details = new List<AuditItemDetail>
+                    {
+                        new AuditItemDetail { ItemName = "Fallback item", ExpenseSourceName = "MARKET", Quantity = 1, Price = 2970m, Total = 2970m, AssignedEstablishmentId = 2 },
+                        new AuditItemDetail { ItemName = "CAL MANOK", Quantity = 1, Price = 1050m, Total = 1050m, AssignedEstablishmentId = 2 }
+                    }
+                },
+                new AuditItem
+                {
+                    Id = 32,
+                    BuyerId = 3,
+                    EstablishmentId = 1,
+                    EntryDate = new DateTime(2026, 8, 31),
+                    Amount = 50m,
+                    Description = "Outside date range",
+                    Status = AuditStatus.Approved,
+                    Details = new List<AuditItemDetail>
+                    {
+                        new AuditItemDetail { ItemName = "PARKING", Quantity = 1, Price = 50m, Total = 50m, AssignedEstablishmentId = 1 }
+                    }
+                });
+            await context.SaveChangesAsync();
+
+            var result = await CreateReportsController(context, currentUserId: 3, currentUserRole: "Buyer")
+                .ExportBuyerAuditExcel(new ReportsFilterViewModel { StartDate = new DateTime(2026, 8, 27), EndDate = new DateTime(2026, 8, 27) });
+
+            var file = Assert.IsType<FileContentResult>(result);
+            using var stream = new MemoryStream(file.FileContents);
+            using var workbook = new ClosedXML.Excel.XLWorkbook(stream);
+            var worksheet = workbook.Worksheet("Buyer Audit");
+
+            Assert.Equal("DATE", worksheet.Cell("A1").GetString());
+            Assert.Equal("DESCRIPTION", worksheet.Cell("B1").GetString());
+            Assert.Equal("ITEM", worksheet.Cell("C1").GetString());
+            Assert.Equal("AMOUNT", worksheet.Cell("D1").GetString());
+            Assert.Equal("ALLOCATION", worksheet.Cell("E1").GetString());
+            Assert.Equal("8/27", worksheet.Cell("A2").GetString());
+            Assert.Equal("MARKET", worksheet.Cell("B2").GetString());
+            Assert.Equal("Fallback item", worksheet.Cell("C2").GetString());
+            Assert.Equal(2970m, worksheet.Cell("D2").GetValue<decimal>());
+            Assert.Equal("Dayo", worksheet.Cell("E2").GetString());
+            Assert.Equal("NO RECEIPT", worksheet.Cell("B3").GetString());
+            Assert.Equal("CAL MANOK", worksheet.Cell("C3").GetString());
+            Assert.Equal(1050m, worksheet.Cell("D3").GetValue<decimal>());
+            Assert.Equal("Dayo", worksheet.Cell("E3").GetString());
+            Assert.DoesNotContain("PARKING", worksheet.RowsUsed().SelectMany(row => row.CellsUsed()).Select(cell => cell.GetString()));
+        }
+
+        [Fact]
+        public void ReportsView_ExposesBuyerAuditImageExport()
+        {
+            var viewPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AuditCkDayo", "Views", "Reports", "Index.cshtml"));
+            var view = File.ReadAllText(viewPath);
+
+            Assert.Contains("id=\"export-buyer-audit-image-btn\"", view);
+            Assert.Contains("Export Report Image", view);
+            Assert.Contains("id=\"buyer-audit-export-section\"", view);
+            Assert.Contains("html2canvas(clone", view);
+            Assert.Contains("BuyerAudit_@(buyerAuditImageStart)_@(buyerAuditImageEnd).png", view);
+            Assert.Contains("<th class=\"px-4 py-2.5 bg-surface-container-low\">Item</th>", view);
+            Assert.Contains("@exp.Item", view);
+            Assert.Contains("<th class=\"px-4 py-2.5 bg-surface-container-low\">Allocation</th>", view);
+        }
+
+        [Fact]
+        public async Task ExportBuyerAuditExcel_ManagerIncludesBuyersWithPcfReleases()
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedReportBaseAsync(context);
+            context.Users.Add(new User { Id = 5, Name = "Released Buyer", Email = "released@test.com", PasswordHash = "hash", Role = UserRole.Buyer, ManagerId = null });
+            context.PcfReleases.Add(new PcfRelease { ReceiverUserId = 5, ReleasedByTreasuryUserId = 2, ReleaseDate = new DateTime(2026, 8, 27), Amount = 1000m, Status = PcfReleaseStatus.Released });
+            context.AuditItems.Add(new AuditItem
+            {
+                Id = 33,
+                BuyerId = 5,
+                EstablishmentId = 1,
+                EntryDate = new DateTime(2026, 8, 27),
+                Amount = 125m,
+                Description = "Manager release scoped receipt",
+                Status = AuditStatus.Approved,
+                Details = new List<AuditItemDetail>
+                {
+                    new AuditItemDetail { ItemName = "CAL MANOK", Quantity = 1, Price = 125m, Total = 125m, AssignedEstablishmentId = 1 }
+                }
+            });
+            await context.SaveChangesAsync();
+
+            var result = await CreateReportsController(context, currentUserId: 2, currentUserRole: "Manager")
+                .ExportBuyerAuditExcel(new ReportsFilterViewModel { StartDate = new DateTime(2026, 8, 27), EndDate = new DateTime(2026, 8, 27) });
+
+            var file = Assert.IsType<FileContentResult>(result);
+            using var stream = new MemoryStream(file.FileContents);
+            using var workbook = new ClosedXML.Excel.XLWorkbook(stream);
+            var worksheet = workbook.Worksheet("Buyer Audit");
+            var exportedValues = worksheet.RowsUsed().SelectMany(row => row.CellsUsed()).Select(cell => cell.GetString()).ToList();
+
+            Assert.Contains("NO RECEIPT", exportedValues);
+        }
         [Fact]
         public void ReportsView_RendersAllAuditPacketSectionsWithScrollableTables()
         {
@@ -4843,6 +6730,75 @@ namespace AuditCkDayo.Tests
             Assert.Contains("Cash Out Details", view);
             Assert.Contains("overflow-y: auto; overflow-x: auto;", view);
             Assert.DoesNotContain("Latest 25", view);
+        }
+        [Fact]
+        public async Task Index_PopulatesPcfMatrixWithReleasesAndReconciliation()
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedReportBaseAsync(context);
+
+            var maymay = new User { Id = 20, Name = "MAYMAY", Email = "maymay@test.com", PasswordHash = "hash", Role = UserRole.Manager, IsTreasury = true };
+            var mBarbs = new User { Id = 21, Name = "M. BARBS", Email = "mbarbs@test.com", PasswordHash = "hash", Role = UserRole.Manager, IsTreasury = true };
+            context.Users.AddRange(maymay, mBarbs);
+
+            context.PcfReleases.AddRange(
+                new PcfRelease { ReleaseDate = new DateTime(2026, 8, 27), Amount = 20000m, ReceiverUserId = 3, ReceiverName = "Ate Uya", ReleasedByTreasuryUserId = maymay.Id, Status = PcfReleaseStatus.Released },
+                new PcfRelease { ReleaseDate = new DateTime(2026, 8, 28), Amount = 20000m, ReceiverUserId = 3, ReceiverName = "Ate Uya", ReleasedByTreasuryUserId = maymay.Id, Status = PcfReleaseStatus.Released },
+                new PcfRelease { ReleaseDate = new DateTime(2026, 8, 29), Amount = 30000m, ReceiverUserId = 4, ReceiverName = "Gloria Pron", ReleasedByTreasuryUserId = mBarbs.Id, Status = PcfReleaseStatus.Released }
+            );
+
+            var audit = new AuditItem { BuyerId = 3, EstablishmentId = 2, EntryDate = new DateTime(2026, 8, 27), Amount = 15000m, Status = AuditStatus.Approved };
+            audit.Details.Add(new AuditItemDetail { ItemName = "Item 1", Quantity = 1, Price = 15000m, Total = 15000m });
+            context.AuditItems.Add(audit);
+
+            await context.SaveChangesAsync();
+
+            var controller = CreateReportsController(context);
+            var result = await controller.Index(new ReportsFilterViewModel
+            {
+                StartDate = new DateTime(2026, 8, 26),
+                EndDate = new DateTime(2026, 8, 31)
+            });
+
+            var viewResult = Assert.IsType<ViewResult>(result);
+            var model = Assert.IsType<ReportsViewModel>(viewResult.Model);
+
+            Assert.NotNull(model.PcfMatrix);
+            Assert.Contains("MAYMAY", model.PcfMatrix.Custodians);
+            Assert.Contains("M. BARBS", model.PcfMatrix.Custodians);
+            Assert.Equal(70000m, model.PcfMatrix.TotalPc);
+            Assert.Equal(40000m, model.PcfMatrix.ColumnTotals["MAYMAY"]);
+            Assert.Equal(30000m, model.PcfMatrix.ColumnTotals["M. BARBS"]);
+        }
+
+        [Fact]
+        public async Task ExportPcfMatrixExcel_ReturnsValidExcelFile()
+        {
+            using var context = new AuditDbContext(_options);
+            await SeedReportBaseAsync(context);
+
+            context.PcfReleases.Add(new PcfRelease
+            {
+                ReleaseDate = new DateTime(2026, 8, 27),
+                Amount = 20000m,
+                ReceiverUserId = 3,
+                ReceiverName = "Ate Uya",
+                ReleasedByTreasuryUserId = 2,
+                Status = PcfReleaseStatus.Released
+            });
+            await context.SaveChangesAsync();
+
+            var controller = CreateReportsController(context);
+            var result = await controller.ExportPcfMatrixExcel(new ReportsFilterViewModel
+            {
+                StartDate = new DateTime(2026, 8, 26),
+                EndDate = new DateTime(2026, 8, 31)
+            });
+
+            var file = Assert.IsType<FileContentResult>(result);
+            Assert.Equal("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", file.ContentType);
+            Assert.Contains("PCF_Release_Matrix", file.FileDownloadName);
+            Assert.NotEmpty(file.FileContents);
         }
 
     }
@@ -4918,13 +6874,13 @@ namespace AuditCkDayo.Tests
         }
 
         [Fact]
-        public void ReportsController_AllowsOnlyOwnersAndManagers()
+        public void ReportsController_AllowsOwnersManagersAndAdmins()
         {
             var authorize = Assert.Single(typeof(ReportsController)
                 .GetCustomAttributes(typeof(AuthorizeAttribute), inherit: false)
                 .Cast<AuthorizeAttribute>());
 
-            Assert.Equal("Owner,Manager,Auditor", authorize.Roles);
+            Assert.Equal("Owner,Manager,Admin", authorize.Roles);
         }
     }
 
@@ -5474,6 +7430,231 @@ namespace AuditCkDayo.Tests
 
                 var savedAudit = await context.AuditItems.FindAsync(1);
                 Assert.Equal(AuditStatus.Approved, savedAudit.Status);
+            }
+        }
+    }
+
+    public class TreasuryAudioExportTests : IDisposable
+    {
+        private readonly SqliteConnection _connection;
+        private readonly DbContextOptions<AuditDbContext> _options;
+
+        public TreasuryAudioExportTests()
+        {
+            _connection = new SqliteConnection("Filename=:memory:");
+            _connection.Open();
+            _options = new DbContextOptionsBuilder<AuditDbContext>()
+                .UseSqlite(_connection)
+                .Options;
+
+            using var context = new AuditDbContext(_options);
+            context.Database.EnsureCreated();
+        }
+
+        public void Dispose()
+        {
+            _connection.Dispose();
+        }
+
+        [Fact]
+        public void TreasuryAudioExportService_BuildsSpokenGroupedSummary()
+        {
+            var flow = new TreasuryCashFlow
+            {
+                CashFlowDate = new DateTime(2026, 9, 6),
+                StartingBalance = 1000m,
+                TotalCashIn = 700m,
+                TotalCashOut = 250m,
+                NetCashFlow = 1700m,
+                ClosingBalance = 1450m,
+                Entries =
+                {
+                    new CashFlowEntry { Direction = CashFlowDirection.In, Category = CashFlowCategory.Sales, Amount = 500m },
+                    new CashFlowEntry { Direction = CashFlowDirection.In, Category = CashFlowCategory.ChangePcf, Amount = 200m },
+                    new CashFlowEntry { Direction = CashFlowDirection.Out, Category = CashFlowCategory.PcfRelease, Amount = 250m }
+                }
+            };
+
+            var summary = TreasuryAudioExportService.BuildSpokenSummary(flow);
+
+            Assert.Contains("Treasury cash flow summary for September 06, 2026.", summary);
+            Assert.Contains("Starting balance is 1,000.00 pesos.", summary);
+            Assert.Contains("Cash in by group: Sales 500.00 pesos; Change Pcf 200.00 pesos.", summary);
+            Assert.Contains("Cash out by group: Pcf Release 250.00 pesos.", summary);
+            Assert.DoesNotContain("₱", summary);
+        }
+
+        [Fact]
+        public async Task ExportAudioSummary_ReturnsAudioDownloadForSelectedDay()
+        {
+            using var context = new AuditDbContext(_options);
+            var user = new User { Id = 40, Name = "Treasury", Email = "treasury@test.com", PasswordHash = "hash", Role = UserRole.Manager, IsTreasury = true };
+            context.Users.Add(user);
+            context.TreasuryCashFlows.Add(new TreasuryCashFlow
+            {
+                Id = 80,
+                TreasuryUserId = user.Id,
+                CashFlowDate = new DateTime(2026, 9, 6),
+                StartingBalance = 1000m,
+                Entries =
+                {
+                    new CashFlowEntry { Direction = CashFlowDirection.In, Category = CashFlowCategory.Sales, Amount = 500m, CreatedByUserId = user.Id },
+                    new CashFlowEntry { Direction = CashFlowDirection.Out, Category = CashFlowCategory.Others, Amount = 100m, Notes = "Supplies", CreatedByUserId = user.Id }
+                }
+            });
+            await context.SaveChangesAsync();
+
+            var controller = new TreasuryController(context, audioExport: new FakeTreasuryAudioExportService(new byte[] { 1, 2, 3 }));
+            controller.ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+                    {
+                        new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                        new Claim(ClaimTypes.Role, "Manager")
+                    }, "TestAuth"))
+                }
+            };
+
+            var result = await controller.ExportAudioSummary(new DateTime(2026, 9, 6));
+
+            var file = Assert.IsType<FileContentResult>(result);
+            Assert.Equal("audio/mpeg", file.ContentType);
+            Assert.Equal(new byte[] { 1, 2, 3 }, file.FileContents);
+            Assert.Equal("Treasury_CashFlow_2026-09-06.mp3", file.FileDownloadName);
+        }
+
+        [Fact]
+        public async Task TreasuryAudioExportService_RequestsMessengerFriendlyMp3()
+        {
+            using var handler = new CapturingSpeechHandler(new byte[] { 1, 2, 3 });
+            var client = new HttpClient(handler);
+            var configuration = new ConfigurationBuilder()
+                .AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["GroqSettings:ApiKey"] = "test-key",
+                    ["GroqSettings:SpeechUrl"] = "https://example.test/audio/speech"
+                })
+                .Build();
+            var service = new TreasuryAudioExportService(configuration, new StaticHttpClientFactory(client));
+            var flow = new TreasuryCashFlow
+            {
+                CashFlowDate = new DateTime(2026, 9, 6),
+                StartingBalance = 1000m
+            };
+
+            var audio = await service.GenerateSpeechAsync(flow);
+
+            Assert.Equal(new byte[] { 1, 2, 3 }, audio);
+            Assert.Contains("\"response_format\":\"mp3\"", handler.RequestBody);
+        }
+
+
+        [Fact]
+        public async Task ExportAudioSummary_RedirectsWithErrorWhenSpeechProviderRejectsRequest()
+        {
+            using var context = new AuditDbContext(_options);
+            var user = new User { Id = 41, Name = "Treasury Two", Email = "treasury2@test.com", PasswordHash = "hash", Role = UserRole.Manager, IsTreasury = true };
+            context.Users.Add(user);
+            context.TreasuryCashFlows.Add(new TreasuryCashFlow
+            {
+                Id = 81,
+                TreasuryUserId = user.Id,
+                CashFlowDate = new DateTime(2026, 9, 6),
+                StartingBalance = 1000m,
+                Entries =
+                {
+                    new CashFlowEntry { Direction = CashFlowDirection.In, Category = CashFlowCategory.Sales, Amount = 500m, CreatedByUserId = user.Id }
+                }
+            });
+            await context.SaveChangesAsync();
+
+            var controller = new TreasuryController(context, audioExport: new FailingTreasuryAudioExportService());
+            var httpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+                    new Claim(ClaimTypes.Role, "Manager")
+                }, "TestAuth"))
+            };
+            controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
+            controller.TempData = new TempDataDictionary(httpContext, new FakeTempDataProvider());
+
+            var result = await controller.ExportAudioSummary(new DateTime(2026, 9, 6));
+
+            var redirect = Assert.IsType<RedirectToActionResult>(result);
+            Assert.Equal("Index", redirect.ActionName);
+            Assert.Equal("Audio summary could not be generated. Please check the speech API key/configuration and try again.", controller.TempData["Error"]);
+        }
+
+        [Fact]
+        public void TreasuryIndex_ContainsDownloadAudioSummaryAction()
+        {
+            var viewPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "AuditCkDayo", "Views", "Treasury", "Index.cshtml"));
+            var view = File.ReadAllText(viewPath);
+
+            Assert.Contains("asp-action=\"ExportAudioSummary\"", view);
+            Assert.Contains("Download Audio Summary", view);
+            Assert.Contains("volume_up", view);
+        }
+
+        private sealed class FakeTreasuryAudioExportService : ITreasuryAudioExportService
+        {
+            private readonly byte[] _audio;
+
+            public FakeTreasuryAudioExportService(byte[] audio)
+            {
+                _audio = audio;
+            }
+
+            public Task<byte[]> GenerateSpeechAsync(TreasuryCashFlow flow, CancellationToken cancellationToken = default)
+            {
+                return Task.FromResult(_audio);
+            }
+        }
+
+        private sealed class FailingTreasuryAudioExportService : ITreasuryAudioExportService
+        {
+            public Task<byte[]> GenerateSpeechAsync(TreasuryCashFlow flow, CancellationToken cancellationToken = default)
+            {
+                throw new InvalidOperationException("Invalid API Key");
+            }
+        }
+
+        private sealed class CapturingSpeechHandler : HttpMessageHandler
+        {
+            private readonly byte[] _audio;
+            public string RequestBody { get; private set; } = string.Empty;
+
+            public CapturingSpeechHandler(byte[] audio)
+            {
+                _audio = audio;
+            }
+
+            protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+            {
+                RequestBody = request.Content == null ? string.Empty : await request.Content.ReadAsStringAsync(cancellationToken);
+                return new HttpResponseMessage(System.Net.HttpStatusCode.OK)
+                {
+                    Content = new ByteArrayContent(_audio)
+                };
+            }
+        }
+
+        private sealed class StaticHttpClientFactory : IHttpClientFactory
+        {
+            private readonly HttpClient _client;
+
+            public StaticHttpClientFactory(HttpClient client)
+            {
+                _client = client;
+            }
+
+            public HttpClient CreateClient(string name)
+            {
+                return _client;
             }
         }
     }
