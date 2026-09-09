@@ -102,7 +102,7 @@ namespace AuditCkDayo.Services
                             }
                             if (itemDict.TryGetValue("Quantity", out var qtyField) && qtyField.FieldType == DocumentFieldType.Double)
                             {
-                                ocrItem.Quantity = (int)qtyField.Value.AsDouble();
+                                ocrItem.Quantity = (decimal)qtyField.Value.AsDouble();
                             }
                             if (itemDict.TryGetValue("Price", out var priceField) && priceField.FieldType == DocumentFieldType.Double)
                             {

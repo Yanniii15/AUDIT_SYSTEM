@@ -2,7 +2,9 @@
 @{
     ViewData["Title"] = Model.AuditId.HasValue ? "Edit Pending Audit" : "Review Extracted Invoice";
     var formAction = Model.AuditId.HasValue ? "Edit" : "SubmitAudit";
-    var isBranchStaff = User.IsInRole("BranchStaff");
+    var canSetPnlCategories = User.IsInRole("Owner") || User.IsInRole("Manager") || User.IsInRole("Admin");
+    var canSetExpenseSources = User.IsInRole("Buyer") || User.IsInRole("Auditor");
+    var isAuditor = User.IsInRole("Auditor");
 }
 
 <!-- Header Section -->
@@ -162,11 +164,19 @@
                         <table class="w-full text-left border-collapse block lg:table">
                             <thead class="hidden lg:table-header-group lg:sticky lg:top-0 lg:z-10">
                                 <tr class="bg-surface-container-low border-b border-surface-border">
+                                    @if (canSetExpenseSources)
+                                    {
+                                        <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-44">Store / Source</th>
+                                    }
                                     <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px]">Item Description</th>
                                     <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-20">Qty</th>
                                     <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-28 text-right">Price (₱)</th>
                                     <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-28 text-right">Total (₱)</th>
-                                    <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-64">@(isBranchStaff ? "P&L Category" : "Split Destination")</th>
+                                    <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-64">@(canSetPnlCategories ? "P&L Category" : "Where is this item going?")</th>
+                                    @if (isAuditor)
+                                    {
+                                        <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-36">Receipt</th>
+                                    }
                                     <th class="px-space-4 py-space-3 font-label-caps text-on-tertiary-container uppercase tracking-wider text-[10px] w-12 text-center">Action</th>
                                 </tr>
                             </thead>
@@ -174,13 +184,26 @@
                                 @for (int i = 0; i < Model.Items.Count; i++)
                                 {
                                     <tr class="hover:bg-surface-container-low/30 transition-colors line-item-row block lg:table-row grid grid-cols-2 gap-x-space-4 gap-y-space-3 p-space-4 border border-surface-border lg:border-0 rounded-xl bg-surface-container-lowest lg:bg-transparent shadow-sm lg:shadow-none">
+                                        @if (canSetExpenseSources)
+                                        {
+                                            <td class="col-span-2 lg:col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2">
+                                                <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Store / Source</label>
+                                                <select asp-for="Items[i].ExpenseSourceId" asp-items="ViewBag.ExpenseSources" class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none expense-source-select"></select>
+                                                <input asp-for="Items[i].ExpenseSourceName" class="hidden mt-2 w-full bg-surface-container-low border border-surface-border rounded px-3 py-2 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none expense-source-name-input" placeholder="Type source if not listed..." disabled />
+                                            </td>
+                                        }
+                                        else
+                                        {
+                                            <input type="hidden" asp-for="Items[i].ExpenseSourceId" />
+                                            <input type="hidden" asp-for="Items[i].ExpenseSourceName" />
+                                        }
                                         <td class="col-span-2 lg:col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2">
                                             <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Item Description</label>
                                             <input asp-for="Items[i].Name" class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none name-input" required />
                                         </td>
                                         <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2">
                                             <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Qty</label>
-                                            <input asp-for="Items[i].Quantity" class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none text-center qty-input" type="number" min="1" required />
+                                            <input asp-for="Items[i].Quantity" class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none text-center qty-input" type="number" step="any" min="0.001" required />
                                         </td>
                                         <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2 text-right">
                                             <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Price (₱)</label>
@@ -188,20 +211,34 @@
                                         </td>
                                         <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2 text-right">
                                             <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Total (₱)</label>
-                                            <input asp-for="Items[i].Total" class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none text-right total-input" type="number" step="0.01" min="0.00" readonly />
+                                            <input asp-for="Items[i].Total" class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none text-right total-input" type="number" step="0.01" min="0.00" required />
                                         </td>
                                         <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2">
-                                            @if (isBranchStaff)
+                                            @if (canSetPnlCategories)
                                             {
                                                 <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">P&L Category</label>
                                                 <select asp-for="Items[i].PnlCategoryId" asp-items="ViewBag.PnlCategories" class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none pnl-category-select" required></select>
                                             }
                                             else
                                             {
-                                                <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Split Destination</label>
+                                                <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Where is this item going?</label>
                                                 <select asp-for="Items[i].CombinedDestinationId" asp-items="ViewBag.LineDestinations" class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none line-destination-select" data-follows-main-allocation="true"></select>
+                                                <input asp-for="Items[i].AllocationNotes" class="hidden mt-2 w-full bg-surface-container-low border border-surface-border rounded px-3 py-2 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none line-allocation-notes-input" placeholder="Specify custom allocation for this line..." disabled />
                                             }
-                                        </td>
+                                        @if (isAuditor)
+                                        {
+                                            <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2">
+                                                <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Receipt</label>
+                                                <select asp-for="Items[i].ReceiptStatus" class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none receipt-status-select">
+                                                    <option value="@AuditCkDayo.Models.ReceiptLineStatus.HasReceipt">With Receipt</option>
+                                                    <option value="@AuditCkDayo.Models.ReceiptLineStatus.NoReceipt">No Receipt</option>
+                                                </select>
+                                            </td>
+                                        }
+                                        else
+                                        {
+                                            <input type="hidden" asp-for="Items[i].ReceiptStatus" />
+                                        }
                                         <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2 text-center flex items-center justify-end lg:justify-center">
                                             <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Action</label>
                                             <button type="button" class="text-audit-error hover:scale-110 transition-transform remove-row-btn" onclick="removeRow(this)">
@@ -263,6 +300,18 @@
                 nameInput.id = `Items_${idx}__Name`;
             }
 
+            const expenseSourceSelect = row.querySelector('.expense-source-select');
+            if (expenseSourceSelect) {
+                expenseSourceSelect.name = `Items[${idx}].ExpenseSourceId`;
+                expenseSourceSelect.id = `Items_${idx}__ExpenseSourceId`;
+            }
+
+            const expenseSourceNameInput = row.querySelector('.expense-source-name-input');
+            if (expenseSourceNameInput) {
+                expenseSourceNameInput.name = `Items[${idx}].ExpenseSourceName`;
+                expenseSourceNameInput.id = `Items_${idx}__ExpenseSourceName`;
+            }
+
             // Update Quantity inputs
             const qtyInput = row.querySelector('.qty-input');
             if (qtyInput) {
@@ -296,6 +345,17 @@
                 lineDestinationSelect.id = `Items_${idx}__CombinedDestinationId`;
             }
 
+            const lineAllocationNotesInput = row.querySelector('.line-allocation-notes-input');
+            if (lineAllocationNotesInput) {
+                lineAllocationNotesInput.name = `Items[${idx}].AllocationNotes`;
+                lineAllocationNotesInput.id = `Items_${idx}__AllocationNotes`;
+            }
+
+            const receiptStatusSelect = row.querySelector('.receipt-status-select');
+            if (receiptStatusSelect) {
+                receiptStatusSelect.name = `Items[${idx}].ReceiptStatus`;
+                receiptStatusSelect.id = `Items_${idx}__ReceiptStatus`;
+            }
         });
     }
 
@@ -304,6 +364,16 @@
         const price = parseFloat(row.querySelector('.price-input').value) || 0;
         const total = qty * price;
         row.querySelector('.total-input').value = total.toFixed(2);
+        calculateOverallTotal();
+    }
+
+    function calculateRowPriceFromTotal(row) {
+        const qty = parseFloat(row.querySelector('.qty-input').value) || 0;
+        const total = parseFloat(row.querySelector('.total-input').value) || 0;
+        const priceInput = row.querySelector('.price-input');
+        if (qty > 0 && priceInput) {
+            priceInput.value = (total / qty).toFixed(2);
+        }
         calculateOverallTotal();
     }
 
@@ -328,13 +398,25 @@
         newRow.className = 'hover:bg-surface-container-low/30 transition-colors line-item-row block lg:table-row grid grid-cols-2 gap-x-space-4 gap-y-space-3 p-space-4 border border-surface-border lg:border-0 rounded-xl bg-surface-container-lowest lg:bg-transparent shadow-sm lg:shadow-none';
         
         newRow.innerHTML = `
+            @if (canSetExpenseSources)
+            {
+                <text>
+            <td class="col-span-2 lg:col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2">
+                <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Store / Source</label>
+                <select class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none expense-source-select">
+                    ${document.getElementById('expense-source-select-template').innerHTML}
+                </select>
+                <input class="hidden mt-2 w-full bg-surface-container-low border border-surface-border rounded px-3 py-2 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none expense-source-name-input" placeholder="Type source if not listed..." disabled />
+            </td>
+                </text>
+            }
             <td class="col-span-2 lg:col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2">
                 <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Item Description</label>
                 <input class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none name-input" required placeholder="New Item" />
             </td>
             <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2">
                 <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Qty</label>
-                <input class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none text-center qty-input" type="number" min="1" value="1" required />
+                <input class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none text-center qty-input" type="number" step="any" min="0.001" value="1" required />
             </td>
             <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2 text-right">
                 <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Price (₱)</label>
@@ -342,10 +424,10 @@
             </td>
             <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2 text-right">
                 <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Total (₱)</label>
-                <input class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none text-right total-input" type="number" step="0.01" min="0.00" value="0.00" readonly />
+                <input class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-data-mono text-on-surface text-[13px] focus:ring-2 focus:ring-primary/15 focus:outline-none text-right total-input" type="number" step="0.01" min="0.00" value="0.00" required />
             </td>
             <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2">
-                @if (isBranchStaff)
+                @if (canSetPnlCategories)
                 {
                     <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">P&L Category</label>
                     <select class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none pnl-category-select" required>
@@ -354,12 +436,25 @@
                 }
                 else
                 {
-                    <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Split Destination</label>
+                    <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Where is this item going?</label>
                     <select class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none line-destination-select" data-follows-main-allocation="true">
                         ${document.getElementById('line-destination-select-template').innerHTML}
                     </select>
+                    <input class="hidden mt-2 w-full bg-surface-container-low border border-surface-border rounded px-3 py-2 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none line-allocation-notes-input" placeholder="Specify custom allocation for this line..." disabled />
                 }
             </td>
+            @if (isAuditor)
+            {
+                <text>
+            <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2">
+                <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Receipt</label>
+                <select class="w-full bg-transparent border lg:border-0 border-surface-border rounded lg:rounded-none px-3 py-2 lg:px-2 lg:py-1 font-body-md text-on-surface focus:ring-2 focus:ring-primary/15 focus:outline-none receipt-status-select">
+                    <option value="NoReceipt" selected>No Receipt</option>
+                    <option value="HasReceipt">With Receipt</option>
+                </select>
+            </td>
+                </text>
+            }
             <td class="col-span-1 block lg:table-cell p-0 lg:px-space-4 lg:py-space-2 text-center flex items-center justify-end lg:justify-center">
                 <label class="block lg:hidden font-label-caps text-on-surface-variant text-[9px] uppercase mb-1">Action</label>
                 <button type="button" class="text-audit-error hover:scale-110 transition-transform remove-row-btn" onclick="removeRow(this)">
@@ -372,14 +467,24 @@
         // Setup event listeners on new row
         const qtyInput = newRow.querySelector('.qty-input');
         const priceInput = newRow.querySelector('.price-input');
+        const totalInput = newRow.querySelector('.total-input');
         qtyInput.addEventListener('input', () => calculateRowTotal(newRow));
         priceInput.addEventListener('input', () => calculateRowTotal(newRow));
+        totalInput.addEventListener('input', () => calculateRowPriceFromTotal(newRow));
         const lineDestinationSelect = newRow.querySelector('.line-destination-select');
         if (lineDestinationSelect) {
             lineDestinationSelect.addEventListener('change', () => {
                 lineDestinationSelect.dataset.followsMainAllocation = 'false';
+                updateLineAllocationNotesVisibility(newRow);
             });
+            updateLineAllocationNotesVisibility(newRow);
         }
+        const expenseSourceSelect = newRow.querySelector('.expense-source-select');
+        if (expenseSourceSelect) {
+            expenseSourceSelect.addEventListener('change', () => updateExpenseSourceNameVisibility(newRow));
+            updateExpenseSourceNameVisibility(newRow);
+        }
+
 
 
         reindexRows();
@@ -427,6 +532,39 @@
         }
     }
 
+
+    function updateLineAllocationNotesVisibility(row) {
+        const destSelect = row.querySelector('.line-destination-select');
+        const notesInput = row.querySelector('.line-allocation-notes-input');
+        if (!destSelect || !notesInput) return;
+
+        const selectedText = destSelect.options[destSelect.selectedIndex]?.text || '';
+        const selectedValue = destSelect.value || '';
+        if (selectedValue.toLowerCase() === 'others' || selectedText.toLowerCase() === 'others') {
+            notesInput.classList.remove('hidden');
+            notesInput.removeAttribute('disabled');
+        } else {
+            notesInput.classList.add('hidden');
+            notesInput.setAttribute('disabled', 'disabled');
+            notesInput.value = '';
+        }
+    }
+
+    function updateExpenseSourceNameVisibility(row) {
+        const sourceSelect = row.querySelector('.expense-source-select');
+        const sourceNameInput = row.querySelector('.expense-source-name-input');
+        if (!sourceSelect || !sourceNameInput) return;
+
+        if (sourceSelect.value === '-1') {
+            sourceNameInput.classList.remove('hidden');
+            sourceNameInput.removeAttribute('disabled');
+        } else {
+            sourceNameInput.classList.add('hidden');
+            sourceNameInput.setAttribute('disabled', 'disabled');
+            sourceNameInput.value = '';
+        }
+    }
+
     function syncLineDestinationsWithMain() {
         const mainDestSelect = document.getElementById('CombinedDestinationId');
         if (!mainDestSelect) return;
@@ -436,6 +574,7 @@
         document.querySelectorAll('.line-destination-select').forEach(select => {
             if (select.dataset.followsMainAllocation !== 'false') {
                 select.value = mainValue;
+                updateLineAllocationNotesVisibility(select.closest('.line-item-row'));
             }
         });
     }
@@ -455,13 +594,22 @@
         document.querySelectorAll('#line-items-body .line-item-row').forEach(row => {
             const qtyInput = row.querySelector('.qty-input');
             const priceInput = row.querySelector('.price-input');
+            const totalInput = row.querySelector('.total-input');
             qtyInput.addEventListener('input', () => calculateRowTotal(row));
             priceInput.addEventListener('input', () => calculateRowTotal(row));
+            totalInput.addEventListener('input', () => calculateRowPriceFromTotal(row));
             const lineDestinationSelect = row.querySelector('.line-destination-select');
             if (lineDestinationSelect) {
                 lineDestinationSelect.addEventListener('change', () => {
                     lineDestinationSelect.dataset.followsMainAllocation = 'false';
+                    updateLineAllocationNotesVisibility(row);
                 });
+                updateLineAllocationNotesVisibility(row);
+            }
+            const expenseSourceSelect = row.querySelector('.expense-source-select');
+            if (expenseSourceSelect) {
+                expenseSourceSelect.addEventListener('change', () => updateExpenseSourceNameVisibility(row));
+                updateExpenseSourceNameVisibility(row);
             }
         });
 
@@ -518,6 +666,8 @@
 
 <div class="hidden">
     <select id="pnl-category-select-template" asp-items="ViewBag.PnlCategories">
+    </select>
+    <select id="expense-source-select-template" asp-items="ViewBag.ExpenseSources">
     </select>
     <select id="line-destination-select-template" asp-items="ViewBag.LineDestinations">
     </select>

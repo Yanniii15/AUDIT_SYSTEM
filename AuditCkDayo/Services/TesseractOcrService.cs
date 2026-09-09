@@ -13,7 +13,7 @@ namespace AuditCkDayo.Services
     {
         private static readonly Regex DateRegex = new Regex(@"\b(\d{4}[-/.]\d{1,2}[-/.]\d{1,2}|\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})\b");
         private static readonly Regex DecimalRegex = new Regex(@"-?\s*(?:₱|\b)?\s*\d{1,3}(?:,\d{3})*(?:\.\d+)?|\b-?\s*\d{1,6}\.\d+\b");
-        private static readonly Regex ItemLineRegex = new Regex(@"^\s*(.*?)\s+(\d+)\s+(?:₱?\s*)?([\d,]+\.?\d*)\s+(?:₱?\s*)?([\d,]+\.?\d*)\s*$");
+        private static readonly Regex ItemLineRegex = new Regex(@"^\s*(.*?)\s+(\d+(?:\.\d+)?)\s+(?:₱?\s*)?([\d,]+\.?\d*)\s+(?:₱?\s*)?([\d,]+\.?\d*)\s*$");
 
         public Task<OcrResult> ParseReceiptAsync(List<Stream> imageStreams)
         {
@@ -87,7 +87,7 @@ namespace AuditCkDayo.Services
                 if (itemMatch.Success)
                 {
                     var name = itemMatch.Groups[1].Value.Trim();
-                    var qty = int.TryParse(itemMatch.Groups[2].Value, out var q) ? q : 1;
+                    var qty = decimal.TryParse(itemMatch.Groups[2].Value, NumberStyles.Any, CultureInfo.InvariantCulture, out var q) ? q : 1m;
                     var price = ParseMoney(itemMatch.Groups[3].Value);
                     var total = ParseMoney(itemMatch.Groups[4].Value);
 
@@ -257,21 +257,40 @@ namespace AuditCkDayo.Services
 
                 if (lower.Contains("g-cash") || lower.Contains("gcash"))
                 {
-                    result.GCashAmount = FirstMoney(normalized);
+                    var amount = AddSalesReportPaymentLine(result.GCashLines, normalized);
+                    result.GCashAmount += amount;
                     activeGroup = "gcash";
                     continue;
                 }
 
-                if (lower.Contains("bank transfer") || lower.Contains("card") || lower.Contains("run-away"))
+                if (lower.Contains("bank transfer"))
                 {
-                    result.OtherPaymentAmount += FirstMoney(normalized);
-                    activeGroup = "other";
+                    var amount = AddSalesReportPaymentLine(result.BankTransferLines, normalized);
+                    result.OtherPaymentAmount += amount;
+                    activeGroup = "bank";
+                    continue;
+                }
+
+                if ((lower.Contains("card") && !lower.Contains("loyalty card")) || lower.Contains("debit"))
+                {
+                    var amount = AddSalesReportPaymentLine(result.CardLines, normalized);
+                    result.OtherPaymentAmount += amount;
+                    activeGroup = "card";
+                    continue;
+                }
+
+                if (lower.Contains("run-away") || lower.Contains("runaway"))
+                {
+                    var amount = AddSalesReportPaymentLine(result.RunawayCustomerLines, normalized);
+                    result.OtherPaymentAmount += amount;
+                    activeGroup = "runaway";
                     continue;
                 }
 
                 if (lower.Contains("credit"))
                 {
-                    result.CreditAmount = FirstMoney(normalized);
+                    var amount = AddSalesReportPaymentLine(result.CreditLines, normalized);
+                    result.CreditAmount += amount;
                     activeGroup = "credit";
                     continue;
                 }
@@ -284,15 +303,31 @@ namespace AuditCkDayo.Services
 
                 if (activeGroup == "gcash")
                 {
-                    result.GCashAmount += FirstMoney(normalized);
+                    result.GCashAmount += AddSalesReportPaymentLine(result.GCashLines, normalized);
                 }
-                else if (activeGroup == "other")
+                else if (activeGroup == "bank")
                 {
-                    result.OtherPaymentAmount += FirstMoney(normalized);
+                    result.OtherPaymentAmount += AddSalesReportPaymentLine(result.BankTransferLines, normalized);
+                }
+                else if (activeGroup == "card")
+                {
+                    result.OtherPaymentAmount += AddSalesReportPaymentLine(result.CardLines, normalized);
+                }
+                else if (activeGroup == "runaway")
+                {
+                    result.OtherPaymentAmount += AddSalesReportPaymentLine(result.RunawayCustomerLines, normalized);
+                }
+                else if (activeGroup == "expenses")
+                {
+                    if (result.ExpenseFromSalesLines.Count == 0 && result.CashOut > 0m)
+                    {
+                        result.CashOut = 0m;
+                    }
+                    result.CashOut += AddSalesReportPaymentLine(result.ExpenseFromSalesLines, normalized);
                 }
                 else if (activeGroup == "credit")
                 {
-                    result.CreditAmount += Math.Abs(FirstMoney(normalized));
+                    result.CreditAmount += AddSalesReportPaymentLine(result.CreditLines, normalized);
                 }
 
                 var denomMatch = Regex.Match(normalized, @"\b(1000|500|200|100|50|20|10|5|1)\s*[xX*]\s*(\d+)\b");
@@ -332,6 +367,25 @@ namespace AuditCkDayo.Services
         {
             var match = DecimalRegex.Match(value);
             return match.Success ? Math.Abs(ParseMoney(match.Value)) : 0m;
+        }
+
+        private static decimal AddSalesReportPaymentLine(List<SalesReportOcrPaymentLine> lines, string value)
+        {
+            var match = DecimalRegex.Match(value);
+            if (!match.Success)
+            {
+                return 0m;
+            }
+
+            var amount = Math.Abs(ParseMoney(match.Value));
+            var label = DecimalRegex.Replace(value, string.Empty, 1).Trim(' ', ':', '-', '–', '—', '₱');
+            lines.Add(new SalesReportOcrPaymentLine
+            {
+                Label = string.IsNullOrWhiteSpace(label) ? null : label,
+                Amount = amount
+            });
+
+            return amount;
         }
 
         private string GetTessdataPath()

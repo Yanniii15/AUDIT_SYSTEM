@@ -130,9 +130,9 @@ namespace AuditCkDayo.Services
                 var prompt = "Analyze these receipt images. Combine the items and amounts if there are multiple pages/images. Extract the following details:\n" +
                              "1. The transaction date (in YYYY-MM-DD format, or the latest if multiple differ).\n" +
                              "2. The total amount as a decimal.\n" +
-                             "3. The line items (each with name, quantity as integer, unit price as decimal, and total price as decimal).\n" +
+                             "3. The line items (each with name, quantity as decimal e.g. 1 or 1.5, unit price as decimal, and total price as decimal).\n" +
                              "Return ONLY a JSON object matching this schema:\n" +
-                             "{ \"TotalAmount\": decimal, \"TransactionDate\": \"YYYY-MM-DD\", \"Items\": [ { \"Name\": string, \"Quantity\": int, \"Price\": decimal, \"Total\": decimal } ] }";
+                             "{ \"TotalAmount\": decimal, \"TransactionDate\": \"YYYY-MM-DD\", \"Items\": [ { \"Name\": string, \"Quantity\": decimal, \"Price\": decimal, \"Total\": decimal } ] }";
 
                 parts.Add(new { text = prompt });
 
@@ -276,11 +276,13 @@ namespace AuditCkDayo.Services
                              "- CashierName: value after 'Cashier Name'.\n" +
                              "- GrossSales: use 'Daily Gross Sales' when present, not Closing Gross Sales or category subtotals.\n" +
                              "- ConfirmedCashToHandover: use 'Cash Sales'.\n" +
-                             "- GCashAmount: SUM every amount listed under G-Cash sales until the next payment section.\n" +
-                             "- OtherPaymentAmount: SUM Bank Transfer, Card, Run-away Customer, and other non-cash/non-GCash payment amounts.\n" +
-                             "- CreditAmount: SUM every amount listed under Credit; ignore names after the amount and treat dash-prefixed amounts as positive credits.\n" +
-                             "- CashOut: this field means PCF Expenses. Use the total expenses paid from starting PCF when present; otherwise sum categorized expense lines.\n" +
-                             "- Preserve reasons/names in RawJson only; numeric fields must be totals.\n" +
+                             "- GCashLines: return every individual amount listed under G-Cash sales until the next payment section; do not collapse rows.\n" +
+                             "- BankTransferLines: return every individual bank transfer row with bank/name in Label when present.\n" +
+                             "- CardLines: return every individual card payment row.\n" +
+                             "- CreditLines: return every individual Credit row; keep names/reasons in Label and treat dash-prefixed amounts as positive credits.\n" +
+                             "- RunawayCustomerLines: return every individual run-away customer row with names/reasons in Label when present.\n" +
+                             "- ExpenseFromSalesLines: return every individual PCF Expenses / expenses from sales row with reason/name in Label when present.\n" +
+                             "- GCashAmount, CreditAmount, OtherPaymentAmount, and CashOut must equal the sums of those returned line arrays when line detail is present.\n" +
                              "Fields to return:\n" +
                              "1. CashierName (string, name of cashier/person on shift)\n" +
                              "2. BusinessDate (string in YYYY-MM-DD format)\n" +
@@ -289,13 +291,19 @@ namespace AuditCkDayo.Services
                              "5. ConfirmedCashToHandover (decimal, cash sales / cash to be turned over)\n" +
                              "6. GCashAmount (decimal, total GCash sales or remittance)\n" +
                              "7. CreditAmount (decimal, total credit/complimentary sales)\n" +
-                             "8. OtherPaymentAmount (decimal, bank transfer/card/run-away/other non-cash, non-GCash amounts)\n" +
-                             "9. ReceiptNumberStart (string, starting receipt number in sequence)\n" +
-                             "10. ReceiptNumberEnd (string, ending receipt number in sequence)\n" +
-                             "11. WitnessName (string, witness to handover)\n" +
-                             "12. Denominations (array of objects with 'Denomination' as decimal and 'Quantity' as integer for any counted bills/coins like 1000, 500, 200, 100, 50, 20, 10, 5, 1)\n" +
+                             "8. OtherPaymentAmount (decimal, total bank transfer/card/run-away/other non-cash, non-GCash amounts)\n" +
+                             "9. GCashLines (array of objects with optional Label and Amount)\n" +
+                             "10. BankTransferLines (array of objects with optional Label and Amount)\n" +
+                             "11. CardLines (array of objects with optional Label and Amount)\n" +
+                             "12. CreditLines (array of objects with optional Label and Amount)\n" +
+                             "13. RunawayCustomerLines (array of objects with optional Label and Amount)\n" +
+                             "14. ExpenseFromSalesLines (array of objects with optional Label and Amount)\n" +
+                             "15. ReceiptNumberStart (string, starting receipt number in sequence)\n" +
+                             "16. ReceiptNumberEnd (string, ending receipt number in sequence)\n" +
+                             "17. WitnessName (string, witness to handover)\n" +
+                             "18. Denominations (array of objects with 'Denomination' as decimal and 'Quantity' as integer for any counted bills/coins like 1000, 500, 200, 100, 50, 20, 10, 5, 1)\n" +
                              "Return ONLY a JSON object matching this schema:\n" +
-                             "{ \"CashierName\": string, \"BusinessDate\": \"YYYY-MM-DD\", \"GrossSales\": decimal, \"CashOut\": decimal, \"ConfirmedCashToHandover\": decimal, \"GCashAmount\": decimal, \"CreditAmount\": decimal, \"OtherPaymentAmount\": decimal, \"ReceiptNumberStart\": string, \"ReceiptNumberEnd\": string, \"WitnessName\": string, \"Denominations\": [ { \"Denomination\": decimal, \"Quantity\": int } ] }";
+                             "{ \"CashierName\": string, \"BusinessDate\": \"YYYY-MM-DD\", \"GrossSales\": decimal, \"CashOut\": decimal, \"ConfirmedCashToHandover\": decimal, \"GCashAmount\": decimal, \"CreditAmount\": decimal, \"OtherPaymentAmount\": decimal, \"GCashLines\": [ { \"Label\": string, \"Amount\": decimal } ], \"BankTransferLines\": [ { \"Label\": string, \"Amount\": decimal } ], \"CardLines\": [ { \"Label\": string, \"Amount\": decimal } ], \"CreditLines\": [ { \"Label\": string, \"Amount\": decimal } ], \"RunawayCustomerLines\": [ { \"Label\": string, \"Amount\": decimal } ], \"ExpenseFromSalesLines\": [ { \"Label\": string, \"Amount\": decimal } ], \"ReceiptNumberStart\": string, \"ReceiptNumberEnd\": string, \"WitnessName\": string, \"Denominations\": [ { \"Denomination\": decimal, \"Quantity\": int } ] }";
 
                 parts.Add(new { text = prompt });
 
@@ -384,6 +392,12 @@ namespace AuditCkDayo.Services
                             result.GCashAmount = parsedResult.GCashAmount ?? 0.00m;
                             result.CreditAmount = parsedResult.CreditAmount ?? 0.00m;
                             result.OtherPaymentAmount = parsedResult.OtherPaymentAmount ?? 0.00m;
+                            CopyPaymentLines(parsedResult.GCashLines, result.GCashLines);
+                            CopyPaymentLines(parsedResult.BankTransferLines, result.BankTransferLines);
+                            CopyPaymentLines(parsedResult.CardLines, result.CardLines);
+                            CopyPaymentLines(parsedResult.CreditLines, result.CreditLines);
+                            CopyPaymentLines(parsedResult.RunawayCustomerLines, result.RunawayCustomerLines);
+                            CopyPaymentLines(parsedResult.ExpenseFromSalesLines, result.ExpenseFromSalesLines);
                             result.ReceiptNumberStart = parsedResult.ReceiptNumberStart;
                             result.ReceiptNumberEnd = parsedResult.ReceiptNumberEnd;
                             result.WitnessName = parsedResult.WitnessName;
@@ -423,10 +437,43 @@ namespace AuditCkDayo.Services
             public decimal? GCashAmount { get; set; }
             public decimal? CreditAmount { get; set; }
             public decimal? OtherPaymentAmount { get; set; }
+            public List<GeminiSalesReportPaymentLine>? GCashLines { get; set; }
+            public List<GeminiSalesReportPaymentLine>? BankTransferLines { get; set; }
+            public List<GeminiSalesReportPaymentLine>? CardLines { get; set; }
+            public List<GeminiSalesReportPaymentLine>? CreditLines { get; set; }
+            public List<GeminiSalesReportPaymentLine>? RunawayCustomerLines { get; set; }
+            public List<GeminiSalesReportPaymentLine>? ExpenseFromSalesLines { get; set; }
             public string? ReceiptNumberStart { get; set; }
             public string? ReceiptNumberEnd { get; set; }
             public string? WitnessName { get; set; }
             public List<GeminiDenominationOcrResult>? Denominations { get; set; }
+        }
+
+        private static void CopyPaymentLines(List<GeminiSalesReportPaymentLine>? source, List<SalesReportOcrPaymentLine> destination)
+        {
+            if (source == null)
+            {
+                return;
+            }
+
+            foreach (var line in source)
+            {
+                var amount = Math.Abs(line.Amount ?? 0m);
+                if (amount > 0m || !string.IsNullOrWhiteSpace(line.Label))
+                {
+                    destination.Add(new SalesReportOcrPaymentLine
+                    {
+                        Label = line.Label,
+                        Amount = amount
+                    });
+                }
+            }
+        }
+
+        private class GeminiSalesReportPaymentLine
+        {
+            public string? Label { get; set; }
+            public decimal? Amount { get; set; }
         }
 
         private class GeminiDenominationOcrResult
@@ -445,7 +492,7 @@ namespace AuditCkDayo.Services
         private class GeminiOcrItem
         {
             public string Name { get; set; } = string.Empty;
-            public int Quantity { get; set; }
+            public decimal Quantity { get; set; } = 1m;
             public decimal Price { get; set; }
             public decimal Total { get; set; }
         }

@@ -2,6 +2,15 @@
 @{
     ViewData["Title"] = "Pending Verifications";
     var firstAudit = Model.FirstOrDefault();
+    List<string> GetReceiptImageUrls(AuditCkDayo.Models.AuditItem audit)
+    {
+        var urls = audit.Images?.OrderBy(image => image.DisplayOrder).Select(image => image.ImageUrl).Where(url => !string.IsNullOrWhiteSpace(url)).ToList() ?? new List<string>();
+        if (urls.Count == 0 && !string.IsNullOrWhiteSpace(audit.ReceiptImageUrl))
+        {
+            urls.Add(audit.ReceiptImageUrl);
+        }
+        return urls;
+    }
 }
 
 <div id="pageVoiceSummary" class="sr-only">
@@ -78,7 +87,8 @@
                                     data-date="@audit.EntryDate.ToString("MMM dd, yyyy")"
                                     data-notes="@audit.Notes"
                                     data-details="@System.Text.Json.JsonSerializer.Serialize(audit.Details.Select(d => new { name = d.ItemName, qty = d.Quantity, price = d.Price, total = d.Total, destination = d.AssignedEstablishment?.Name ?? d.CostCenter?.Name ?? "", remarks = d.AllocationNotes ?? "" }))"
-                                    data-receipt-url="@(string.IsNullOrEmpty(audit.ReceiptImageUrl) ? "https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?q=80&w=600" : audit.ReceiptImageUrl)">
+                                    data-receipt-url="@(GetReceiptImageUrls(audit).FirstOrDefault() ?? "https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?q=80&w=600")"
+                                    data-receipt-urls="@System.Text.Json.JsonSerializer.Serialize(GetReceiptImageUrls(audit))">
                                     <td class="px-space-6 py-space-4">
                                         <div class="flex items-center gap-space-3">
                                             <div class="w-8 h-8 rounded-full bg-secondary-container text-secondary flex items-center justify-center font-bold text-[12px]">
@@ -145,7 +155,8 @@
                                  data-date="@audit.EntryDate.ToString("MMM dd, yyyy")"
                                  data-notes="@audit.Notes"
                                  data-details="@System.Text.Json.JsonSerializer.Serialize(audit.Details.Select(d => new { name = d.ItemName, qty = d.Quantity, price = d.Price, total = d.Total, destination = d.AssignedEstablishment?.Name ?? d.CostCenter?.Name ?? "", remarks = d.AllocationNotes ?? "" }))"
-                                 data-receipt-url="@(string.IsNullOrEmpty(audit.ReceiptImageUrl) ? "https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?q=80&w=600" : audit.ReceiptImageUrl)">
+                                 data-receipt-url="@(GetReceiptImageUrls(audit).FirstOrDefault() ?? "https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?q=80&w=600")"
+                                 data-receipt-urls="@System.Text.Json.JsonSerializer.Serialize(GetReceiptImageUrls(audit))">
                             
                             <!-- Top Row: Buyer Avatar & Status -->
                             <div class="flex justify-between items-start">
@@ -263,7 +274,7 @@
                                             {
                                                 <tr class="border-b border-surface-border last:border-0 text-on-surface">
                                                     <td class="py-1">@item.ItemName</td>
-                                                    <td class="py-1 text-center">@item.Quantity</td>
+                                                    <td class="py-1 text-center">@item.Quantity.ToString("0.###")</td>
                                                     <td class="py-1 text-right">₱@item.Price.ToString("N2")</td>
                                                     <td class="py-1 text-right">₱@item.Total.ToString("N2")</td>
                                                     <td class="py-1">@(item.AssignedEstablishment?.Name ?? item.CostCenter?.Name ?? "-")</td>
@@ -327,6 +338,7 @@
                     <span class="material-symbols-outlined text-[16px]">open_in_new</span>
                     Open Receipt Image
                 </a>
+                <div id="viewer-receipt-thumbnails" class="flex max-w-full gap-space-2 overflow-x-auto"></div>
             </div>
             <aside class="p-space-6 overflow-y-auto max-h-[92vh] space-y-space-6">
                 <div class="flex items-start justify-between gap-space-4">
@@ -432,21 +444,48 @@
         });
     }
 
+    function renderReceiptImages(urls, receipt, receiptLink) {
+        const fallbackUrl = "https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?q=80&w=600";
+        const imageUrls = Array.isArray(urls) && urls.length > 0 ? urls : [fallbackUrl];
+        const thumbnails = document.getElementById('viewer-receipt-thumbnails');
+        const setActiveImage = (url, activeButton) => {
+            receipt.src = url;
+            receiptLink.href = url;
+            thumbnails?.querySelectorAll('button').forEach(button => button.classList.remove('ring-2', 'ring-primary'));
+            activeButton?.classList.add('ring-2', 'ring-primary');
+        };
+
+        if (thumbnails) {
+            thumbnails.innerHTML = '';
+            imageUrls.forEach((url, index) => {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = `w-14 h-14 flex-shrink-0 bg-black rounded border border-surface-border overflow-hidden ${index === 0 ? 'ring-2 ring-primary' : ''}`;
+                button.innerHTML = `<img src="${url}" class="w-full h-full object-contain" alt="Receipt image ${index + 1}" />`;
+                button.addEventListener('click', () => setActiveImage(url, button));
+                thumbnails.appendChild(button);
+            });
+            thumbnails.classList.toggle('hidden', imageUrls.length <= 1);
+        }
+
+        setActiveImage(imageUrls[0], thumbnails?.querySelector('button'));
+    }
+
     function updateAuditViewerFromRow(row) {
         if (!row) return;
         const details = JSON.parse(row.dataset.details || "[]");
         const receiptUrl = row.dataset.receiptUrl;
+        const receiptUrls = JSON.parse(row.dataset.receiptUrls || "[]");
         const receipt = document.getElementById('viewer-receipt');
         const receiptLink = document.getElementById('viewer-receipt-link');
         const receiptError = document.getElementById('viewer-receipt-error');
         receiptError?.classList.add('hidden');
         receipt?.classList.remove('hidden');
-        receipt.src = receiptUrl;
+        renderReceiptImages(receiptUrls.length > 0 ? receiptUrls : [receiptUrl], receipt, receiptLink);
         receipt.onerror = function () {
             receipt.classList.add('hidden');
             receiptError?.classList.remove('hidden');
         };
-        receiptLink.href = receiptUrl;
         document.getElementById('viewer-buyer').innerText = row.dataset.buyer;
         document.getElementById('viewer-establishment').innerText = row.dataset.establishment;
         document.getElementById('viewer-date').innerText = row.dataset.date;

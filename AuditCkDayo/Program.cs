@@ -62,6 +62,7 @@ builder.Services.AddScoped<AuditCkDayo.Services.VoiceBiService>();
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<AuditCkDayo.Services.CoverageService>();
 builder.Services.AddScoped<AuditCkDayo.Services.SharedPcfFundService>();
+builder.Services.AddScoped<AuditCkDayo.Services.ITreasuryAudioExportService, AuditCkDayo.Services.TreasuryAudioExportService>();
 
 var app = builder.Build();
 app.UseForwardedHeaders(new ForwardedHeadersOptions
@@ -91,6 +92,7 @@ using (var scope = app.Services.CreateScope())
         db.Database.ExecuteSqlRaw("UPDATE AuditItems SET Status = 'Approved' WHERE Notes LIKE '%August%' OR Description LIKE '%August%';");
         db.Database.ExecuteSqlRaw("UPDATE AuditItemDetails SET BranchVerificationStatus = 'Verified' WHERE AuditItemId IN (SELECT Id FROM AuditItems WHERE Notes LIKE '%August%' OR Description LIKE '%August%');");
         db.Database.ExecuteSqlRaw("UPDATE AuditItems SET ReceiptImageUrl = REPLACE(ReceiptImageUrl, '/uploads/', '/Audits/Receipt/') WHERE ReceiptImageUrl LIKE '/uploads/%';");
+        db.Database.ExecuteSqlRaw("ALTER TABLE AuditItemDetails MODIFY COLUMN Quantity decimal(12,3) NOT NULL DEFAULT 1.000;");
     }
     catch (Exception ex)
     {

@@ -33,7 +33,8 @@ namespace AuditCkDayo.Models
         public string ItemName { get; set; } = string.Empty;
 
         [Required]
-        public int Quantity { get; set; } = 1;
+        [Column(TypeName = "decimal(12,3)")]
+        public decimal Quantity { get; set; } = 1m;
 
         [Required]
         [Column(TypeName = "decimal(12,2)")]
@@ -52,6 +53,14 @@ namespace AuditCkDayo.Models
 
         [ForeignKey("CostCenterId")]
         public virtual CostCenter? CostCenter { get; set; }
+
+        public int? ExpenseSourceId { get; set; }
+
+        [ForeignKey("ExpenseSourceId")]
+        public virtual ExpenseSource? ExpenseSource { get; set; }
+
+        [MaxLength(100)]
+        public string? ExpenseSourceName { get; set; }
 
         [Required]
         public ReceiptLineStatus ReceiptStatus { get; set; } = ReceiptLineStatus.HasReceipt;
