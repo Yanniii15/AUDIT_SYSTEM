@@ -2701,16 +2701,6 @@ namespace AuditCkDayo.Controllers
             sb.Append($"Audit liquidation summary for {period}. ");
             sb.Append($"Total Petty Cash is {model.BuyerTotalPc:N2} pesos. ");
 
-            var custodianParts = model.PcfMatrix.Custodians
-                .Select(c => new { Name = c, Total = model.PcfMatrix.ColumnTotals.GetValueOrDefault(c, 0m) })
-                .Where(x => x.Total > 0)
-                .Select(x => $"{x.Name}: {x.Total:N2} pesos")
-                .ToList();
-
-            if (custodianParts.Any())
-            {
-                sb.Append($"Releases breakdown: {string.Join(", ", custodianParts)}. ");
-            }
 
             sb.Append($"Total expenses are {model.BuyerTotalExpenses:N2} pesos. ");
             sb.Append($"Actual change is {model.BuyerActualChange:N2} pesos. ");
