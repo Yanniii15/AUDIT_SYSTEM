@@ -778,7 +778,8 @@ namespace AuditCkDayo.Controllers
             return PhysicalFile(filePath, GetMimeType(filePath));
         }
 
-        private async Task PostConfirmedSalesReportToTreasuryAsync(SalesReport report, int currentUserId)
+[NonAction]
+        public async Task PostConfirmedSalesReportToTreasuryAsync(SalesReport report, int currentUserId)
         {
             var handoverDate = report.HandoverDate.Date;
             var flow = await _context.TreasuryCashFlows
@@ -801,7 +802,7 @@ namespace AuditCkDayo.Controllers
             }
 
             var entry = await _context.CashFlowEntries
-                .FirstOrDefaultAsync(e => e.SourceDocumentId == report.DocumentRecordId && e.Category == CashFlowCategory.Sales);
+                .FirstOrDefaultAsync(e => (e.SalesReportId == report.Id || (report.DocumentRecordId > 0 && e.SourceDocumentId == report.DocumentRecordId)) && e.Category == CashFlowCategory.Sales);
 
             TreasuryCashFlow? previousFlow = null;
 
@@ -811,7 +812,8 @@ namespace AuditCkDayo.Controllers
                 {
                     CreatedByUserId = currentUserId,
                     SourceDocumentId = report.DocumentRecordId,
-                    Category = CashFlowCategory.Sales
+                    Category = CashFlowCategory.Sales,
+                    SalesReportId = report.Id
                 };
 
                 _context.CashFlowEntries.Add(entry);
@@ -834,7 +836,7 @@ namespace AuditCkDayo.Controllers
             entry.Amount = report.ConfirmedCashToHandover;
             entry.Notes = $"Sales handover for {report.BusinessDate:yyyy-MM-dd}";
             entry.ConfirmedByUserId = currentUserId;
-
+            entry.SalesReportId = report.Id;
             if (!flow.Entries.Contains(entry))
             {
                 flow.Entries.Add(entry);
@@ -843,6 +845,9 @@ namespace AuditCkDayo.Controllers
             previousFlow?.RecomputeTotals();
             flow.RecomputeTotals();
         }
+
+        [NonAction]
+        public Task PostConfirmedSalesReportToTreasury(SalesReport report, int currentUserId) => PostConfirmedSalesReportToTreasuryAsync(report, currentUserId);
         private async Task<decimal> GetCarryForwardStartingBalanceAsync(DateTime cashFlowDate, int treasuryUserId)
         {
             return await _context.TreasuryCashFlows

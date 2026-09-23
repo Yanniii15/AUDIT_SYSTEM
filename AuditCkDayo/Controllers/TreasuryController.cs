@@ -14,11 +14,15 @@ namespace AuditCkDayo.Controllers
     {
         private readonly AuditDbContext _context;
         private readonly Services.SharedPcfFundService _pcfFund;
-
-        public TreasuryController(AuditDbContext context, Services.SharedPcfFundService? pcfFund = null)
+        private readonly Services.ITreasuryAudioExportService _audioExport;
+        public TreasuryController(
+            AuditDbContext context,
+            Services.SharedPcfFundService? pcfFund = null,
+            Services.ITreasuryAudioExportService? audioExport = null)
         {
             _context = context;
             _pcfFund = pcfFund ?? new Services.SharedPcfFundService(context);
+            _audioExport = audioExport ?? new Services.UnconfiguredTreasuryAudioExportService();
         }
 
         [HttpGet]
@@ -38,13 +42,40 @@ namespace AuditCkDayo.Controllers
                     .ThenInclude(e => e.RelatedUser)
                 .Include(f => f.Entries)
                     .ThenInclude(e => e.SourceDocument)
+                .Include(f => f.Entries)
+                    .ThenInclude(e => e.SalesReport)
                 .FirstOrDefault(f => f.CashFlowDate == selectedDate && f.TreasuryUserId == currentUserId);
+
+            if (flow != null)
+            {
+                var missingSalesEntries = flow.Entries
+                    .Where(e => e.Category == CashFlowCategory.Sales && e.SalesReport == null && e.SourceDocumentId.HasValue)
+                    .ToList();
+                if (missingSalesEntries.Any())
+                {
+                    var docIds = missingSalesEntries.Select(e => e.SourceDocumentId!.Value).ToList();
+                    var reports = _context.SalesReports
+                        .AsNoTracking()
+                        .Where(r => docIds.Contains(r.DocumentRecordId))
+                        .ToDictionary(r => r.DocumentRecordId);
+
+                    foreach (var entry in missingSalesEntries)
+                    {
+                        if (reports.TryGetValue(entry.SourceDocumentId!.Value, out var rep))
+                        {
+                            entry.SalesReport = rep;
+                            entry.SalesReportId = rep.Id;
+                        }
+                    }
+                }
+            }
 
             if (flow == null)
             {
                 var startingBalance = GetCarryForwardStartingBalance(selectedDate, currentUserId);
 
                 PopulateManualCashFlowLookups();
+                ViewBag.SpokenSummary = string.Empty;
                 return View(new TreasuryCashFlowViewModel
                 {
                     SelectedDate = selectedDate,
@@ -57,6 +88,7 @@ namespace AuditCkDayo.Controllers
             }
 
             flow.RecomputeTotals();
+            ViewBag.SpokenSummary = Services.TreasuryAudioExportService.BuildSpokenSummary(flow);
 
             var model = new TreasuryCashFlowViewModel
             {
@@ -73,6 +105,48 @@ namespace AuditCkDayo.Controllers
 
             PopulateManualCashFlowLookups();
             return View(model);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> ExportAudioSummary(DateTime? date = null)
+        {
+            var selectedDate = date?.Date ?? GetToday();
+            if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var currentUserId))
+            {
+                return Unauthorized();
+            }
+
+            var flow = await _context.TreasuryCashFlows
+                .Include(f => f.Entries)
+                    .ThenInclude(e => e.Establishment)
+                .Include(f => f.Entries)
+                    .ThenInclude(e => e.RelatedUser)
+                .Include(f => f.Entries)
+                    .ThenInclude(e => e.CostCenter)
+                .Include(f => f.Entries)
+                    .ThenInclude(e => e.SalesReport)
+                .FirstOrDefaultAsync(f => f.CashFlowDate == selectedDate && f.TreasuryUserId == currentUserId);
+
+            if (flow == null)
+            {
+                TempData["Error"] = "Treasury cash flow not found for the selected day.";
+                return RedirectToAction(nameof(Index), new { date = selectedDate });
+            }
+
+            try
+            {
+                var audio = await _audioExport.GenerateSpeechAsync(flow, HttpContext.RequestAborted);
+                bool isWav = audio.Length >= 4 && audio[0] == (byte)'R' && audio[1] == (byte)'I' && audio[2] == (byte)'F' && audio[3] == (byte)'F';
+                string contentType = isWav ? "audio/wav" : "audio/mpeg";
+                string extension = isWav ? "wav" : "mp3";
+                return File(audio, contentType, $"Treasury_CashFlow_{selectedDate:yyyy-MM-dd}.{extension}");
+            }
+            catch (InvalidOperationException ex)
+            {
+                Console.WriteLine($"Treasury audio generation failed: {ex.Message}");
+                TempData["Error"] = "Audio summary could not be generated. Please check the speech API key/configuration and try again.";
+                return RedirectToAction(nameof(Index), new { date = selectedDate });
+            }
         }
 
         [HttpGet]
@@ -203,6 +277,23 @@ namespace AuditCkDayo.Controllers
             };
 
             flow.Entries.Add(entry);
+
+            var releaser = await _context.Users.FirstOrDefaultAsync(u => u.Id == currentUserId && !u.IsDeleted);
+            if (releaser != null && (releaser.PcfBalance > 0m || releaser.DailyStartingFloat > 0m))
+            {
+                await _pcfFund.DebitAsync(releaser, model.Amount, adjustStartingFloat: true);
+                _context.PettyCashLedgers.Add(new PettyCashLedger
+                {
+                    UserId = releaser.Id,
+                    TransactionType = LedgerTransactionType.ExpenseDeduction,
+                    Amount = -model.Amount,
+                    ResultingBalance = await _pcfFund.GetAvailableBalanceAsync(releaser),
+                    Timestamp = DateTime.Now,
+                    AssociatedRecordId = release.Id,
+                    CounterpartyUserId = model.ReceiverUserId,
+                    Notes = $"PCF released from treasury. Notes: {model.Purpose ?? "Funding"}"
+                });
+            }
             flow.RecomputeTotals();
             if (model.ReceiverUserId.HasValue)
             {
@@ -222,6 +313,40 @@ namespace AuditCkDayo.Controllers
                         Notes = $"PCF release from vault: {model.Purpose ?? "Funding"}"
                     };
                     _context.PettyCashLedgers.Add(ledger);
+
+                    if (receiver.IsTreasury && receiver.Id != currentUserId)
+                    {
+                        var receivingFlow = await _context.TreasuryCashFlows
+                            .Include(f => f.Entries)
+                            .FirstOrDefaultAsync(f => f.CashFlowDate == model.ReleaseDate && f.TreasuryUserId == receiver.Id);
+
+                        if (receivingFlow == null)
+                        {
+                            var receivingStartingBalance = await GetCarryForwardStartingBalanceAsync(model.ReleaseDate, receiver.Id);
+                            receivingFlow = new TreasuryCashFlow
+                            {
+                                TreasuryUserId = receiver.Id,
+                                CashFlowDate = model.ReleaseDate,
+                                StartingBalance = receivingStartingBalance,
+                                Status = TreasuryCashFlowStatus.Open
+                            };
+                            _context.TreasuryCashFlows.Add(receivingFlow);
+                        }
+
+                        receivingFlow.Entries.Add(new CashFlowEntry
+                        {
+                            TreasuryCashFlow = receivingFlow,
+                            Direction = CashFlowDirection.In,
+                            Category = CashFlowCategory.PcfRelease,
+                            EstablishmentId = model.EstablishmentId,
+                            RelatedUserId = currentUserId,
+                            Amount = model.Amount,
+                            Notes = model.Purpose,
+                            CreatedByUserId = currentUserId,
+                            ConfirmedByUserId = receiver.Id
+                        });
+                        receivingFlow.RecomputeTotals();
+                    }
                 }
             }
 
@@ -246,6 +371,8 @@ namespace AuditCkDayo.Controllers
 
             var entry = await _context.CashFlowEntries
                 .Include(e => e.TreasuryCashFlow)
+                .Include(e => e.SourceDocument)
+                .Include(e => e.SalesReport)
                 .FirstOrDefaultAsync(e => e.Id == id);
 
             if (entry == null)
@@ -261,6 +388,28 @@ namespace AuditCkDayo.Controllers
 
             PopulateManualCashFlowLookups();
             ViewBag.FlowDate = entry.TreasuryCashFlow.CashFlowDate;
+            ViewBag.CanUnconfirmSalesReport = false;
+            ViewBag.LinkedSalesReportId = null;
+
+            if (IsSalesReportCashIn(entry))
+            {
+                var linkedReport = await _context.SalesReports
+                    .AsNoTracking()
+                    .Where(r => r.DocumentRecordId == entry.SourceDocumentId!.Value)
+                    .Select(r => new
+                    {
+                        r.Id,
+                        r.Status,
+                        ReviewStatus = r.DocumentRecord.ReviewStatus
+                    })
+                    .FirstOrDefaultAsync();
+
+                ViewBag.CanUnconfirmSalesReport = linkedReport != null
+                    && entry.TreasuryCashFlow.Status != TreasuryCashFlowStatus.Closed
+                    && (linkedReport.Status == SalesReportStatus.Confirmed
+                        || linkedReport.ReviewStatus == DocumentReviewStatus.Confirmed);
+                ViewBag.LinkedSalesReportId = linkedReport?.Id;
+            }
             return View(entry);
         }
 
@@ -357,6 +506,87 @@ namespace AuditCkDayo.Controllers
 
             TempData["Message"] = "Treasury entry deleted.";
             return RedirectToAction(nameof(Index), new { date = entry.TreasuryCashFlow.CashFlowDate });
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> UnconfirmSalesReport(int id)
+        {
+            if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var currentUserId))
+            {
+                return Unauthorized();
+            }
+
+            await using var transaction = await _context.Database.BeginTransactionAsync();
+
+            var entry = await _context.CashFlowEntries
+                .Include(e => e.TreasuryCashFlow)
+                    .ThenInclude(f => f.Entries)
+                .Include(e => e.SourceDocument)
+                .Include(e => e.SalesReport)
+                .FirstOrDefaultAsync(e => e.Id == id);
+
+            if (entry == null)
+            {
+                TempData["Error"] = "Treasury entry not found.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            var flowDate = entry.TreasuryCashFlow.CashFlowDate;
+
+            if (entry.TreasuryCashFlow.Status == TreasuryCashFlowStatus.Closed)
+            {
+                TempData["Error"] = "This entry belongs to a closed/locked treasury day and cannot be unconfirmed.";
+                return RedirectToAction(nameof(Index), new { date = flowDate });
+            }
+
+            if (!IsSalesReportCashIn(entry))
+            {
+                TempData["Error"] = "Only linked sales cash-in entries can be unconfirmed from Treasury.";
+                return RedirectToAction(nameof(EditEntry), new { id = entry.Id });
+            }
+
+            var report = await _context.SalesReports
+                .Include(r => r.DocumentRecord)
+                .FirstOrDefaultAsync(r => r.DocumentRecordId == entry.SourceDocumentId.GetValueOrDefault());
+
+            if (report == null)
+            {
+                TempData["Error"] = "Linked sales report not found.";
+                return RedirectToAction(nameof(EditEntry), new { id = entry.Id });
+            }
+
+            if (report.Status != SalesReportStatus.Confirmed && report.DocumentRecord.ReviewStatus != DocumentReviewStatus.Confirmed)
+            {
+                TempData["Error"] = "Only confirmed sales reports can be unconfirmed.";
+                return RedirectToAction(nameof(EditEntry), new { id = entry.Id });
+            }
+
+            _context.CashFlowEntries.Remove(entry);
+
+            report.Status = SalesReportStatus.Draft;
+            report.ConfirmedByUserId = null;
+            report.ConfirmedAt = null;
+            report.DocumentRecord.ReviewStatus = DocumentReviewStatus.Draft;
+            report.DocumentRecord.ConfirmedByUserId = null;
+            report.DocumentRecord.ConfirmedAt = null;
+
+            entry.TreasuryCashFlow.Entries.Remove(entry);
+            entry.TreasuryCashFlow.RecomputeTotals();
+
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
+
+            TempData["Message"] = "Sales report unconfirmed. Treasury cash-in was removed and the branch can edit the report again.";
+            return RedirectToAction(nameof(Index), new { date = flowDate });
+        }
+
+        private static bool IsSalesReportCashIn(CashFlowEntry entry)
+        {
+            return entry.Direction == CashFlowDirection.In
+                && entry.Category == CashFlowCategory.Sales
+                && entry.SourceDocumentId.HasValue
+                && entry.SourceDocument?.DocumentType == DocumentType.DailySalesReport;
         }
 
         private async Task PopulateReleasePcfLookupsAsync(PcfReleaseViewModel model)
@@ -623,6 +853,20 @@ namespace AuditCkDayo.Controllers
 
             flow.RecomputeTotals();
             flow.Status = TreasuryCashFlowStatus.Closed;
+
+            var nextFlow = await _context.TreasuryCashFlows
+                .Include(f => f.Entries)
+                .Where(f => f.TreasuryUserId == currentUserId
+                    && f.CashFlowDate > date
+                    && f.Status != TreasuryCashFlowStatus.Closed)
+                .OrderBy(f => f.CashFlowDate)
+                .FirstOrDefaultAsync();
+
+            if (nextFlow != null)
+            {
+                nextFlow.StartingBalance = flow.ClosingBalance;
+                nextFlow.RecomputeTotals();
+            }
             await _context.SaveChangesAsync();
 
             TempData["Message"] = "Treasury day closed.";

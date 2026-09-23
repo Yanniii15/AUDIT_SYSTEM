@@ -625,6 +625,98 @@ namespace AuditCkDayo.Tests
             Assert.IsType<NotFoundResult>(result);
         }
 
+        [Fact]
+        public void TreasuryCashFlowEntry_IdentifiesMissingDepositSlipState()
+        {
+            var report = new SalesReport
+            {
+                Id = 1,
+                GrossSales = 50000.00m,
+                ConfirmedCashToHandover = 50000.00m,
+                DepositSlipImageUrl = null
+            };
+
+            var entry = new CashFlowEntry
+            {
+                Id = 10,
+                Direction = CashFlowDirection.In,
+                Category = CashFlowCategory.Sales,
+                Amount = 50000.00m,
+                SalesReportId = report.Id,
+                SalesReport = report
+            };
+
+            // CashFlowEntry with Category == Sales and SalesReport with HasDepositSlip == false is flagged as missing slip
+            Assert.Equal(CashFlowCategory.Sales, entry.Category);
+            Assert.NotNull(entry.SalesReport);
+            Assert.False(entry.SalesReport.HasDepositSlip);
+
+            bool isMissingSlip = entry.Direction == CashFlowDirection.In
+                                 && entry.Category == CashFlowCategory.Sales
+                                 && (entry.SalesReport == null || !entry.SalesReport.HasDepositSlip);
+            Assert.True(isMissingSlip);
+
+            // Once DepositSlipImageUrl is set, HasDepositSlip is true
+            report.DepositSlipImageUrl = "/SalesReports/DepositSlip/slip_123.jpg";
+            report.DepositBankName = "BDO";
+            Assert.True(entry.SalesReport!.HasDepositSlip);
+
+            isMissingSlip = entry.Direction == CashFlowDirection.In
+                            && entry.Category == CashFlowCategory.Sales
+                            && (entry.SalesReport == null || !entry.SalesReport.HasDepositSlip);
+            Assert.False(isMissingSlip);
+        }
+
+        [Fact]
+        public async Task PostConfirmedSalesReportToTreasury_SetsSalesReportIdOnEntry()
+        {
+            var options = new DbContextOptionsBuilder<AuditDbContext>()
+                .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+                .Options;
+
+            using var context = new AuditDbContext(options);
+            var report = new SalesReport
+            {
+                Id = 42,
+                EstablishmentId = 1,
+                HandoverDate = DateTime.Today,
+                BusinessDate = DateTime.Today,
+                ConfirmedCashToHandover = 15000.00m,
+                DocumentRecordId = 88,
+                Status = SalesReportStatus.Confirmed
+            };
+            context.SalesReports.Add(report);
+            await context.SaveChangesAsync();
+
+            var controller = new SalesReportsController(context, null!, null!);
+            int currentUserId = 5;
+
+            // When PostConfirmedSalesReportToTreasury runs
+            await controller.PostConfirmedSalesReportToTreasury(report, currentUserId);
+            await context.SaveChangesAsync();
+
+            // The created/updated CashFlowEntry has entry.SalesReportId == report.Id
+            var entry = await context.CashFlowEntries
+                .FirstOrDefaultAsync(e => e.Category == CashFlowCategory.Sales && e.SalesReportId == report.Id);
+
+            Assert.NotNull(entry);
+            Assert.Equal(report.Id, entry.SalesReportId);
+            Assert.Equal(report.ConfirmedCashToHandover, entry.Amount);
+            Assert.Equal(CashFlowCategory.Sales, entry.Category);
+            Assert.Equal(CashFlowDirection.In, entry.Direction);
+
+            // Updating existing entry
+            report.ConfirmedCashToHandover = 18000.00m;
+            await controller.PostConfirmedSalesReportToTreasury(report, currentUserId);
+            await context.SaveChangesAsync();
+
+            var updatedEntry = await context.CashFlowEntries
+                .FirstOrDefaultAsync(e => e.Category == CashFlowCategory.Sales && e.SalesReportId == report.Id);
+            Assert.NotNull(updatedEntry);
+            Assert.Equal(report.Id, updatedEntry.SalesReportId);
+            Assert.Equal(18000.00m, updatedEntry.Amount);
+        }
+
     }
 
     public class FakeDepositSlipOcrService : AuditCkDayo.Services.IDepositSlipOcrService

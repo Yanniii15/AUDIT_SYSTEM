@@ -147,6 +147,18 @@
 </div>
 
 <div class="space-y-6 mt-6">
+    @{
+        var unDepositedSales = Model.Entries.Where(e => e.Direction == CashFlowDirection.In && e.Category == CashFlowCategory.Sales && (e.SalesReport == null || !e.SalesReport.HasDepositSlip)).ToList();
+    }
+    @if (unDepositedSales.Any())
+    {
+        <div class="rounded-xl border border-red-500/30 bg-red-500/10 p-4 shadow-sm flex items-center gap-3 text-red-500">
+            <span class="material-symbols-outlined text-red-500 text-2xl animate-pulse">warning</span>
+            <div class="font-medium text-sm">
+                <span class="font-bold">ATTENTION:</span> @unDepositedSales.Count Sales Handover(s) totaling ₱@unDepositedSales.Sum(e => e.Amount).ToString("N2") are awaiting bank deposit slips.
+            </div>
+        </div>
+    }
     <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
             <h1 class="font-headline-lg text-headline-lg text-on-surface">Treasury Cash Flow</h1>
@@ -170,6 +182,17 @@
                     </button>
                 </form>
             }
+            @if (!string.IsNullOrWhiteSpace(ViewBag.SpokenSummary as string))
+            {
+                <button type="button" id="listen-audio-summary-btn" data-summary="@ViewBag.SpokenSummary" class="inline-flex items-center gap-2 rounded-lg bg-secondary px-4 py-2 text-sm font-semibold text-on-secondary shadow-sm hover:bg-secondary/90">
+                    <span class="material-symbols-outlined text-[18px]">volume_up</span>
+                    <span id="listen-audio-btn-label">Listen Summary</span>
+                </button>
+            }
+            <a asp-controller="Treasury" asp-action="ExportAudioSummary" asp-route-date="@Model.SelectedDate.ToString("yyyy-MM-dd")" class="inline-flex items-center gap-2 rounded-lg border border-outline px-4 py-2 text-sm font-semibold text-secondary hover:bg-secondary/10">
+                <span class="material-symbols-outlined text-[18px]">download</span>
+                Download Audio Summary
+            </a>
             <button id="export-treasury-image-btn" class="inline-flex items-center gap-2 rounded-lg bg-secondary px-4 py-2 text-sm font-semibold text-on-secondary shadow-sm hover:bg-secondary/90">
                 <span class="material-symbols-outlined text-[18px]">image</span>
                 Export Image
@@ -220,97 +243,111 @@
 
     <div class="grid gap-6 md:grid-cols-2">
         <!-- Record Cash In -->
-        <section class="rounded-xl border border-outline-variant bg-surface-container p-4 shadow-sm">
-            <div class="mb-4">
-                <h2 class="text-lg font-semibold text-on-surface">Record cash in</h2>
-                <p class="text-sm text-on-surface-variant">Record cash flowing into the Treasury.</p>
+        <details class="group rounded-xl border border-outline-variant bg-surface-container shadow-sm transition-all">
+            <summary class="flex cursor-pointer items-center justify-between p-4 font-semibold text-on-surface hover:bg-surface-container-high/50 select-none rounded-xl">
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-green-600">add_circle</span>
+                    <span>Record cash in</span>
+                    <span class="text-xs font-normal text-on-surface-variant hidden sm:inline">— click to expand</span>
+                </div>
+                <span class="material-symbols-outlined transition-transform duration-200 group-open:rotate-180">expand_more</span>
+            </summary>
+            <div class="border-t border-outline-variant/50 p-4">
+                <p class="mb-4 text-xs text-on-surface-variant">Record cash flowing into the Treasury.</p>
+                <form asp-controller="Treasury" asp-action="RecordCashIn" method="post" class="grid gap-4 md:grid-cols-2">
+                    @Html.AntiForgeryToken()
+                    <input asp-for="ManualCashIn.CashInDate" type="hidden" value="@Model.SelectedDate.ToString("yyyy-MM-dd")" />
+                    <div>
+                        <label asp-for="ManualCashIn.Category" class="block text-sm font-medium text-on-surface">Category</label>
+                        <select asp-for="ManualCashIn.Category" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2 text-on-surface">
+                            <option value="@CashFlowCategory.Others">Others</option>
+                            <option value="@CashFlowCategory.Sales">Sales</option>
+                            <option value="@CashFlowCategory.ChangePcf">Change PCF</option>
+                            <option value="@CashFlowCategory.OwnerFunding">Owner Funding</option>
+                            <option value="@CashFlowCategory.CashSurrender">Cash Surrender</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label asp-for="ManualCashIn.Amount" class="block text-sm font-medium text-on-surface">Amount</label>
+                        <input asp-for="ManualCashIn.Amount" type="number" min="0.01" step="0.01" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2 text-on-surface" />
+                    </div>
+                    <div class="md:col-span-2">
+                        <label asp-for="ManualCashIn.Purpose" class="block text-sm font-medium text-on-surface">Purpose / remarks</label>
+                        <input asp-for="ManualCashIn.Purpose" maxlength="255" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2 text-on-surface" placeholder="Purpose or details" />
+                    </div>
+                    <div class="md:col-span-2">
+                        <button type="submit" class="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary shadow-sm hover:bg-primary/90">
+                            Save cash in
+                        </button>
+                    </div>
+                </form>
             </div>
-            <form asp-controller="Treasury" asp-action="RecordCashIn" method="post" class="grid gap-4 md:grid-cols-2">
-                @Html.AntiForgeryToken()
-                <input asp-for="ManualCashIn.CashInDate" type="hidden" value="@Model.SelectedDate.ToString("yyyy-MM-dd")" />
-                <div>
-                    <label asp-for="ManualCashIn.Category" class="block text-sm font-medium text-on-surface">Category</label>
-                    <select asp-for="ManualCashIn.Category" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2 text-on-surface">
-                        <option value="@CashFlowCategory.Others">Others</option>
-                        <option value="@CashFlowCategory.Sales">Sales</option>
-                        <option value="@CashFlowCategory.ChangePcf">Change PCF</option>
-                        <option value="@CashFlowCategory.OwnerFunding">Owner Funding</option>
-                        <option value="@CashFlowCategory.CashSurrender">Cash Surrender</option>
-                    </select>
-                </div>
-                <div>
-                    <label asp-for="ManualCashIn.Amount" class="block text-sm font-medium text-on-surface">Amount</label>
-                    <input asp-for="ManualCashIn.Amount" type="number" min="0.01" step="0.01" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2 text-on-surface" />
-                </div>
-                <div class="md:col-span-2">
-                    <label asp-for="ManualCashIn.Purpose" class="block text-sm font-medium text-on-surface">Purpose / remarks</label>
-                    <input asp-for="ManualCashIn.Purpose" maxlength="255" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2 text-on-surface" placeholder="Purpose or details" />
-                </div>
-                <div class="md:col-span-2">
-                    <button type="submit" class="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary shadow-sm hover:bg-primary/90">
-                        Save cash in
-                    </button>
-                </div>
-            </form>
-        </section>
+        </details>
 
         <!-- Record Cash Out -->
-        <section class="rounded-xl border border-outline-variant bg-surface-container p-4 shadow-sm">
-            <div class="mb-4">
-                <h2 class="text-lg font-semibold text-on-surface">Record cash out</h2>
-                <p class="text-sm text-on-surface-variant">Record cash paid out from the Treasury.</p>
+        <details class="group rounded-xl border border-outline-variant bg-surface-container shadow-sm transition-all">
+            <summary class="flex cursor-pointer items-center justify-between p-4 font-semibold text-on-surface hover:bg-surface-container-high/50 select-none rounded-xl">
+                <div class="flex items-center gap-2">
+                    <span class="material-symbols-outlined text-red-600">remove_circle</span>
+                    <span>Record cash out</span>
+                    <span class="text-xs font-normal text-on-surface-variant hidden sm:inline">— click to expand</span>
+                </div>
+                <span class="material-symbols-outlined transition-transform duration-200 group-open:rotate-180">expand_more</span>
+            </summary>
+            <div class="border-t border-outline-variant/50 p-4">
+                <p class="mb-4 text-xs text-on-surface-variant">Record cash paid out from the Treasury.</p>
+                <form asp-controller="Treasury" asp-action="RecordCashOut" method="post" class="grid gap-4 md:grid-cols-2">
+                    @Html.AntiForgeryToken()
+                    <input asp-for="ManualCashOut.CashOutDate" type="hidden" value="@Model.SelectedDate.ToString("yyyy-MM-dd")" />
+                    <div>
+                        <label asp-for="ManualCashOut.Category" class="block text-sm font-medium text-on-surface">Cash-out category</label>
+                        <select asp-for="ManualCashOut.Category" id="manual-cashout-category" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2 text-on-surface">
+                            <option value="@CashFlowCategory.Others">Others</option>
+                            <option value="@CashFlowCategory.PcfRelease">PCF</option>
+                            <option value="@CashFlowCategory.ChangePcf">Change PCF</option>
+                            <option value="@CashFlowCategory.Expense">Expense</option>
+                            <option value="@CashFlowCategory.Payroll">Payroll</option>
+                            <option value="@CashFlowCategory.Utilities">Utilities</option>
+                            <option value="@CashFlowCategory.Supplier">Supplier</option>
+                        </select>
+                    </div>
+                    <div id="manual-cashout-amount-wrap">
+                        <label asp-for="ManualCashOut.Amount" class="block text-sm font-medium text-on-surface">Amount</label>
+                        <input asp-for="ManualCashOut.Amount" id="manual-cashout-amount" type="number" min="0.01" step="0.01" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2 text-on-surface" />
+                    </div>
+                    <div id="manual-cashout-establishment-wrap" class="md:col-span-2">
+                        <label asp-for="ManualCashOut.EstablishmentId" class="block text-sm font-medium text-on-surface">Establishment</label>
+                        <select asp-for="ManualCashOut.EstablishmentId" asp-items="ViewBag.CashFlowEstablishments" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2 text-on-surface">
+                            <option value="">— none —</option>
+                        </select>
+                        <p class="mt-1 text-xs text-on-surface-variant">Leave as none for personal, treasury-wide, or non-branch cash-outs.</p>
+                    </div>
+                    <div id="manual-cashout-purpose-wrap" class="md:col-span-2">
+                        <label asp-for="ManualCashOut.Purpose" class="block text-sm font-medium text-on-surface">Purpose / remarks</label>
+                        <input asp-for="ManualCashOut.Purpose" id="manual-cashout-purpose" maxlength="255" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2 text-on-surface" placeholder="Example: KEITH GAS AUG. 5" />
+                    </div>
+                    <div id="manual-cashout-reportedby-wrap" class="md:col-span-2">
+                        <label asp-for="ManualCashOut.ReportedByUserId" class="block text-sm font-medium text-on-surface">Report under manager</label>
+                        <select asp-for="ManualCashOut.ReportedByUserId" asp-items="ViewBag.ReportedByManagers" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2 text-on-surface">
+                            <option value="">— same as this treasury (default) —</option>
+                        </select>
+                        <p class="mt-1 text-xs text-on-surface-variant">Optional: shows this cash-out under another manager's report (e.g. covering manager). Treasury total stays with this handler.</p>
+                    </div>
+                    <label class="md:col-span-2 flex flex-col gap-1 text-sm font-medium text-on-surface">
+                        <span class="inline-flex items-center gap-2">
+                            <input asp-for="ManualCashOut.AppliesAcrossEstablishments" id="manual-cashout-across-establishments" type="checkbox" class="rounded border-outline text-primary focus:ring-primary" />
+                            Applies across establishments
+                        </span>
+                        <span class="text-xs font-normal text-on-surface-variant">This one amount applies across establishments and is not split.</span>
+                    </label>
+                    <div class="md:col-span-2">
+                        <button type="submit" class="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary shadow-sm hover:bg-primary/90">
+                            Save cash out
+                        </button>
+                    </div>
+                </form>
             </div>
-            <form asp-controller="Treasury" asp-action="RecordCashOut" method="post" class="grid gap-4 md:grid-cols-2">
-                @Html.AntiForgeryToken()
-                <input asp-for="ManualCashOut.CashOutDate" type="hidden" value="@Model.SelectedDate.ToString("yyyy-MM-dd")" />
-                <div>
-                    <label asp-for="ManualCashOut.Category" class="block text-sm font-medium text-on-surface">Cash-out category</label>
-                    <select asp-for="ManualCashOut.Category" id="manual-cashout-category" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2 text-on-surface">
-                        <option value="@CashFlowCategory.Others">Others</option>
-                        <option value="@CashFlowCategory.PcfRelease">PCF</option>
-                        <option value="@CashFlowCategory.ChangePcf">Change PCF</option>
-                        <option value="@CashFlowCategory.Expense">Expense</option>
-                        <option value="@CashFlowCategory.Payroll">Payroll</option>
-                        <option value="@CashFlowCategory.Utilities">Utilities</option>
-                        <option value="@CashFlowCategory.Supplier">Supplier</option>
-                    </select>
-                </div>
-                <div id="manual-cashout-amount-wrap">
-                    <label asp-for="ManualCashOut.Amount" class="block text-sm font-medium text-on-surface">Amount</label>
-                    <input asp-for="ManualCashOut.Amount" id="manual-cashout-amount" type="number" min="0.01" step="0.01" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2 text-on-surface" />
-                </div>
-                <div id="manual-cashout-establishment-wrap" class="md:col-span-2">
-                    <label asp-for="ManualCashOut.EstablishmentId" class="block text-sm font-medium text-on-surface">Establishment</label>
-                    <select asp-for="ManualCashOut.EstablishmentId" asp-items="ViewBag.CashFlowEstablishments" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2 text-on-surface">
-                        <option value="">— none —</option>
-                    </select>
-                    <p class="mt-1 text-xs text-on-surface-variant">Leave as none for personal, treasury-wide, or non-branch cash-outs.</p>
-                </div>
-                <div id="manual-cashout-purpose-wrap" class="md:col-span-2">
-                    <label asp-for="ManualCashOut.Purpose" class="block text-sm font-medium text-on-surface">Purpose / remarks</label>
-                    <input asp-for="ManualCashOut.Purpose" id="manual-cashout-purpose" maxlength="255" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2 text-on-surface" placeholder="Example: KEITH GAS AUG. 5" />
-                </div>
-                <div id="manual-cashout-reportedby-wrap" class="md:col-span-2">
-                    <label asp-for="ManualCashOut.ReportedByUserId" class="block text-sm font-medium text-on-surface">Report under manager</label>
-                    <select asp-for="ManualCashOut.ReportedByUserId" asp-items="ViewBag.ReportedByManagers" class="mt-1 w-full rounded-lg border border-outline bg-surface px-3 py-2 text-on-surface">
-                        <option value="">— same as this treasury (default) —</option>
-                    </select>
-                    <p class="mt-1 text-xs text-on-surface-variant">Optional: shows this cash-out under another manager's report (e.g. covering manager). Treasury total stays with this handler.</p>
-                </div>
-                <label class="md:col-span-2 flex flex-col gap-1 text-sm font-medium text-on-surface">
-                    <span class="inline-flex items-center gap-2">
-                        <input asp-for="ManualCashOut.AppliesAcrossEstablishments" id="manual-cashout-across-establishments" type="checkbox" class="rounded border-outline text-primary focus:ring-primary" />
-                        Applies across establishments
-                    </span>
-                    <span class="text-xs font-normal text-on-surface-variant">This one amount applies across establishments and is not split.</span>
-                </label>
-                <div class="md:col-span-2">
-                    <button type="submit" class="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-on-primary shadow-sm hover:bg-primary/90">
-                        Save cash out
-                    </button>
-                </div>
-            </form>
-        </section>
+        </details>
     </div>
 
     <div class="space-y-4">
@@ -341,19 +378,41 @@
                                             }
                                             @foreach (var entry in salesIn)
                                             {
-                                                <tr class="border-b last:border-0 border-surface-border hover:bg-surface-container-high/40 transition-colors group">
+                                                var hasDepositSlip = entry.SalesReport != null && entry.SalesReport.HasDepositSlip;
+                                                var rowClass = hasDepositSlip
+                                                    ? "border-b last:border-0 border-surface-border hover:bg-surface-container-high/40 transition-colors group"
+                                                    : "border-b last:border-0 border-surface-border bg-red-500/10 border-l-4 border-red-500 hover:bg-red-500/20 transition-colors group";
+                                                <tr class="@rowClass">
                                                     <td class="px-4 py-3 text-sm text-on-surface font-medium">
-                                                        @if (entry.Establishment != null)
-                                                        {
-                                                            <span>@entry.Establishment.Name</span>
-                                                            @if (!string.IsNullOrEmpty(entry.Notes))
+                                                        <div class="flex flex-wrap items-center gap-2">
+                                                            @if (entry.Establishment != null)
                                                             {
-                                                                <span class="text-xs text-on-surface-variant block mt-0.5">@entry.Notes</span>
+                                                                <span>@entry.Establishment.Name</span>
                                                             }
-                                                        }
-                                                        else
+                                                            else
+                                                            {
+                                                                <span>@(entry.Notes ?? "General")</span>
+                                                            }
+
+                                                            @if (!hasDepositSlip)
+                                                            {
+                                                                <span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-red-600 text-white animate-pulse">● NO DEPOSIT SLIP</span>
+                                                                var reportId = entry.SalesReportId ?? entry.SalesReport?.Id ?? 0;
+                                                                <button type="button"
+                                                                        onclick="openDepositModal(@reportId, '@(entry.Establishment?.Name?.Replace("'", "\\'") ?? "Sales Handover")', @entry.Amount)"
+                                                                        class="px-2 py-0.5 text-[10px] font-semibold rounded bg-red-600 text-white hover:bg-red-700 shadow-sm transition"
+                                                                        data-html2canvas-ignore="true">
+                                                                    Upload Slip
+                                                                </button>
+                                                            }
+                                                            else if (entry.SalesReport != null)
+                                                            {
+                                                                <a href="@entry.SalesReport.DepositSlipImageUrl" target="_blank" class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">✓ DEPOSITED (@entry.SalesReport.DepositBankName)</a>
+                                                            }
+                                                        </div>
+                                                        @if (entry.Establishment != null && !string.IsNullOrEmpty(entry.Notes))
                                                         {
-                                                            <span>@(entry.Notes ?? "General")</span>
+                                                            <span class="text-xs text-on-surface-variant block mt-0.5">@entry.Notes</span>
                                                         }
                                                     </td>
                                                     <td class="px-4 py-3 text-right">
@@ -599,6 +658,94 @@
     </div>
 </div>
 
+<!-- Upload Deposit Slip Modal -->
+<div id="treasuryDepositSlipModal" class="fixed inset-0 z-[100] hidden bg-black/70 flex items-center justify-center p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="depositModalTitle">
+    <div class="relative w-full max-w-md bg-surface-container-lowest rounded-2xl shadow-2xl border border-surface-border overflow-hidden">
+        <div class="px-5 py-4 border-b border-surface-border flex items-center justify-between bg-surface-container-low">
+            <div class="flex items-center gap-2">
+                <span class="material-symbols-outlined text-primary text-xl">upload_file</span>
+                <h3 id="depositModalTitle" class="font-headline-sm text-sm font-bold text-on-surface">Upload Bank Deposit Slip</h3>
+            </div>
+            <button type="button" onclick="closeDepositModal()" class="text-on-surface-variant hover:text-on-surface p-1 rounded-lg hover:bg-surface-container-high transition">
+                <span class="material-symbols-outlined text-lg">close</span>
+            </button>
+        </div>
+
+        <form id="treasuryDepositSlipForm" onsubmit="handleDepositSlipSubmit(event)" class="p-5 space-y-4">
+            @Html.AntiForgeryToken()
+            <input type="hidden" id="depositModalSalesReportId" name="SalesReportId" value="" />
+
+            <div class="rounded-lg bg-surface-container p-3 border border-surface-border text-xs flex justify-between items-center">
+                <div>
+                    <span class="text-on-surface-variant block">Establishment</span>
+                    <span id="depositModalEstName" class="font-bold text-on-surface text-sm">--</span>
+                </div>
+                <div class="text-right">
+                    <span class="text-on-surface-variant block">Handover Amount</span>
+                    <span id="depositModalHandoverAmount" class="font-bold text-primary text-sm font-data-mono">₱0.00</span>
+                </div>
+            </div>
+
+            <div id="depositModalError" class="hidden rounded-lg bg-red-500/10 border border-red-500/30 p-3 text-xs text-red-500"></div>
+
+            <div class="space-y-3">
+                <div>
+                    <label for="depositModalBankName" class="block text-xs font-semibold text-on-surface mb-1">Bank Name *</label>
+                    <input type="text" id="depositModalBankName" name="DepositBankName" list="bankList" required placeholder="e.g. BDO, BPI, Metrobank" class="w-full rounded-lg border border-outline bg-surface px-3 py-2 text-xs text-on-surface focus:ring-1 focus:ring-primary" />
+                    <datalist id="bankList">
+                        <option value="BDO" />
+                        <option value="BPI" />
+                        <option value="Metrobank" />
+                        <option value="Security Bank" />
+                        <option value="Landbank" />
+                        <option value="UnionBank" />
+                        <option value="RCBC" />
+                        <option value="PNB" />
+                        <option value="China Bank" />
+                    </datalist>
+                </div>
+
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label for="depositModalAmount" class="block text-xs font-semibold text-on-surface mb-1">Deposited Amount *</label>
+                        <input type="number" step="0.01" min="0.01" id="depositModalAmount" name="DepositedAmount" required class="w-full rounded-lg border border-outline bg-surface px-3 py-2 text-xs text-on-surface font-data-mono focus:ring-1 focus:ring-primary" />
+                    </div>
+                    <div>
+                        <label for="depositModalDate" class="block text-xs font-semibold text-on-surface mb-1">Deposit Date *</label>
+                        <input type="date" id="depositModalDate" name="DepositDate" required value="@Model.SelectedDate.ToString("yyyy-MM-dd")" class="w-full rounded-lg border border-outline bg-surface px-3 py-2 text-xs text-on-surface focus:ring-1 focus:ring-primary" />
+                    </div>
+                </div>
+
+                <div>
+                    <label for="depositModalRef" class="block text-xs font-semibold text-on-surface mb-1">Reference / Trans #</label>
+                    <input type="text" id="depositModalRef" name="DepositReferenceNumber" placeholder="e.g. TRN-123456" class="w-full rounded-lg border border-outline bg-surface px-3 py-2 text-xs text-on-surface focus:ring-1 focus:ring-primary" />
+                </div>
+
+                <div>
+                    <label for="depositModalFile" class="block text-xs font-semibold text-on-surface mb-1">Deposit Slip Image *</label>
+                    <input type="file" id="depositModalFile" name="depositSlipFile" accept=".png,.jpg,.jpeg,.webp" required class="w-full text-xs text-on-surface file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-primary file:text-on-primary hover:file:bg-primary/90 cursor-pointer" />
+                    <p class="text-[10px] text-on-surface-variant mt-1">Accepts PNG, JPG, JPEG, WEBP.</p>
+                </div>
+
+                <div id="depositVarianceReasonGroup" class="hidden">
+                    <label for="depositModalVarianceReason" class="block text-xs font-semibold text-red-500 mb-1">Variance Explanation *</label>
+                    <textarea id="depositModalVarianceReason" name="DepositVarianceReason" rows="2" placeholder="Explain why deposited amount differs from handover..." class="w-full rounded-lg border border-red-500/50 bg-surface px-3 py-2 text-xs text-on-surface focus:ring-1 focus:ring-red-500"></textarea>
+                </div>
+            </div>
+
+            <div class="pt-3 border-t border-surface-border flex justify-end gap-2">
+                <button type="button" onclick="closeDepositModal()" class="px-4 py-2 text-xs font-semibold rounded-lg border border-outline text-on-surface hover:bg-surface-container transition">
+                    Cancel
+                </button>
+                <button type="submit" id="depositModalSubmitBtn" class="px-4 py-2 text-xs font-semibold rounded-lg bg-primary text-on-primary hover:bg-primary/90 shadow-sm transition inline-flex items-center gap-1.5">
+                    <span class="material-symbols-outlined text-sm">cloud_upload</span>
+                    <span id="depositModalSubmitBtnText">Upload & Record</span>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
 @section Scripts {
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha512-BNaRQnYJYiPSqHHDb58B0yaPfCu+Wgds8Gp/gU33kqBtgNS4tSPHuGibyoeqMV/TJlSKda6FXzoEyYGjTe+vXA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script>
@@ -631,6 +778,49 @@
             acrossEstablishments?.addEventListener('change', syncPurpose);
             syncPurpose();
 
+            // Listen audio summary trigger
+            const listenBtn = document.getElementById('listen-audio-summary-btn');
+            if (listenBtn && 'speechSynthesis' in window) {
+                let isSpeaking = false;
+                listenBtn.addEventListener('click', () => {
+                    const label = document.getElementById('listen-audio-btn-label');
+                    if (isSpeaking) {
+                        window.speechSynthesis.cancel();
+                        isSpeaking = false;
+                        if (label) label.textContent = 'Listen Summary';
+                        return;
+                    }
+                    const summaryText = listenBtn.getAttribute('data-summary');
+                    if (!summaryText) return;
+
+                    window.speechSynthesis.cancel();
+                    let cleanText = summaryText.replace(/₱/g, ' Philippine pesos ');
+                    cleanText = cleanText.replace(/\bpesos\b/gi, 'Philippine pesos');
+                    cleanText = cleanText.replace(/\bdollars?\b/gi, 'Philippine pesos');
+                    const utterance = new SpeechSynthesisUtterance(cleanText);
+                    utterance.lang = 'en-PH';
+                    utterance.rate = 0.95;
+                    utterance.pitch = 1;
+                    const voices = window.speechSynthesis.getVoices();
+                    if (voices && voices.length > 0) {
+                        const phVoice = voices.find(v => v.lang === 'en-PH' || v.lang === 'fil-PH' || v.lang.startsWith('fil') || v.name.toLowerCase().includes('philippine'));
+                        if (phVoice) {
+                            utterance.voice = phVoice;
+                        }
+                    }
+                    utterance.onend = () => {
+                        isSpeaking = false;
+                        if (label) label.textContent = 'Listen Summary';
+                    };
+                    utterance.onerror = () => {
+                        isSpeaking = false;
+                        if (label) label.textContent = 'Listen Summary';
+                    };
+                    isSpeaking = true;
+                    if (label) label.textContent = 'Stop Listening';
+                    window.speechSynthesis.speak(utterance);
+                });
+            }
             // Image export trigger script
             const exportBtn = document.getElementById('export-treasury-image-btn');
             if (exportBtn) {
@@ -685,5 +875,121 @@
                 });
             }
         })();
+
+        // Deposit Slip Upload Modal Handlers
+        let currentExpectedAmount = 0;
+        window.openDepositModal = function(reportId, establishmentName, handoverAmount) {
+            const modal = document.getElementById('treasuryDepositSlipModal');
+            const form = document.getElementById('treasuryDepositSlipForm');
+            const errorBox = document.getElementById('depositModalError');
+            if (!modal || !form) return;
+
+            if (!reportId || reportId === 0) {
+                alert('This sales entry is not linked to a daily sales report.');
+                return;
+            }
+
+            document.getElementById('depositModalSalesReportId').value = reportId;
+            document.getElementById('depositModalEstName').textContent = establishmentName || 'Sales Handover';
+            document.getElementById('depositModalHandoverAmount').textContent = '₱' + Number(handoverAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            document.getElementById('depositModalAmount').value = Number(handoverAmount || 0).toFixed(2);
+            currentExpectedAmount = Number(handoverAmount || 0);
+
+            const varianceGroup = document.getElementById('depositVarianceReasonGroup');
+            const varianceInput = document.getElementById('depositModalVarianceReason');
+            if (varianceGroup) varianceGroup.classList.add('hidden');
+            if (varianceInput) {
+                varianceInput.required = false;
+                varianceInput.value = '';
+            }
+
+            if (errorBox) {
+                errorBox.classList.add('hidden');
+                errorBox.textContent = '';
+            }
+
+            modal.classList.remove('hidden');
+        };
+
+        window.closeDepositModal = function() {
+            const modal = document.getElementById('treasuryDepositSlipModal');
+            if (modal) modal.classList.add('hidden');
+        };
+
+        document.getElementById('depositModalAmount')?.addEventListener('input', function() {
+            const entered = parseFloat(this.value) || 0;
+            const diff = Math.abs(entered - currentExpectedAmount);
+            const varianceGroup = document.getElementById('depositVarianceReasonGroup');
+            const varianceInput = document.getElementById('depositModalVarianceReason');
+            if (varianceGroup && varianceInput) {
+                if (diff >= 0.01) {
+                    varianceGroup.classList.remove('hidden');
+                    varianceInput.required = true;
+                } else {
+                    varianceGroup.classList.add('hidden');
+                    varianceInput.required = false;
+                }
+            }
+        });
+
+        window.handleDepositSlipSubmit = async function(event) {
+            event.preventDefault();
+            const form = document.getElementById('treasuryDepositSlipForm');
+            const errorBox = document.getElementById('depositModalError');
+            const submitBtn = document.getElementById('depositModalSubmitBtn');
+            const submitText = document.getElementById('depositModalSubmitBtnText');
+            if (!form) return;
+
+            if (errorBox) {
+                errorBox.classList.add('hidden');
+                errorBox.textContent = '';
+            }
+
+            const formData = new FormData(form);
+            const originalText = submitText?.textContent || 'Upload & Record';
+            if (submitBtn) submitBtn.disabled = true;
+            if (submitText) submitText.textContent = 'Uploading...';
+
+            try {
+                const response = await fetch('/SalesReports/UploadDepositSlip', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    window.location.reload();
+                } else {
+                    let errorMsg = 'Failed to upload deposit slip.';
+                    try {
+                        const data = await response.json();
+                        if (data && data.message) {
+                            errorMsg = data.message;
+                        } else if (typeof data === 'string') {
+                            errorMsg = data;
+                        }
+                    } catch {
+                        const text = await response.text();
+                        if (text) errorMsg = text;
+                    }
+                    if (errorBox) {
+                        errorBox.textContent = errorMsg;
+                        errorBox.classList.remove('hidden');
+                    } else {
+                        alert(errorMsg);
+                    }
+                }
+            } catch (err) {
+                console.error('Upload error:', err);
+                if (errorBox) {
+                    errorBox.textContent = 'An error occurred during upload. Please try again.';
+                    errorBox.classList.remove('hidden');
+                } else {
+                    alert('An error occurred during upload.');
+                }
+            } finally {
+                if (submitBtn) submitBtn.disabled = false;
+                if (submitText) submitText.textContent = originalText;
+            }
+        };
     </script>
 }
