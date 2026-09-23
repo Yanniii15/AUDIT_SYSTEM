@@ -9,7 +9,7 @@ using Tesseract;
 
 namespace AuditCkDayo.Services
 {
-    public class TesseractOcrService : IOcrService
+    public class TesseractOcrService : IOcrService, IDepositSlipOcrService
     {
         private static readonly Regex DateRegex = new Regex(@"\b(\d{4}[-/.]\d{1,2}[-/.]\d{1,2}|\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})\b");
         private static readonly Regex DecimalRegex = new Regex(@"-?\s*(?:₱|\b)?\s*\d{1,3}(?:,\d{3})*(?:\.\d+)?|\b-?\s*\d{1,6}\.\d+\b");
@@ -194,6 +194,173 @@ namespace AuditCkDayo.Services
             {
                 Console.WriteLine($"[TESSERACT_OCR] SalesReport Error: {ex.Message}");
             }
+
+            return result;
+        }
+
+        public async Task<DepositSlipOcrResult> ParseDepositSlipAsync(Stream imageStream)
+        {
+            var result = new DepositSlipOcrResult();
+            if (imageStream == null)
+            {
+                return result;
+            }
+
+            try
+            {
+                if (imageStream.CanSeek)
+                {
+                    imageStream.Position = 0;
+                }
+
+                var tessdataPath = GetTessdataPath();
+                using var engine = new TesseractEngine(tessdataPath, "eng", EngineMode.Default);
+
+                byte[] bytes;
+                using (var ms = new MemoryStream())
+                {
+                    await imageStream.CopyToAsync(ms);
+                    bytes = ms.ToArray();
+                }
+
+                using var img = Pix.LoadFromMemory(bytes);
+                using var page = engine.Process(img);
+                var text = page.GetText();
+
+                result = ParseDepositSlipText(text);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[TESSERACT_OCR] DepositSlip Error: {ex.Message}");
+            }
+
+            return result;
+        }
+
+        public static DepositSlipOcrResult ParseDepositSlipText(string text)
+        {
+            var result = new DepositSlipOcrResult
+            {
+                RawText = text
+            };
+
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                result.Success = false;
+                return result;
+            }
+
+            // 1. Philippine Banks
+            var bankPatterns = new (string BankName, Regex Pattern)[]
+            {
+                ("BDO", new Regex(@"\b(?:BDO(?:\s+UNIBANK)?|BANCO\s+DE\s+ORO)\b", RegexOptions.IgnoreCase)),
+                ("BPI", new Regex(@"\b(?:BPI|BANK\s+OF\s+THE\s+PHILIPPINE\s+ISLANDS)\b", RegexOptions.IgnoreCase)),
+                ("Metrobank", new Regex(@"\b(?:METROBANK|METROPOLITAN\s+BANK(?:\s+(?:AND|&)\s+TRUST(?:\s+CO(?:MPANY)?)?)?)\b", RegexOptions.IgnoreCase)),
+                ("Landbank", new Regex(@"\b(?:LANDBANK|LAND\s+BANK(?:\s+OF\s+THE\s+PHILIPPINES)?)\b", RegexOptions.IgnoreCase)),
+                ("Security Bank", new Regex(@"\b(?:SECURITY\s+BANK(?:\s+CORP(?:ORATION)?)?)\b", RegexOptions.IgnoreCase)),
+                ("China Bank", new Regex(@"\b(?:CHINA\s*BANK|CHINABANK|CHINA\s+BANKING\s+CORP(?:ORATION)?)\b", RegexOptions.IgnoreCase)),
+                ("UnionBank", new Regex(@"\b(?:UNION\s*BANK|UNIONBANK(?:\s+OF\s+THE\s+PHILIPPINES)?)\b", RegexOptions.IgnoreCase)),
+                ("PNB", new Regex(@"\b(?:PNB|PHILIPPINE\s+NATIONAL\s+BANK)\b", RegexOptions.IgnoreCase))
+            };
+
+            foreach (var (bankName, pattern) in bankPatterns)
+            {
+                if (pattern.IsMatch(text))
+                {
+                    result.DetectedBank = bankName;
+                    break;
+                }
+            }
+
+            // 2. Reference / Trace / Transaction Number
+            var refRegex = new Regex(
+                @"\b(?:(?:TRN|TRANS|TXN|TRANSACTION|REF|REFERENCE|TRACE|APPR|APPROVAL|AUTH|SEQ|SEQUENCE)(?:\s*(?:NO|NUM|NUMBER|CODE|#))?|(?:DEPOSIT|RECEIPT|OR|SLIP)\s*(?:NO|NUM|NUMBER|CODE|#))[:#\s\-]+([A-Za-z0-9\-]+)",
+                RegexOptions.IgnoreCase);
+
+            var refMatch = refRegex.Match(text);
+            if (refMatch.Success)
+            {
+                var cleanRef = refMatch.Groups[1].Value.Trim().TrimEnd('.', ',', ';', ':');
+                if (!string.IsNullOrEmpty(cleanRef))
+                {
+                    result.DetectedReference = cleanRef;
+                }
+            }
+
+            // 3. Amount Extraction
+            // Tier 1: Labeled amount / cash deposit / total
+            var labeledAmountRegex = new Regex(
+                @"\b(?:CASH\s+DEPOSIT|DEPOSIT\s+AMOUNT|AMOUNT|TOTAL\s+CASH|TOTAL\s+DEPOSIT|TOTAL\s+AMOUNT|NET\s+AMOUNT|TOTAL|AMT)[\s:]*(?:PHP\.|PHP|₱|P)?\s*([\d,]+(?:\.\d{2})?)\b",
+                RegexOptions.IgnoreCase);
+
+            var amountMatch = labeledAmountRegex.Match(text);
+            if (amountMatch.Success && decimal.TryParse(Regex.Replace(amountMatch.Groups[1].Value, @"[^\d.-]", ""), NumberStyles.Any, CultureInfo.InvariantCulture, out var parsedTier1) && parsedTier1 > 0)
+            {
+                result.DetectedAmount = parsedTier1;
+            }
+            else
+            {
+                // Tier 2: Currency-prefixed amount
+                var currencyAmountRegex = new Regex(
+                    @"(?:PHP\.|PHP|₱|\bP)\s*([\d,]+(?:\.\d{2})?)\b",
+                    RegexOptions.IgnoreCase);
+                amountMatch = currencyAmountRegex.Match(text);
+                if (amountMatch.Success && decimal.TryParse(Regex.Replace(amountMatch.Groups[1].Value, @"[^\d.-]", ""), NumberStyles.Any, CultureInfo.InvariantCulture, out var parsedTier2) && parsedTier2 > 0)
+                {
+                    result.DetectedAmount = parsedTier2;
+                }
+                else
+                {
+                    // Tier 3: Comma-formatted decimal amount
+                    var formattedRegex = new Regex(@"\b(\d{1,3}(?:,\d{3})+\.\d{2})\b");
+                    amountMatch = formattedRegex.Match(text);
+                    if (amountMatch.Success && decimal.TryParse(Regex.Replace(amountMatch.Groups[1].Value, @"[^\d.-]", ""), NumberStyles.Any, CultureInfo.InvariantCulture, out var parsedTier3) && parsedTier3 > 0)
+                    {
+                        result.DetectedAmount = parsedTier3;
+                    }
+                    else
+                    {
+                        // Tier 4: Any decimal amount
+                        var anyDecimalRegex = new Regex(@"\b(\d+\.\d{2})\b");
+                        amountMatch = anyDecimalRegex.Match(text);
+                        if (amountMatch.Success && decimal.TryParse(Regex.Replace(amountMatch.Groups[1].Value, @"[^\d.-]", ""), NumberStyles.Any, CultureInfo.InvariantCulture, out var parsedTier4) && parsedTier4 > 0)
+                        {
+                            result.DetectedAmount = parsedTier4;
+                        }
+                    }
+                }
+            }
+
+            // 4. Date Extraction
+            var labeledDateMatch = Regex.Match(text, @"\bDATE[\s:]+(\d{4}[-/.]\d{1,2}[-/.]\d{1,2}|\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})", RegexOptions.IgnoreCase);
+            if (labeledDateMatch.Success)
+            {
+                var val = labeledDateMatch.Groups[1].Value;
+                if (DateTime.TryParse(val, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt) ||
+                    DateTime.TryParse(val, out dt))
+                {
+                    result.DetectedDate = dt;
+                }
+            }
+
+            if (!result.DetectedDate.HasValue)
+            {
+                var dateMatch = Regex.Match(text, @"\b(\d{4}[-/.]\d{1,2}[-/.]\d{1,2}|\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})\b");
+                if (dateMatch.Success)
+                {
+                    var val = dateMatch.Groups[1].Value;
+                    if (DateTime.TryParse(val, CultureInfo.InvariantCulture, DateTimeStyles.None, out var dt) ||
+                        DateTime.TryParse(val, out dt))
+                    {
+                        result.DetectedDate = dt;
+                    }
+                }
+            }
+
+            // 5. Success
+            result.Success = result.DetectedAmount.HasValue ||
+                             !string.IsNullOrEmpty(result.DetectedBank) ||
+                             !string.IsNullOrEmpty(result.DetectedReference);
 
             return result;
         }

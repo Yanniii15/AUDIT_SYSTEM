@@ -161,5 +161,18 @@ namespace AuditCkDayo.Tests
                 Assert.Equal(12500.50m, reloadedEntry.SalesReport.DepositedAmount);
             }
         }
+
+        [Theory]
+        [InlineData("BDO UNIBANK CASH DEPOSIT TRN: 948201 AMOUNT: PHP 45,780.00 DATE: 2026-08-15", "BDO", 45780.00, "948201")]
+        [InlineData("BANK OF THE PHILIPPINE ISLANDS REF# 88219 TOTAL CASH: 12,500.50 08/16/2026", "BPI", 12500.50, "88219")]
+        [InlineData("METROBANK CASH DEPOSIT P35,000.00 TRACE 77123", "Metrobank", 35000.00, "77123")]
+        public void DepositSlipOcrService_ExtractsFieldsFromRawTextCorrectly(string rawText, string expectedBank, decimal expectedAmount, string expectedRef)
+        {
+            var result = AuditCkDayo.Services.TesseractOcrService.ParseDepositSlipText(rawText);
+
+            Assert.Equal(expectedBank, result.DetectedBank);
+            Assert.Equal(expectedAmount, result.DetectedAmount);
+            Assert.Contains(expectedRef, result.DetectedReference);
+        }
     }
 }

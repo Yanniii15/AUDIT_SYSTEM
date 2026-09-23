@@ -63,6 +63,7 @@ builder.Services.AddHttpClient();
 builder.Services.AddScoped<AuditCkDayo.Services.CoverageService>();
 builder.Services.AddScoped<AuditCkDayo.Services.SharedPcfFundService>();
 builder.Services.AddScoped<AuditCkDayo.Services.ITreasuryAudioExportService, AuditCkDayo.Services.TreasuryAudioExportService>();
+builder.Services.AddScoped<AuditCkDayo.Services.IDepositSlipOcrService, AuditCkDayo.Services.TesseractOcrService>();
 
 var app = builder.Build();
 app.UseForwardedHeaders(new ForwardedHeadersOptions
