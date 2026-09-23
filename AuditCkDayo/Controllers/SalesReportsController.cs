@@ -924,10 +924,25 @@ namespace AuditCkDayo.Controllers
         [Authorize(Roles = "Owner,Manager,Admin")]
         public async Task<IActionResult> UploadDepositSlip([FromForm] UploadDepositSlipRequest request, IFormFile? depositSlipFile)
         {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            if (request.DepositedAmount < 0m)
+            {
+                return BadRequest("Deposited amount cannot be negative.");
+            }
+
             var report = await _context.SalesReports.FindAsync(request.SalesReportId);
             if (report == null)
             {
                 return NotFound("Sales report not found.");
+            }
+
+            if (await CurrentUserCannotAccessAsync(report.EstablishmentId))
+            {
+                return Forbid();
             }
 
             var expectedCash = report.ConfirmedCashToHandover != 0m
@@ -939,25 +954,34 @@ namespace AuditCkDayo.Controllers
                 return BadRequest("A Deposit Variance explanation is required when the deposited amount differs from confirmed cash sales.");
             }
 
-            if (depositSlipFile != null && depositSlipFile.Length > 0)
+            if (depositSlipFile != null)
             {
-                var contentRoot = _env?.ContentRootPath ?? Directory.GetCurrentDirectory();
-                var uploadsDir = Path.Combine(contentRoot, "storage", "deposit_slips");
-                if (!Directory.Exists(uploadsDir))
+                var allowedExtensions = new[] { ".png", ".jpg", ".jpeg", ".webp" };
+                var extension = Path.GetExtension(depositSlipFile.FileName)?.ToLowerInvariant();
+                if (string.IsNullOrEmpty(extension) || !allowedExtensions.Contains(extension))
                 {
-                    Directory.CreateDirectory(uploadsDir);
+                    return BadRequest("Invalid file format. Please upload in PNG, JPG, JPEG, or WEBP format.");
                 }
 
-                var extension = Path.GetExtension(depositSlipFile.FileName).ToLowerInvariant();
-                var uniqueName = $"slip_{report.Id}_{Guid.NewGuid():N}{extension}";
-                var filePath = Path.Combine(uploadsDir, uniqueName);
-
-                using (var fileStream = new FileStream(filePath, FileMode.Create))
+                if (depositSlipFile.Length > 0)
                 {
-                    await depositSlipFile.CopyToAsync(fileStream);
-                }
+                    var contentRoot = _env?.ContentRootPath ?? Directory.GetCurrentDirectory();
+                    var uploadsDir = Path.Combine(contentRoot, "storage", "deposit_slips");
+                    if (!Directory.Exists(uploadsDir))
+                    {
+                        Directory.CreateDirectory(uploadsDir);
+                    }
 
-                report.DepositSlipImageUrl = $"/SalesReports/DepositSlip/{uniqueName}";
+                    var uniqueName = $"slip_{report.Id}_{Guid.NewGuid():N}{extension}";
+                    var filePath = Path.Combine(uploadsDir, uniqueName);
+
+                    using (var fileStream = new FileStream(filePath, FileMode.Create))
+                    {
+                        await depositSlipFile.CopyToAsync(fileStream);
+                    }
+
+                    report.DepositSlipImageUrl = $"/SalesReports/DepositSlip/{uniqueName}";
+                }
             }
 
             report.DepositedAmount = request.DepositedAmount;

@@ -320,10 +320,20 @@ namespace AuditCkDayo.ViewModels
     public class UploadDepositSlipRequest
     {
         public int SalesReportId { get; set; }
+
+        [Required]
+        [Range(0, 999999999.99)]
         public decimal DepositedAmount { get; set; }
+
+        [MaxLength(100)]
         public string? DepositBankName { get; set; }
+
+        [MaxLength(100)]
         public string? DepositReferenceNumber { get; set; }
+
         public DateTime? DepositDate { get; set; }
+
+        [MaxLength(500)]
         public string? DepositVarianceReason { get; set; }
     }
 }

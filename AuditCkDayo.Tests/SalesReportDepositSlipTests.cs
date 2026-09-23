@@ -192,10 +192,21 @@ namespace AuditCkDayo.Tests
             var report = new SalesReport
             {
                 Id = 10,
+                EstablishmentId = 1,
                 BusinessDate = DateTime.Today,
                 ConfirmedCashToHandover = 50000.00m,
                 Status = SalesReportStatus.Confirmed
             };
+            context.Users.Add(new User
+            {
+                Id = 2,
+                Name = "Staff",
+                Email = "staff10@test.com",
+                PasswordHash = "hash",
+                Role = UserRole.BranchStaff,
+                EstablishmentId = 1,
+                ManagerId = 1
+            });
             context.SalesReports.Add(report);
             context.SaveChanges();
 
@@ -237,10 +248,21 @@ namespace AuditCkDayo.Tests
             var report = new SalesReport
             {
                 Id = 20,
+                EstablishmentId = 1,
                 BusinessDate = DateTime.Today,
                 ConfirmedCashToHandover = 50000.00m,
                 Status = SalesReportStatus.Confirmed
             };
+            context.Users.Add(new User
+            {
+                Id = 2,
+                Name = "Staff",
+                Email = "staff20@test.com",
+                PasswordHash = "hash",
+                Role = UserRole.BranchStaff,
+                EstablishmentId = 1,
+                ManagerId = 1
+            });
             context.SalesReports.Add(report);
             context.SaveChanges();
 
@@ -337,7 +359,11 @@ namespace AuditCkDayo.Tests
             {
                 HttpContext = new DefaultHttpContext
                 {
-                    User = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim(ClaimTypes.NameIdentifier, "1") }, "TestAuth"))
+                    User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+                    {
+                        new Claim(ClaimTypes.NameIdentifier, "1"),
+                        new Claim(ClaimTypes.Role, "Owner")
+                    }, "TestAuth"))
                 }
             };
 
@@ -365,6 +391,180 @@ namespace AuditCkDayo.Tests
             {
                 System.IO.File.Delete(filePath);
             }
+        }
+
+        [Fact]
+        public async Task UploadDepositSlip_ReturnsForbid_WhenUserCannotAccessEstablishment()
+        {
+            var options = new DbContextOptionsBuilder<AuditDbContext>()
+                .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+                .Options;
+
+            using var context = new AuditDbContext(options);
+            var report = new SalesReport
+            {
+                Id = 40,
+                EstablishmentId = 99,
+                BusinessDate = DateTime.Today,
+                ConfirmedCashToHandover = 1000m,
+                Status = SalesReportStatus.Confirmed
+            };
+            // Manager 1 only has access to establishment 1, not 99
+            context.Users.Add(new User
+            {
+                Id = 2,
+                Name = "Staff Branch 1",
+                Email = "staff-branch1@test.com",
+                PasswordHash = "hash",
+                Role = UserRole.BranchStaff,
+                EstablishmentId = 1,
+                ManagerId = 1
+            });
+            context.SalesReports.Add(report);
+            context.SaveChanges();
+
+            var controller = new SalesReportsController(context, null!, null!);
+            var claims = new List<Claim>
+            {
+                new(ClaimTypes.NameIdentifier, "1"),
+                new(ClaimTypes.Role, "Manager")
+            };
+            controller.ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"))
+                }
+            };
+
+            var result = await controller.UploadDepositSlip(new UploadDepositSlipRequest
+            {
+                SalesReportId = 40,
+                DepositedAmount = 1000m,
+                DepositBankName = "BDO",
+                DepositReferenceNumber = "123"
+            }, null);
+
+            Assert.IsType<ForbidResult>(result);
+        }
+
+        [Theory]
+        [InlineData("malicious.exe")]
+        [InlineData("document.pdf")]
+        [InlineData("script.sh")]
+        [InlineData("image.bmp")]
+        [InlineData("test.svg")]
+        [InlineData("noextension")]
+        public async Task UploadDepositSlip_ReturnsBadRequest_WhenFileExtensionIsInvalid(string invalidFileName)
+        {
+            var options = new DbContextOptionsBuilder<AuditDbContext>()
+                .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+                .Options;
+
+            using var context = new AuditDbContext(options);
+            var report = new SalesReport
+            {
+                Id = 50,
+                EstablishmentId = 1,
+                BusinessDate = DateTime.Today,
+                ConfirmedCashToHandover = 1000m,
+                Status = SalesReportStatus.Confirmed
+            };
+            context.Users.Add(new User
+            {
+                Id = 2,
+                Name = "Staff",
+                Email = "staff50@test.com",
+                PasswordHash = "hash",
+                Role = UserRole.BranchStaff,
+                EstablishmentId = 1,
+                ManagerId = 1
+            });
+            context.SalesReports.Add(report);
+            context.SaveChanges();
+
+            var controller = new SalesReportsController(context, null!, null!);
+            var claims = new List<Claim>
+            {
+                new(ClaimTypes.NameIdentifier, "1"),
+                new(ClaimTypes.Role, "Manager")
+            };
+            controller.ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"))
+                }
+            };
+
+            var content = "dummy file content"u8.ToArray();
+            var formFile = new FormFile(new System.IO.MemoryStream(content), 0, content.Length, "depositSlipFile", invalidFileName);
+
+            var result = await controller.UploadDepositSlip(new UploadDepositSlipRequest
+            {
+                SalesReportId = 50,
+                DepositedAmount = 1000m,
+                DepositBankName = "BDO",
+                DepositReferenceNumber = "123"
+            }, formFile);
+
+            var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+            Assert.Contains("Invalid file format", badRequest.Value?.ToString() ?? "");
+        }
+
+        [Fact]
+        public async Task UploadDepositSlip_ReturnsBadRequest_WhenDepositedAmountIsNegative()
+        {
+            var options = new DbContextOptionsBuilder<AuditDbContext>()
+                .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+                .Options;
+
+            using var context = new AuditDbContext(options);
+            var report = new SalesReport
+            {
+                Id = 60,
+                EstablishmentId = 1,
+                BusinessDate = DateTime.Today,
+                ConfirmedCashToHandover = 1000m,
+                Status = SalesReportStatus.Confirmed
+            };
+            context.Users.Add(new User
+            {
+                Id = 2,
+                Name = "Staff",
+                Email = "staff60@test.com",
+                PasswordHash = "hash",
+                Role = UserRole.BranchStaff,
+                EstablishmentId = 1,
+                ManagerId = 1
+            });
+            context.SalesReports.Add(report);
+            context.SaveChanges();
+
+            var controller = new SalesReportsController(context, null!, null!);
+            var claims = new List<Claim>
+            {
+                new(ClaimTypes.NameIdentifier, "1"),
+                new(ClaimTypes.Role, "Manager")
+            };
+            controller.ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"))
+                }
+            };
+
+            var result = await controller.UploadDepositSlip(new UploadDepositSlipRequest
+            {
+                SalesReportId = 60,
+                DepositedAmount = -500m,
+                DepositBankName = "BDO",
+                DepositReferenceNumber = "123"
+            }, null);
+
+            var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+            Assert.Contains("negative", badRequest.Value?.ToString() ?? "", StringComparison.OrdinalIgnoreCase);
         }
 
         [Fact]
