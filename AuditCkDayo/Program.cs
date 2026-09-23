@@ -100,26 +100,29 @@ using (var scope = app.Services.CreateScope())
         Console.WriteLine($"Database status cleanup failed: {ex.Message}");
     }
 
-    try
+    var depositColumns = new (string Table, string Column, string Definition)[]
     {
-        db.Database.ExecuteSqlRaw(@"
-            ALTER TABLE SalesReports
-                ADD COLUMN IF NOT EXISTS DepositSlipImageUrl varchar(255) NULL,
-                ADD COLUMN IF NOT EXISTS DepositedAmount decimal(12,2) NULL,
-                ADD COLUMN IF NOT EXISTS DepositBankName varchar(100) NULL,
-                ADD COLUMN IF NOT EXISTS DepositReferenceNumber varchar(100) NULL,
-                ADD COLUMN IF NOT EXISTS DepositDate datetime NULL,
-                ADD COLUMN IF NOT EXISTS DepositVarianceReason varchar(500) NULL,
-                ADD COLUMN IF NOT EXISTS DepositUploadedByUserId int NULL,
-                ADD COLUMN IF NOT EXISTS DepositUploadedAt datetime NULL;
+        ("SalesReports", "DepositSlipImageUrl", "varchar(255) NULL"),
+        ("SalesReports", "DepositedAmount", "decimal(12,2) NULL"),
+        ("SalesReports", "DepositBankName", "varchar(100) NULL"),
+        ("SalesReports", "DepositReferenceNumber", "varchar(100) NULL"),
+        ("SalesReports", "DepositDate", "datetime NULL"),
+        ("SalesReports", "DepositVarianceReason", "varchar(500) NULL"),
+        ("SalesReports", "DepositUploadedByUserId", "int NULL"),
+        ("SalesReports", "DepositUploadedAt", "datetime NULL"),
+        ("CashFlowEntries", "SalesReportId", "int NULL")
+    };
 
-            ALTER TABLE CashFlowEntries
-                ADD COLUMN IF NOT EXISTS SalesReportId int NULL;
-        ");
-    }
-    catch (Exception ex)
+    foreach (var (table, column, definition) in depositColumns)
     {
-        Console.WriteLine($"[DB_INIT] Deposit slip schema update notice: {ex.Message}");
+        try
+        {
+            db.Database.ExecuteSqlRaw($"ALTER TABLE `{table}` ADD COLUMN `{column}` {definition};");
+        }
+        catch
+        {
+            // Column already exists, safe to ignore in MySQL
+        }
     }
 
     try
