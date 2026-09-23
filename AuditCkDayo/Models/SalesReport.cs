@@ -42,6 +42,16 @@ namespace AuditCkDayo.Models
         [ForeignKey("CashierUserId")]
         public virtual User? CashierUser { get; set; }
 
+        public int? OpeningInputtedByUserId { get; set; }
+
+        [ForeignKey("OpeningInputtedByUserId")]
+        public virtual User? OpeningInputtedByUser { get; set; }
+
+        public int? ClosingInputtedByUserId { get; set; }
+
+        [ForeignKey("ClosingInputtedByUserId")]
+        public virtual User? ClosingInputtedByUser { get; set; }
+
         [MaxLength(100)]
         public string? CashierName { get; set; }
 
@@ -153,6 +163,9 @@ namespace AuditCkDayo.Models
         public decimal BeverageSales { get; set; }
 
         [Column(TypeName = "decimal(12,2)")]
+        public decimal HardSales { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
         public decimal OtherSales { get; set; }
 
         [Column(TypeName = "decimal(12,2)")]
@@ -216,6 +229,9 @@ namespace AuditCkDayo.Models
         public decimal OpeningBeverageSales { get; set; }
 
         [Column(TypeName = "decimal(12,2)")]
+        public decimal OpeningHardSales { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
         public decimal OpeningOtherSales { get; set; }
 
         [Column(TypeName = "decimal(12,2)")]
@@ -272,14 +288,83 @@ namespace AuditCkDayo.Models
         [MaxLength(255)]
         public string? OpeningNotes { get; set; }
 
+        // --- Bank Deposit Slip Verification Fields ---
+        [MaxLength(255)]
+        public string? DepositSlipImageUrl { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal? DepositedAmount { get; set; }
+
+        [MaxLength(100)]
+        public string? DepositBankName { get; set; }
+
+        [MaxLength(100)]
+        public string? DepositReferenceNumber { get; set; }
+
+        public DateTime? DepositDate { get; set; }
+
+        [MaxLength(500)]
+        public string? DepositVarianceReason { get; set; }
+
+        public int? DepositUploadedByUserId { get; set; }
+
+        [ForeignKey("DepositUploadedByUserId")]
+        public virtual User? DepositUploadedByUser { get; set; }
+
+        public DateTime? DepositUploadedAt { get; set; }
+
         [NotMapped]
-        public decimal TotalGrossSales => GrossSales + OpeningGrossSales;
+        public bool HasDepositSlip => !string.IsNullOrWhiteSpace(DepositSlipImageUrl);
+
+        [NotMapped]
+        public decimal DepositVariance => (DepositedAmount ?? 0m) - ConfirmedCashToHandover;
+
+        [NotMapped]
+        public bool IsDepositMatched => HasDepositSlip && Math.Abs(DepositVariance) < 0.01m;
+
+        [NotMapped]
+        public bool IsDepositDiscrepancy => HasDepositSlip && Math.Abs(DepositVariance) >= 0.01m;
+
+        [NotMapped]
+        public decimal TotalGrossSales => ClosingGrossSales > 0m ? OpeningGrossSales + ClosingGrossSales : GrossSales;
 
         [NotMapped]
         public decimal TotalCashSales => CashSales + OpeningCashSales;
 
         [NotMapped]
         public decimal TotalConfirmedCashToHandover => ConfirmedCashToHandover + OpeningCashSales;
+
+        [NotMapped]
+        public string OpeningInputtedByDisplayName => ResolveInputtedByDisplayName(OpeningInputtedByUser, DocumentRecord?.UploadedByUser, CashierName);
+
+        [NotMapped]
+        public string ClosingInputtedByDisplayName => ResolveInputtedByDisplayName(ClosingInputtedByUser, DocumentRecord?.UploadedByUser, CashierName);
+
+        [NotMapped]
+        public string InputtedBySummary
+        {
+            get
+            {
+                var openingName = OpeningInputtedByDisplayName;
+                var closingName = ClosingInputtedByDisplayName;
+                return string.Equals(openingName, closingName, StringComparison.Ordinal)
+                    ? openingName
+                    : $"Opening: {openingName} / Closing: {closingName}";
+            }
+        }
+
+        private static string ResolveInputtedByDisplayName(User? sectionInputter, User? documentUploader, string? legacyCashierName)
+        {
+            if (!string.IsNullOrWhiteSpace(sectionInputter?.Name))
+            {
+                return sectionInputter.Name;
+            }
+            if (!string.IsNullOrWhiteSpace(documentUploader?.Name))
+            {
+                return documentUploader.Name;
+            }
+            return string.IsNullOrWhiteSpace(legacyCashierName) ? "—" : legacyCashierName;
+        }
 
         public virtual ICollection<SalesReportLine> Lines { get; set; } = new List<SalesReportLine>();
 

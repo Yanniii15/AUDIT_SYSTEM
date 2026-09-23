@@ -83,5 +83,10 @@ namespace AuditCkDayo.Models
 
         [ForeignKey("ConfirmedByUserId")]
         public virtual User? ConfirmedByUser { get; set; }
+
+        public int? SalesReportId { get; set; }
+
+        [ForeignKey("SalesReportId")]
+        public virtual SalesReport? SalesReport { get; set; }
     }
 }
