@@ -828,7 +828,8 @@
                     }
                     if (statusNote) {
                         statusNote.className = 'text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1';
-                        statusNote.innerHTML = '<span class="material-symbols-outlined text-[14px]">check</span> Auto-filled via OCR (' + (filled.join(', ') || 'Fields detected') + ')';
+                        statusNote.innerHTML = '<span class="material-symbols-outlined text-[14px]">check</span> <span></span>';
+                        statusNote.querySelector('span:last-child').textContent = 'Auto-filled via OCR (' + (filled.join(', ') || 'Fields detected') + ')';
                         statusNote.classList.remove('hidden');
                     }
                 } else {
