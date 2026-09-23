@@ -101,6 +101,28 @@ using (var scope = app.Services.CreateScope())
 
     try
     {
+        db.Database.ExecuteSqlRaw(@"
+            ALTER TABLE SalesReports
+                ADD COLUMN IF NOT EXISTS DepositSlipImageUrl varchar(255) NULL,
+                ADD COLUMN IF NOT EXISTS DepositedAmount decimal(12,2) NULL,
+                ADD COLUMN IF NOT EXISTS DepositBankName varchar(100) NULL,
+                ADD COLUMN IF NOT EXISTS DepositReferenceNumber varchar(100) NULL,
+                ADD COLUMN IF NOT EXISTS DepositDate datetime NULL,
+                ADD COLUMN IF NOT EXISTS DepositVarianceReason varchar(500) NULL,
+                ADD COLUMN IF NOT EXISTS DepositUploadedByUserId int NULL,
+                ADD COLUMN IF NOT EXISTS DepositUploadedAt datetime NULL;
+
+            ALTER TABLE CashFlowEntries
+                ADD COLUMN IF NOT EXISTS SalesReportId int NULL;
+        ");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[DB_INIT] Deposit slip schema update notice: {ex.Message}");
+    }
+
+    try
+    {
         var sqlPath = Path.Combine(AppContext.BaseDirectory, "insert_buyer_expenses.sql");
         if (File.Exists(sqlPath))
         {

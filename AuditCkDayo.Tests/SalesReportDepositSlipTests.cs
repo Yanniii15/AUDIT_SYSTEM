@@ -1,3 +1,6 @@
+using System.Linq;
+using AuditCkDayo.Data;
+using Microsoft.EntityFrameworkCore;
 using System;
 using AuditCkDayo.Models;
 using Xunit;
@@ -86,6 +89,77 @@ namespace AuditCkDayo.Tests
             var navProperty = typeof(CashFlowEntry).GetProperty("SalesReport");
             Assert.NotNull(navProperty);
             Assert.Equal(typeof(SalesReport), navProperty.PropertyType);
+        }
+
+        [Fact]
+        public void AuditDbContext_CanPersistSalesReportDepositSlipFields()
+        {
+            var options = new DbContextOptionsBuilder<AuditDbContext>()
+                .UseInMemoryDatabase(Guid.NewGuid().ToString())
+                .Options;
+
+            var depositDate = new DateTime(2026, 9, 23, 10, 30, 0, DateTimeKind.Utc);
+            var uploadTime = DateTime.UtcNow;
+
+            int salesReportId;
+            int cashFlowEntryId;
+
+            using (var context = new AuditDbContext(options))
+            {
+                var report = new SalesReport
+                {
+                    ConfirmedCashToHandover = 12500.50m,
+                    DepositedAmount = 12500.50m,
+                    DepositBankName = "BPI",
+                    DepositReferenceNumber = "REF-9988",
+                    DepositDate = depositDate,
+                    DepositVarianceReason = "Matched",
+                    DepositSlipImageUrl = "/SalesReports/DepositSlip/test_receipt.jpg",
+                    DepositUploadedAt = uploadTime
+                };
+
+                context.SalesReports.Add(report);
+                context.SaveChanges();
+                salesReportId = report.Id;
+
+                var cashFlowEntry = new CashFlowEntry
+                {
+                    SalesReportId = report.Id,
+                    Amount = 12500.50m,
+                    Direction = CashFlowDirection.In,
+                    Category = CashFlowCategory.Sales
+                };
+
+                context.CashFlowEntries.Add(cashFlowEntry);
+                context.SaveChanges();
+                cashFlowEntryId = cashFlowEntry.Id;
+            }
+
+            using (var context = new AuditDbContext(options))
+            {
+                var reloadedReport = context.SalesReports.FirstOrDefault(r => r.Id == salesReportId);
+                Assert.NotNull(reloadedReport);
+                Assert.Equal(12500.50m, reloadedReport.DepositedAmount);
+                Assert.Equal("BPI", reloadedReport.DepositBankName);
+                Assert.Equal("REF-9988", reloadedReport.DepositReferenceNumber);
+                Assert.Equal(depositDate, reloadedReport.DepositDate);
+                Assert.Equal("Matched", reloadedReport.DepositVarianceReason);
+                Assert.Equal("/SalesReports/DepositSlip/test_receipt.jpg", reloadedReport.DepositSlipImageUrl);
+                Assert.Equal(uploadTime, reloadedReport.DepositUploadedAt);
+                Assert.True(reloadedReport.HasDepositSlip);
+                Assert.True(reloadedReport.IsDepositMatched);
+                Assert.Equal(0.00m, reloadedReport.DepositVariance);
+
+                var reloadedEntry = context.CashFlowEntries
+                    .Include(e => e.SalesReport)
+                    .FirstOrDefault(e => e.Id == cashFlowEntryId);
+                Assert.NotNull(reloadedEntry);
+                Assert.Equal(salesReportId, reloadedEntry.SalesReportId);
+                Assert.NotNull(reloadedEntry.SalesReport);
+                Assert.Equal(salesReportId, reloadedEntry.SalesReport.Id);
+                Assert.Equal("BPI", reloadedEntry.SalesReport.DepositBankName);
+                Assert.Equal(12500.50m, reloadedEntry.SalesReport.DepositedAmount);
+            }
         }
     }
 }

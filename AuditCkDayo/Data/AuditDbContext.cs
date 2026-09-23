@@ -26,6 +26,7 @@ namespace AuditCkDayo.Data
         public DbSet<AuditSettlement> AuditSettlements { get; set; }
         public DbSet<ManagerCoverage> ManagerCoverages { get; set; }
         public DbSet<PnlCategory> PnlCategories { get; set; }
+        public DbSet<ExpenseSource> ExpenseSources { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -118,6 +119,18 @@ namespace AuditCkDayo.Data
                 .Property(category => category.IsActive)
                 .HasDefaultValue(true);
 
+            modelBuilder.Entity<ExpenseSource>()
+                .HasIndex(source => source.Name)
+                .IsUnique();
+
+            modelBuilder.Entity<ExpenseSource>()
+                .Property(source => source.Name)
+                .HasMaxLength(100);
+
+            modelBuilder.Entity<ExpenseSource>()
+                .Property(source => source.IsActive)
+                .HasDefaultValue(true);
+
             modelBuilder.Entity<PnlCategory>()
                 .HasIndex(category => new { category.Section, category.Name })
                 .IsUnique();
@@ -155,6 +168,12 @@ namespace AuditCkDayo.Data
                 .WithMany()
                 .HasForeignKey(ad => ad.CostCenterId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<AuditItemDetail>()
+                .HasOne(ad => ad.ExpenseSource)
+                .WithMany()
+                .HasForeignKey(ad => ad.ExpenseSourceId)
+                .OnDelete(DeleteBehavior.SetNull);
 
             // AuditItem configuration
             modelBuilder.Entity<AuditItem>()
@@ -303,10 +322,26 @@ namespace AuditCkDayo.Data
                 .OnDelete(DeleteBehavior.Restrict);
 
             modelBuilder.Entity<SalesReport>()
+                .HasOne(s => s.OpeningInputtedByUser)
+                .WithMany()
+                .HasForeignKey(s => s.OpeningInputtedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<SalesReport>()
+                .HasOne(s => s.ClosingInputtedByUser)
+                .WithMany()
+                .HasForeignKey(s => s.ClosingInputtedByUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<SalesReport>()
                 .HasMany(s => s.CashBreakdownLines)
                 .WithOne(c => c.SalesReport)
                 .HasForeignKey(c => c.SalesReportId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<SalesReport>()
+                .Property(s => s.DepositedAmount)
+                .HasPrecision(12, 2);
 
             modelBuilder.Entity<SalesReportLine>()
                 .Property(l => l.LineType)
@@ -392,6 +427,12 @@ namespace AuditCkDayo.Data
                 .WithMany()
                 .HasForeignKey(e => e.ConfirmedByUserId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<CashFlowEntry>()
+                .HasOne(e => e.SalesReport)
+                .WithMany()
+                .HasForeignKey(e => e.SalesReportId)
+                .OnDelete(DeleteBehavior.SetNull);
 
 
             // PcfRelease configuration
