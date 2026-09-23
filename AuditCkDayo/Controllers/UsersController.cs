@@ -5,9 +5,11 @@ using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using AuditCkDayo.Data;
 using AuditCkDayo.Models;
+using AuditCkDayo.ViewModels;
 
 namespace AuditCkDayo.Controllers
 {
@@ -290,6 +292,90 @@ namespace AuditCkDayo.Controllers
             return RedirectToAction("Register", "Account");
         }
 
+
+        [HttpGet]
+        [Authorize(Roles = "Admin")]
+        public async Task<IActionResult> Edit(int id)
+        {
+            var user = await _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == id && !u.IsDeleted);
+
+            if (user == null)
+            {
+                TempData["Error"] = "User not found.";
+                return RedirectToAction("Register", "Account");
+            }
+
+            await PopulateEditLookups();
+
+            return View(new UserEditViewModel
+            {
+                Id = user.Id,
+                Name = user.Name,
+                Email = user.Email,
+                Role = user.Role,
+                ManagerId = user.ManagerId,
+                EstablishmentId = user.EstablishmentId,
+                IsTreasury = user.IsTreasury
+            });
+        }
+
+        [HttpPost]
+        [Authorize(Roles = "Admin")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> Edit(int id, UserEditViewModel model)
+        {
+            if (id != model.Id)
+            {
+                return NotFound();
+            }
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == id && !u.IsDeleted);
+            if (user == null)
+            {
+                TempData["Error"] = "User not found.";
+                return RedirectToAction("Register", "Account");
+            }
+
+            var emailInUse = await _context.Users
+                .AnyAsync(u => u.Id != id && u.Email == model.Email && !u.IsDeleted);
+            if (emailInUse)
+            {
+                ModelState.AddModelError(nameof(model.Email), "Email address is already in use.");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                await PopulateEditLookups();
+                return View(model);
+            }
+
+            user.Name = model.Name.Trim();
+            user.Email = model.Email.Trim();
+            user.Role = model.Role;
+            user.ManagerId = model.Role == UserRole.Buyer || model.Role == UserRole.BranchStaff ? model.ManagerId : null;
+            user.EstablishmentId = model.Role == UserRole.BranchStaff ? model.EstablishmentId : null;
+            user.IsTreasury = model.IsTreasury;
+
+            await _context.SaveChangesAsync();
+
+            TempData["Message"] = $"User '{user.Name}' updated successfully.";
+            return RedirectToAction("Register", "Account");
+        }
+
+        private async Task PopulateEditLookups()
+        {
+            ViewBag.Managers = await _context.Users
+                .AsNoTracking()
+                .Where(u => u.Role == UserRole.Manager && !u.IsDeleted)
+                .OrderBy(u => u.Name)
+                .ToListAsync();
+            ViewBag.Establishments = new SelectList(await _context.Establishments
+                .AsNoTracking()
+                .OrderBy(e => e.Name)
+                .ToListAsync(), "Id", "Name");
+        }
         [HttpPost]
         [Authorize(Roles = "Admin")]
         [ValidateAntiForgeryToken]

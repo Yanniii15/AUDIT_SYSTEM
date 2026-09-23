@@ -2594,7 +2594,14 @@ namespace AuditCkDayo.Controllers
                     model.ManagerTreasuryFlow.CashInRows.Insert(0, startRow);
                 }
                 startRow.Amounts["OTHERS"] = startRow.Amounts.GetValueOrDefault("OTHERS", 0m) + beginningBalance;
-
+                if (!startRow.NotesByColumn.ContainsKey("OTHERS"))
+                {
+                    startRow.NotesByColumn["OTHERS"] = new List<string>();
+                }
+                if (!startRow.NotesByColumn["OTHERS"].Contains("beginning"))
+                {
+                    startRow.NotesByColumn["OTHERS"].Insert(0, "beginning");
+                }
                 var othersCol = model.ManagerTreasuryFlow.CashInColumns.FirstOrDefault(c => c.Label == "OTHERS");
                 if (othersCol != null)
                 {

@@ -2,6 +2,8 @@
 @{
     ViewData["Title"] = "Edit Treasury Entry";
     var flowDate = ViewBag.FlowDate as DateTime? ?? DateTime.Today;
+    var canUnconfirmSalesReport = ViewBag.CanUnconfirmSalesReport as bool? ?? false;
+    var linkedSalesReportId = ViewBag.LinkedSalesReportId as int?;
 }
 
 <div class="max-w-2xl mx-auto space-y-6">
@@ -76,4 +78,35 @@
             </div>
         </form>
     </div>
+
+    @if (canUnconfirmSalesReport)
+    {
+        <section class="rounded-xl border border-red-300 bg-red-50 p-6 shadow-sm">
+            <div class="space-y-3">
+                <div>
+                    <h2 class="text-lg font-semibold text-red-900">Sales report confirmation</h2>
+                    <p class="mt-1 text-sm text-red-800">
+                        This cash-in came from a confirmed sales report. Unconfirming it removes this cash-in from Treasury and lets the branch edit the sales report again.
+                    </p>
+                </div>
+
+                @if (linkedSalesReportId.HasValue)
+                {
+                    <p class="text-xs text-red-700">
+                        Linked sales report: #@linkedSalesReportId.Value
+                    </p>
+                }
+
+                <form asp-controller="Treasury" asp-action="UnconfirmSalesReport" method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="id" value="@Model.Id" />
+                    <button type="submit"
+                            class="rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-800"
+                            onclick="return confirm('This will remove the sales cash-in from Treasury and send the sales report back to draft so the branch can edit it. The manager must confirm it again after editing. Continue?')">
+                        Unconfirm Sales Report
+                    </button>
+                </form>
+            </div>
+        </section>
+    }
 </div>

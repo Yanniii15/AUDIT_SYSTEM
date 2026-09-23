@@ -21,11 +21,22 @@
     function speak(text) {
         if (!isSupported() || !isEnabled() || !text || !text.trim()) return;
         window.speechSynthesis.cancel();
-        // Replace ₱ symbol with "pesos" to avoid browser speech engines misinterpreting it
-        const cleanText = text.trim().replace(/₱/g, ' pesos ');
+        // Replace ₱ symbol and pesos with "Philippine pesos" to prevent browser speech engines from defaulting to dollars
+        const cleanText = text.trim()
+            .replace(/₱/g, ' Philippine pesos ')
+            .replace(/\bpesos\b/gi, 'Philippine pesos')
+            .replace(/\bdollars?\b/gi, 'Philippine pesos');
         const utterance = new SpeechSynthesisUtterance(cleanText);
+        utterance.lang = "en-PH";
         utterance.rate = 0.95;
         utterance.pitch = 1;
+        const voices = window.speechSynthesis.getVoices();
+        if (voices && voices.length > 0) {
+            const phVoice = voices.find(v => v.lang === 'en-PH' || v.lang === 'fil-PH' || v.lang.startsWith('fil') || v.name.toLowerCase().includes('philippine'));
+            if (phVoice) {
+                utterance.voice = phVoice;
+            }
+        }
         window.speechSynthesis.speak(utterance);
     }
 

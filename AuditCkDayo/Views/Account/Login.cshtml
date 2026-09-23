@@ -3,41 +3,40 @@
     ViewData["Title"] = "Sign In";
 }
 
-<div class="w-full max-w-[420px] bg-surface-container-lowest p-space-8 rounded-xl shadow-lg border border-surface-border flex flex-col gap-space-6">
-    <div class="flex flex-col gap-space-2 text-center">
-        <div class="flex items-center justify-center gap-space-2 text-primary">
-            <span class="material-symbols-outlined text-[28px] font-bold">verified_user</span>
-            <span class="text-headline-sm font-headline-sm tracking-tight">AuditCkDayo</span>
-        </div>
-        <h2 class="font-headline-md text-headline-md text-on-surface mt-space-2">Sign In</h2>
-        <p class="font-body-md text-on-surface-variant text-[13px]">Enter your credentials to access the PCF Auditing Suite.</p>
+<div class="w-full max-w-[480px] bg-surface-container-lowest p-10 rounded-2xl shadow-xl border border-surface-border flex flex-col gap-6 z-10">
+    <!-- Brand / Logo Header -->
+    <div class="flex flex-col items-center text-center gap-2">
+        <img src="/images/logo.png" alt="Makbie Companies Logo" class="w-48 h-auto" />
+        <h1 class="font-headline-md text-headline-md text-primary tracking-tight mt-2">Makbie Companies</h1>
     </div>
+
+    <div class="h-[1px] w-full bg-gradient-to-r from-transparent via-surface-border to-transparent"></div>
 
     <form asp-action="Login" method="post" class="flex flex-col gap-space-4">
         <div asp-validation-summary="ModelOnly" class="text-audit-error bg-audit-error/10 border border-audit-error/20 p-space-3 rounded-lg text-body-md text-center"></div>
 
         <!-- Email -->
-        <div class="flex flex-col gap-space-2">
-            <label asp-for="Email" class="font-label-caps text-on-surface-variant uppercase text-[10px] tracking-wider font-semibold">Email Address</label>
-            <input asp-for="Email" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" placeholder="name@ckr.com" required />
+        <div class="flex flex-col gap-space-1.5">
+            <label asp-for="Email" class="font-label-caps text-on-surface-variant uppercase text-[10px] tracking-wider font-bold">Email Address</label>
+            <input asp-for="Email" class="w-full bg-surface-container-low border border-surface-border rounded-xl px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" placeholder="name@ckr.com" required />
             <span asp-validation-for="Email" class="text-audit-error text-[11px]"></span>
         </div>
 
         <!-- Password -->
-        <div class="flex flex-col gap-space-2">
-            <label asp-for="Password" class="font-label-caps text-on-surface-variant uppercase text-[10px] tracking-wider font-semibold">Password</label>
+        <div class="flex flex-col gap-space-1.5">
+            <label asp-for="Password" class="font-label-caps text-on-surface-variant uppercase text-[10px] tracking-wider font-bold">Password</label>
             <div class="relative">
-                <input asp-for="Password" type="password" class="w-full bg-surface-container-low border border-surface-border rounded-lg px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" id="loginPassInput" placeholder="••••••••" required />
-                <button class="absolute right-space-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50 hover:text-primary password-reveal-btn cursor-pointer bg-transparent border-0" data-input-id="loginPassInput" type="button">
+                <input asp-for="Password" type="password" class="w-full bg-surface-container-low border border-surface-border rounded-xl px-space-4 py-3 font-body-md focus:outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all text-on-surface" id="loginPassInput" placeholder="••••••••" required />
+                <button class="absolute right-space-3 top-1/2 -translate-y-1/2 text-on-surface-variant/50 hover:text-primary password-reveal-btn cursor-pointer bg-transparent border-0 flex items-center justify-center" data-input-id="loginPassInput" type="button">
                     <span class="material-symbols-outlined text-[20px] eye-icon">visibility</span>
                 </button>
             </div>
             <span asp-validation-for="Password" class="text-audit-error text-[11px]"></span>
         </div>
 
-        <button type="submit" class="bg-primary text-on-primary px-space-8 py-3 rounded-lg font-label-caps uppercase tracking-widest hover:bg-on-primary-fixed-variant transition-colors flex items-center justify-center gap-space-2 shadow-md mt-space-2">
+        <button type="submit" class="bg-primary text-on-primary px-space-8 py-3.5 rounded-xl font-label-caps uppercase tracking-widest hover:bg-primary/90 transition-colors flex items-center justify-center gap-space-2 shadow-md mt-space-3 font-semibold text-[13px]">
             <span class="material-symbols-outlined text-[18px]">login</span>
-            Access Suite
+            Login
         </button>
     </form>
 </div>

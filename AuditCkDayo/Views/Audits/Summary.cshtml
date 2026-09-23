@@ -275,6 +275,7 @@
                                 var isOthers = col.Label == "OTHERS";
                                 var isStart = row.Date.Date == (Model.Filter.StartDate?.Date ?? DateTime.Today);
                                 var isBeginning = isOthers && isStart && Model.BeginningBalance > 0;
+                                var notesList = row.NotesByColumn.GetValueOrDefault(col.Label, new List<string>());
 
                                 <td class="px-space-4 py-space-3 text-right">
                                     @if (amt > 0)
@@ -283,6 +284,19 @@
                                         @if (isBeginning)
                                         {
                                             <span class="ml-1 px-1 py-0.5 bg-amber-500/20 text-amber-700 border border-amber-500/30 rounded text-[9px] font-extrabold uppercase">BEGINNING</span>
+                                        }
+                                        @if (notesList.Any())
+                                        {
+                                            <div class="mt-0.5 space-y-0.5">
+                                                @foreach (var noteText in notesList)
+                                                {
+                                                    if (isBeginning && noteText.Equals("beginning", StringComparison.OrdinalIgnoreCase))
+                                                    {
+                                                        continue;
+                                                    }
+                                                    <span class="block text-[10px] text-on-surface-variant font-medium leading-tight uppercase">@noteText</span>
+                                                }
+                                            </div>
                                         }
                                     }
                                     else

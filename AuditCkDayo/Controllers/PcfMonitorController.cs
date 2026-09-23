@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using AuditCkDayo.Data;
 using AuditCkDayo.Models;
+using AuditCkDayo.Services;
 using AuditCkDayo.ViewModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -12,10 +13,12 @@ namespace AuditCkDayo.Controllers
     public class PcfMonitorController : Controller
     {
         private readonly AuditDbContext _context;
+        private readonly CoverageService? _coverageService;
 
-        public PcfMonitorController(AuditDbContext context)
+        public PcfMonitorController(AuditDbContext context, CoverageService? coverageService = null)
         {
             _context = context;
+            _coverageService = coverageService;
         }
 
         [HttpGet]
@@ -44,7 +47,7 @@ namespace AuditCkDayo.Controllers
             {
                 "Owner" => "All active PCF holders",
                 "Admin" => "All active PCF holders",
-                "Manager" => "Your balance and assigned team",
+                "Manager" => "Your balance, assigned team, and covered teams",
                 "Buyer" => "Your PCF balance",
                 "BranchStaff" => "Your PCF balance",
                 _ => "Your PCF balance"
@@ -56,7 +59,12 @@ namespace AuditCkDayo.Controllers
             }
             else if (role == "Manager")
             {
-                usersQuery = usersQuery.Where(u => u.Id == userId || u.ManagerId == userId);
+                var coveredManagerIds = _coverageService != null
+                    ? await _coverageService.GetCoveredManagerIdsAsync(userId, DateTime.Today, CoverageScope.All)
+                    : new List<int>();
+                usersQuery = usersQuery.Where(u => u.Id == userId
+                    || u.ManagerId == userId
+                    || (u.ManagerId.HasValue && coveredManagerIds.Contains(u.ManagerId.Value)));
             }
             else
             {

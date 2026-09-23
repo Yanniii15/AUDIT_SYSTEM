@@ -5,8 +5,11 @@
     var currentUser = (AuditCkDayo.Models.User)ViewBag.CurrentUser;
     var isBranchStaff = currentUser.Role == AuditCkDayo.Models.UserRole.BranchStaff;
     var sharedEst = isBranchStaff && currentUser.EstablishmentId.HasValue ? db.Establishments.Find(currentUser.EstablishmentId.Value) : null;
-    var displayStartingPcf = sharedEst != null ? sharedEst.DailyStartingFloat : currentUser.DailyStartingFloat;
-    var displayCurrentPcf = sharedEst != null ? sharedEst.PcfBalance : currentUser.PcfBalance;
+    var displayStartingPcf = ViewBag.DisplayStartingPcf is decimal startingFromController ? startingFromController : (sharedEst != null ? sharedEst.DailyStartingFloat : currentUser.DailyStartingFloat);
+    var displayCurrentPcf = ViewBag.DisplayCurrentPcf is decimal currentFromController ? currentFromController : (sharedEst != null ? sharedEst.PcfBalance : currentUser.PcfBalance);
+    var useManagerDashboardPcf = ViewBag.UseManagerDashboardPcf is bool managerPcf && managerPcf;
+    var managerPcfReceivedToday = ViewBag.ManagerPcfReceivedToday is decimal receivedToday ? receivedToday : 0m;
+    var managerPcfGivenOutToday = ViewBag.ManagerPcfGivenOutToday is decimal givenOutToday ? givenOutToday : 0m;
     var cashOnHandTotal = Model.CashOnHandUsers.Where(u => u.Role == AuditCkDayo.Models.UserRole.BranchStaff && u.EstablishmentId.HasValue).Select(u => u.Establishment!.PcfBalance).Distinct().Sum()
         + Model.CashOnHandUsers.Where(u => !(u.Role == AuditCkDayo.Models.UserRole.BranchStaff && u.EstablishmentId.HasValue)).Sum(u => u.PcfBalance);
     var pendingCount = Model.Audits.Count(a => a.Status == AuditCkDayo.Models.AuditStatus.AwaitingBranchVerification || a.Status == AuditCkDayo.Models.AuditStatus.AwaitingManagerApproval);
@@ -59,7 +62,7 @@
                 <span class="material-symbols-outlined text-[64px]">savings</span>
             </div>
             <div class="relative z-10">
-                <span class="font-label-caps text-on-surface-variant uppercase text-[10px]">Branch Starting PCF</span>
+                <span class="font-label-caps text-on-surface-variant uppercase text-[10px]">@(useManagerDashboardPcf ? "Manager Opening PCF" : "Branch Starting PCF")</span>
                 <div class="flex items-baseline gap-space-2 mt-space-2">
                     <span class="font-headline-lg text-headline-lg text-on-surface">₱@displayStartingPcf.ToString("N2")</span>
                 </div>
@@ -75,7 +78,7 @@
         <div class="relative overflow-hidden bg-primary p-space-6 rounded-xl shadow-sm group hover:shadow-md transition-all duration-300">
             <div class="absolute -bottom-4 -right-4 w-32 h-32 bg-on-primary/5 rounded-full blur-3xl group-hover:scale-150 transition-transform duration-700"></div>
             <div class="relative z-10">
-                <span class="font-label-caps text-primary-fixed-dim uppercase text-[10px]">Branch Current PCF</span>
+                <span class="font-label-caps text-primary-fixed-dim uppercase text-[10px]">@(useManagerDashboardPcf ? "Manager Remaining PCF" : "Branch Current PCF")</span>
                 <div class="flex items-baseline gap-space-2 mt-space-2">
                     <span class="font-headline-lg text-headline-lg text-on-primary">₱@displayCurrentPcf.ToString("N2")</span>
                 </div>
@@ -83,6 +86,19 @@
                     REFRESH POOL <span class="material-symbols-outlined text-[14px]">sync</span>
                 </button>
             </div>
+            @if (useManagerDashboardPcf)
+            {
+                <div class="relative z-10 mt-space-4 grid grid-cols-2 gap-space-2 text-[10px] font-label-caps uppercase text-primary-fixed-dim">
+                    <div class="rounded-lg bg-on-primary/10 px-space-3 py-space-2">
+                        <div>Received Today</div>
+                        <div class="font-data-mono text-on-primary mt-1">₱@managerPcfReceivedToday.ToString("N2")</div>
+                    </div>
+                    <div class="rounded-lg bg-on-primary/10 px-space-3 py-space-2">
+                        <div>Given Out Today</div>
+                        <div class="font-data-mono text-on-primary mt-1">₱@managerPcfGivenOutToday.ToString("N2")</div>
+                    </div>
+                </div>
+            }
         </div>
     </div>
 </section>
@@ -160,7 +176,7 @@
                                     <td class="px-space-6 py-space-4"><span class="font-body-md text-on-surface">@item.Establishment.Name</span></td>
                                     <td class="px-space-6 py-space-4"><p class="font-body-md text-on-surface-variant truncate max-w-[280px]">@item.Description</p></td>
                                     <td class="px-space-6 py-space-4 text-right"><span class="font-data-mono text-primary font-bold">₱@item.Amount.ToString("N2")</span></td>
-                                    <td class="px-space-6 py-space-4 text-center"><span class="px-space-3 py-1 @statusBg rounded-full text-[10px] font-label-caps uppercase border">@item.Status</span></td>
+                                    <td class="px-space-6 py-space-4 text-center"><span class="px-space-3 py-1 @statusBg rounded-full text-[10px] font-label-caps uppercase border whitespace-nowrap">@item.Status</span></td>
                                     <td class="px-space-6 py-space-4">
                                         @if (canCorrect)
                                         {
@@ -303,11 +319,11 @@
                                     <td class="px-space-6 py-space-4"><span class="font-data-mono text-on-surface-variant text-[13px]">#DSR-@report.Id</span></td>
                                     <td class="px-space-6 py-space-4"><span class="font-body-md text-on-surface">@report.BusinessDate.ToString("MMM dd, yyyy")</span></td>
                                     <td class="px-space-6 py-space-4"><span class="font-body-md font-semibold text-on-surface">@report.Establishment.Name</span></td>
-                                    <td class="px-space-6 py-space-4"><span class="font-body-md text-on-surface-variant">@(string.IsNullOrWhiteSpace(report.CashierName) ? "—" : report.CashierName)</span></td>
+                                    <td class="px-space-6 py-space-4"><span class="font-body-md text-on-surface-variant">@report.InputtedBySummary</span></td>
                                     <td class="px-space-6 py-space-4 text-right"><span class="font-data-mono text-primary font-bold">₱@report.TotalGrossSales.ToString("N2")</span></td>
                                     <td class="px-space-6 py-space-4 text-right"><span class="font-data-mono text-on-surface">₱@report.TotalConfirmedCashToHandover.ToString("N2")</span></td>
                                     <td class="px-space-6 py-space-4 text-center">
-                                        <span class="px-space-3 py-1 bg-audit-pending/10 text-audit-pending border-audit-pending/20 rounded-full text-[10px] font-label-caps uppercase border">Pending Manager Verification</span>
+                                        <span class="px-space-3 py-1 bg-audit-pending/10 text-audit-pending border-audit-pending/20 rounded-full text-[10px] font-label-caps uppercase border whitespace-nowrap">Pending</span>
                                     </td>
                                     <td class="px-space-6 py-space-4 text-right">
                                         <a asp-controller="SalesReports" asp-action="Review" asp-route-id="@report.Id" class="px-space-3 py-1.5 rounded-lg border border-primary/20 text-primary font-label-caps text-[10px] uppercase hover:bg-primary hover:text-on-primary transition-colors">
@@ -372,11 +388,12 @@
                         </div>
                         <h2 class="font-headline-sm text-on-surface">All-Time Audit & Daily Sales Filtering System</h2>
                     </div>
-                    <span class="font-data-mono text-primary text-[13px]">@(Model.Audits.Count + Model.HistoricalSalesReports.Count) records</span>
+                    <span class="font-data-mono text-primary text-[13px]">@Model.HistoricalStartRecord-@Model.HistoricalEndRecord of @Model.HistoricalTotalCount records</span>
                 </div>
 
                 <form method="get" asp-controller="Home" asp-action="Index" class="flex flex-wrap gap-space-4 items-end">
                     <input type="hidden" name="ActiveTab" value="historical" />
+                    <input type="hidden" name="HistoryPage" value="1" />
                     <div class="flex flex-col min-w-[160px]">
                         <span class="font-label-caps text-[10px] text-on-surface-variant mb-1 ml-1 uppercase">Start Date</span>
                         <input asp-for="StartDate" class="w-full bg-surface-container-lowest border border-surface-border rounded-lg px-space-3 py-2 font-body-md text-on-surface focus:outline-none focus:border-primary/50 transition-colors cursor-pointer" type="date" />
@@ -507,7 +524,7 @@
                                                            (item.Status == AuditCkDayo.Models.AuditStatus.Rejected ? "bg-audit-error/10 text-audit-error border-audit-error/20" :
                                                            "bg-audit-pending/10 text-audit-pending border-audit-pending/20");
                                         }
-                                        <span class="px-space-3 py-1 @statusBg rounded-full text-[10px] font-label-caps uppercase border">
+                                        <span class="px-space-3 py-1 @statusBg rounded-full text-[10px] font-label-caps uppercase border whitespace-nowrap">
                                             @item.Status
                                         </span>
                                     </td>
@@ -541,11 +558,11 @@
                                     <td class="px-space-6 py-space-4">
                                         <div class="flex items-center gap-space-3">
                                             <div class="w-8 h-8 rounded-full bg-tertiary-container text-tertiary flex items-center justify-center font-bold text-[12px]">
-                                                @((string.IsNullOrWhiteSpace(report.CashierName) ? "DS" : report.CashierName).Substring(0, Math.Min(2, string.IsNullOrWhiteSpace(report.CashierName) ? 2 : report.CashierName.Length)).ToUpper())
+                                                @(report.InputtedBySummary.Substring(0, Math.Min(2, report.InputtedBySummary.Length)).ToUpper())
                                             </div>
                                             <div>
-                                                <div class="font-body-md font-semibold text-on-surface">@(string.IsNullOrWhiteSpace(report.CashierName) ? "Daily Sales" : report.CashierName)</div>
-                                                <div class="text-[9px] text-on-surface-variant font-label-caps uppercase">Cashier</div>
+                                                <div class="font-body-md font-semibold text-on-surface">@report.InputtedBySummary</div>
+                                                <div class="text-[9px] text-on-surface-variant font-label-caps uppercase">Inputted By</div>
                                             </div>
                                         </div>
                                     </td>
@@ -565,7 +582,7 @@
                                         <span class="font-data-mono text-primary font-bold">₱@report.TotalGrossSales.ToString("N2")</span>
                                     </td>
                                     <td class="px-space-6 py-space-4 text-center">
-                                        <span class="px-space-3 py-1 @salesStatusBg rounded-full text-[10px] font-label-caps uppercase border">@report.Status</span>
+                                        <span class="px-space-3 py-1 @salesStatusBg rounded-full text-[10px] font-label-caps uppercase border whitespace-nowrap">@(report.Status == AuditCkDayo.Models.SalesReportStatus.PendingManagerVerification ? "Pending" : report.Status.ToString())</span>
                                     </td>
                                     <td class="px-space-6 py-space-4 text-right">
                                         <a asp-controller="SalesReports" asp-action="Review" asp-route-id="@report.Id" class="px-space-3 py-1.5 rounded-lg border border-primary/20 text-primary font-label-caps text-[10px] uppercase hover:bg-primary hover:text-on-primary transition-colors">
@@ -673,14 +690,14 @@
                             <div class="flex justify-between items-start">
                                 <div class="flex gap-space-3 items-center">
                                     <div class="w-10 h-10 rounded-full bg-tertiary-container text-tertiary flex items-center justify-center font-bold text-[12px]">
-                                        @((string.IsNullOrWhiteSpace(report.CashierName) ? "DS" : report.CashierName).Substring(0, Math.Min(2, string.IsNullOrWhiteSpace(report.CashierName) ? 2 : report.CashierName.Length)).ToUpper())
+                                        @(report.InputtedBySummary.Substring(0, Math.Min(2, report.InputtedBySummary.Length)).ToUpper())
                                     </div>
                                     <div>
-                                        <div class="font-body-md font-semibold text-on-surface">@(string.IsNullOrWhiteSpace(report.CashierName) ? "Daily Sales" : report.CashierName)</div>
-                                        <div class="text-[9px] text-on-surface-variant font-label-caps uppercase mt-0.5">Cashier</div>
+                                        <div class="font-body-md font-semibold text-on-surface">@report.InputtedBySummary</div>
+                                        <div class="text-[9px] text-on-surface-variant font-label-caps uppercase mt-0.5">Inputted By</div>
                                     </div>
                                 </div>
-                                <span class="px-space-3 py-1 rounded-full text-[10px] font-label-caps uppercase border @salesStatusBg">@report.Status</span>
+                                <span class="px-space-3 py-1 rounded-full text-[10px] font-label-caps uppercase border @salesStatusBg whitespace-nowrap">@(report.Status == AuditCkDayo.Models.SalesReportStatus.PendingManagerVerification ? "Pending" : report.Status.ToString())</span>
                             </div>
                             <div class="grid grid-cols-2 gap-space-3">
                                 <div class="bg-surface-container-low rounded-lg p-space-3 border border-surface-border">
@@ -714,6 +731,44 @@
                     }
                 }
             </div>
+            @if (Model.HistoricalTotalCount > 0)
+            {
+                <div class="flex flex-wrap items-center justify-between gap-space-3 border-t border-surface-border bg-surface-container-low/40 px-space-6 py-space-4">
+                    <span class="font-data-mono text-primary text-[13px]">@Model.HistoricalStartRecord-@Model.HistoricalEndRecord of @Model.HistoricalTotalCount</span>
+                    <div class="flex items-center gap-space-2">
+                        <a asp-controller="Home"
+                           asp-action="Index"
+                           asp-route-ActiveTab="historical"
+                           asp-route-HistoryPage="@(Model.HistoryPage - 1)"
+                           asp-route-StartDate="@(Model.StartDate?.ToString("yyyy-MM-dd"))"
+                           asp-route-EndDate="@(Model.EndDate?.ToString("yyyy-MM-dd"))"
+                           asp-route-Status="@Model.Status"
+                           asp-route-RecordType="@Model.RecordType"
+                           asp-route-EstablishmentId="@Model.EstablishmentId"
+                           asp-route-BuyerId="@Model.BuyerId"
+                           class="@(Model.HasPreviousHistoryPage ? "" : "pointer-events-none opacity-40") inline-flex items-center rounded-lg border border-surface-border bg-surface-container px-space-4 py-2 text-primary font-label-caps uppercase tracking-wider text-[11px] hover:bg-surface-container-high transition-all"
+                           aria-disabled="@(!Model.HasPreviousHistoryPage)">
+                            <span class="material-symbols-outlined text-[18px]">chevron_left</span>
+                            Previous
+                        </a>
+                        <a asp-controller="Home"
+                           asp-action="Index"
+                           asp-route-ActiveTab="historical"
+                           asp-route-HistoryPage="@(Model.HistoryPage + 1)"
+                           asp-route-StartDate="@(Model.StartDate?.ToString("yyyy-MM-dd"))"
+                           asp-route-EndDate="@(Model.EndDate?.ToString("yyyy-MM-dd"))"
+                           asp-route-Status="@Model.Status"
+                           asp-route-RecordType="@Model.RecordType"
+                           asp-route-EstablishmentId="@Model.EstablishmentId"
+                           asp-route-BuyerId="@Model.BuyerId"
+                           class="@(Model.HasNextHistoryPage ? "" : "pointer-events-none opacity-40") inline-flex items-center rounded-lg border border-surface-border bg-surface-container px-space-4 py-2 text-primary font-label-caps uppercase tracking-wider text-[11px] hover:bg-surface-container-high transition-all"
+                           aria-disabled="@(!Model.HasNextHistoryPage)">
+                            Next
+                            <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+                        </a>
+                    </div>
+                </div>
+            }
         </div>
     </div>
 </section>

@@ -45,6 +45,9 @@ public class HomeController : Controller
         ViewBag.CurrentUser = currentUser;
 
         var role = User.FindFirst(ClaimTypes.Role)?.Value;
+        model.HistoryPageSize = 30;
+        model.HistoryPage = Math.Max(1, model.HistoryPage);
+
 
         var coveredManagerIds = _coverageService != null 
             ? await _coverageService.GetCoveredManagerIdsAsync(userId, DateTime.Today, CoverageScope.BuyerAudits)
@@ -89,6 +92,27 @@ public class HomeController : Controller
 
         var today = DateTime.Today;
         var tomorrow = today.AddDays(1);
+
+        if (role == "Manager")
+        {
+            var todayLedgerAmounts = await _context.PettyCashLedgers
+                .AsNoTracking()
+                .Where(l => l.UserId == userId && l.Timestamp >= today && l.Timestamp < tomorrow)
+                .Select(l => l.Amount)
+                .ToListAsync();
+
+            var receivedToday = todayLedgerAmounts.Where(amount => amount > 0m).Sum();
+            var givenOutToday = todayLedgerAmounts.Where(amount => amount < 0m).Sum(amount => -amount);
+            ViewBag.DisplayStartingPcf = currentUser!.DailyStartingFloat;
+            ViewBag.DisplayCurrentPcf = currentUser.PcfBalance;
+            ViewBag.ManagerPcfReceivedToday = receivedToday;
+            ViewBag.ManagerPcfGivenOutToday = givenOutToday;
+            ViewBag.UseManagerDashboardPcf = true;
+        }
+        else
+        {
+            ViewBag.UseManagerDashboardPcf = false;
+        }
         model.TodayAudits = await query
             .Where(a => (a.SubmittedAt ?? a.EntryDate) >= today && (a.SubmittedAt ?? a.EntryDate) < tomorrow)
             .OrderByDescending(a => a.SubmittedAt ?? a.EntryDate)
@@ -97,7 +121,9 @@ public class HomeController : Controller
 
         IQueryable<SalesReport> pendingSalesQuery = _context.SalesReports
             .AsNoTracking()
-            .Include(r => r.DocumentRecord)
+            .Include(r => r.DocumentRecord).ThenInclude(d => d.UploadedByUser)
+            .Include(r => r.OpeningInputtedByUser)
+            .Include(r => r.ClosingInputtedByUser)
             .Include(r => r.Establishment)
             .Where(r => r.Status == SalesReportStatus.PendingManagerVerification
                 || r.DocumentRecord.ReviewStatus == DocumentReviewStatus.PendingManagerVerification);
@@ -134,7 +160,9 @@ public class HomeController : Controller
 
         IQueryable<SalesReport> historicalSalesQuery = _context.SalesReports
             .AsNoTracking()
-            .Include(r => r.DocumentRecord)
+            .Include(r => r.DocumentRecord).ThenInclude(d => d.UploadedByUser)
+            .Include(r => r.OpeningInputtedByUser)
+            .Include(r => r.ClosingInputtedByUser)
             .Include(r => r.Establishment);
 
         if (role == "Manager")
@@ -193,13 +221,36 @@ public class HomeController : Controller
         // Calculate total amount from filtered items
         model.TotalAmount = await query.SumAsync(a => a.Amount);
 
-        // Fetch matching items
+        var totalAuditCount = await query.CountAsync();
+        var totalSalesCount = await historicalSalesQuery.CountAsync();
+        model.HistoricalTotalCount = totalAuditCount + totalSalesCount;
+
+        var pageRecords = await query
+            .Select(a => new { RecordType = DashboardRecordType.Audits, a.Id, Date = a.EntryDate })
+            .Concat(historicalSalesQuery.Select(r => new { RecordType = DashboardRecordType.DailySales, r.Id, Date = r.BusinessDate }))
+            .OrderByDescending(r => r.Date)
+            .ThenByDescending(r => r.Id)
+            .Skip((model.HistoryPage - 1) * model.HistoryPageSize)
+            .Take(model.HistoryPageSize)
+            .ToListAsync();
+
+        var auditIds = pageRecords
+            .Where(r => r.RecordType == DashboardRecordType.Audits)
+            .Select(r => r.Id)
+            .ToList();
+        var salesReportIds = pageRecords
+            .Where(r => r.RecordType == DashboardRecordType.DailySales)
+            .Select(r => r.Id)
+            .ToList();
+
         model.Audits = await query
+            .Where(a => auditIds.Contains(a.Id))
             .OrderByDescending(a => a.EntryDate)
             .ThenByDescending(a => a.Id)
             .ToListAsync();
 
         model.HistoricalSalesReports = await historicalSalesQuery
+            .Where(r => salesReportIds.Contains(r.Id))
             .OrderByDescending(r => r.BusinessDate)
             .ThenByDescending(r => r.Id)
             .ToListAsync();

@@ -431,8 +431,26 @@
                                 <td class="px-space-6 py-space-4 text-on-surface font-body-md">@row.Date.ToString("MM-dd")</td>
                                 @foreach (var col in Model.TreasuryAudit.CashInColumns)
                                 {
+                                    var amt = row.Amounts.GetValueOrDefault(col.Label, 0m);
+                                    var notesList = row.NotesByColumn.GetValueOrDefault(col.Label, new List<string>());
                                     <td class="px-space-6 py-space-4 text-right">
-                                        @(row.Amounts.ContainsKey(col.Label) ? row.Amounts[col.Label].ToString("N2") : "-")
+                                        @if (amt > 0)
+                                        {
+                                            <span class="font-bold">₱@amt.ToString("N2")</span>
+                                            @if (notesList.Any())
+                                            {
+                                                <div class="mt-0.5 space-y-0.5">
+                                                    @foreach (var noteText in notesList)
+                                                    {
+                                                        <span class="block text-[10px] text-on-surface-variant font-medium leading-tight uppercase">@noteText</span>
+                                                    }
+                                                </div>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <span class="text-on-surface-variant/40">-</span>
+                                        }
                                     </td>
                                 }
                                 <td class="px-space-6 py-space-4 text-right text-audit-success font-bold">₱@totalIn.ToString("N2")</td>
@@ -542,9 +560,116 @@
                        class="h-9 bg-secondary hover:brightness-110 text-on-secondary px-space-4 rounded-lg font-label-caps uppercase text-[10px] tracking-wider decoration-none inline-flex items-center gap-1 select-none">
                         <span class="material-symbols-outlined text-[15px]">download</span> Export Buyer Audit
                     </a>
+                    <a asp-controller="Reports" asp-action="ExportPcfMatrixExcel"
+                       asp-route-StartDate="@Model.Filter.StartDate?.ToString("yyyy-MM-dd")"
+                       asp-route-EndDate="@Model.Filter.EndDate?.ToString("yyyy-MM-dd")"
+                       asp-route-BuyerId="@Model.Filter.BuyerId"
+                       asp-route-EstablishmentId="@Model.Filter.EstablishmentId"
+                       class="h-9 bg-emerald-600 hover:brightness-110 text-white px-space-4 rounded-lg font-label-caps uppercase text-[10px] tracking-wider decoration-none inline-flex items-center gap-1 select-none shadow-sm">
+                        <span class="material-symbols-outlined text-[15px]">table_view</span> Export PCF Matrix
+                    </a>
                     <span class="px-space-3 py-1 bg-secondary/10 text-secondary border border-secondary/20 rounded-full text-[10px] font-label-caps uppercase">Buyer View</span>
                 </div>
             </div>
+
+            @if (Model.PcfMatrix != null && Model.PcfMatrix.Rows.Any())
+            {
+                <div class="bg-surface-container-lowest border border-surface-border rounded-xl shadow-sm overflow-hidden mb-6">
+                    <div class="px-space-6 py-space-4 border-b border-surface-border bg-surface-container-low flex items-center justify-between">
+                        <div>
+                            <h3 class="font-headline-sm text-on-surface">PCF Release Matrix &amp; Liquidation Summary</h3>
+                            <p class="text-xs text-on-surface-variant">Daily Petty Cash releases by custodian with cross-buyer variance reconciliation.</p>
+                        </div>
+                        <span class="px-3 py-1 bg-primary/10 text-primary border border-primary/20 rounded-full text-[10px] font-label-caps uppercase font-bold">
+                            @(Model.PcfMatrix.StartDate.ToString("MMM dd")) - @(Model.PcfMatrix.EndDate.ToString("MMM dd, yyyy"))
+                        </span>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm border-collapse">
+                            <thead>
+                                <tr class="bg-surface-container-low border-b border-surface-border text-xs uppercase text-on-surface-variant">
+                                    <th class="px-4 py-3 text-center w-36 font-bold bg-surface-container-low">DATE</th>
+                                    @foreach (var cust in Model.PcfMatrix.Custodians)
+                                    {
+                                        <th class="px-4 py-3 text-center font-bold bg-surface-container-low">@cust</th>
+                                    }
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-surface-border font-data-mono">
+                                @foreach (var row in Model.PcfMatrix.Rows)
+                                {
+                                    <tr class="hover:bg-primary/5 transition-colors">
+                                        <td class="px-4 py-2.5 text-center font-body-md font-semibold text-on-surface whitespace-nowrap">
+                                            @row.Date.ToString("MMMM dd")
+                                        </td>
+                                        @foreach (var cust in Model.PcfMatrix.Custodians)
+                                        {
+                                            var amt = row.AmountsByCustodian.GetValueOrDefault(cust, 0m);
+                                            var note = row.NotesByCustodian.GetValueOrDefault(cust, "");
+                                            <td class="px-4 py-2.5 text-center whitespace-nowrap">
+                                                @if (amt > 0m)
+                                                {
+                                                    <span class="font-bold text-on-surface">₱@amt.ToString("N2")</span>
+                                                    @if (!string.IsNullOrWhiteSpace(note))
+                                                    {
+                                                        <span class="block text-[10px] text-on-surface-variant font-body-md font-normal">@note</span>
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-on-surface-variant/40">—</span>
+                                                }
+                                            </td>
+                                        }
+                                    </tr>
+                                }
+                                <!-- Yellow Total Row (matching Image #1) -->
+                                <tr class="bg-yellow-100 border-t-2 border-yellow-400 font-bold" style="background-color: #fef08a !important;">
+                                    <td class="px-4 py-3 text-center uppercase text-xs text-on-surface font-extrabold">TOTAL</td>
+                                    @foreach (var cust in Model.PcfMatrix.Custodians)
+                                    {
+                                        var tot = Model.PcfMatrix.ColumnTotals.GetValueOrDefault(cust, 0m);
+                                        <td class="px-4 py-3 text-center text-primary font-extrabold whitespace-nowrap">
+                                            ₱@tot.ToString("N2")
+                                        </td>
+                                    }
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Bottom Summary Box (matching Image #1) -->
+                    <div class="p-space-6 bg-surface-container-low border-t border-surface-border grid grid-cols-2 sm:grid-cols-5 gap-4 font-data-mono">
+                        <div class="bg-surface-container-lowest p-3.5 rounded-xl border border-surface-border">
+                            <span class="text-[10px] uppercase font-bold text-on-surface-variant block">TOTAL PC</span>
+                            <span class="text-base font-extrabold text-primary mt-1 block">₱@Model.PcfMatrix.TotalPc.ToString("N2")</span>
+                        </div>
+                        <div class="bg-surface-container-lowest p-3.5 rounded-xl border border-surface-border">
+                            <span class="text-[10px] uppercase font-bold text-on-surface-variant block">TOTAL EXP</span>
+                            <span class="text-base font-extrabold text-on-surface mt-1 block">₱@Model.PcfMatrix.TotalExpenses.ToString("N2")</span>
+                        </div>
+                        <div class="bg-surface-container-lowest p-3.5 rounded-xl border border-surface-border">
+                            <span class="text-[10px] uppercase font-bold text-on-surface-variant block">CHANGE (Expected)</span>
+                            <span class="text-base font-extrabold text-on-surface mt-1 block">₱@Model.PcfMatrix.ExpectedChange.ToString("N2")</span>
+                        </div>
+                        <div class="bg-surface-container-lowest p-3.5 rounded-xl border border-surface-border">
+                            <span class="text-[10px] uppercase font-bold text-on-surface-variant block">A. CHANGE (Returned)</span>
+                            <span class="text-base font-extrabold text-on-surface mt-1 block">₱@Model.PcfMatrix.ActualChangeReturned.ToString("N2")</span>
+                        </div>
+                        @{
+                            var matrixVarColor = Model.PcfMatrix.ShortOverAmount < 0 ? "text-audit-error" :
+                                (Model.PcfMatrix.ShortOverAmount > 0 ? "text-audit-success" : "text-on-surface");
+                        }
+                        <div class="bg-surface-container-lowest p-3.5 rounded-xl border border-surface-border @matrixVarColor">
+                            <span class="text-[10px] uppercase font-bold text-on-surface-variant block">SHORT / OVER</span>
+                            <span class="text-base font-extrabold mt-1 block">
+                                @(Model.PcfMatrix.ShortOverAmount < 0 ? "-" : (Model.PcfMatrix.ShortOverAmount > 0 ? "+" : ""))₱@Math.Abs(Model.PcfMatrix.ShortOverAmount).ToString("N2")
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            }
 
             @if (!Model.BuyerAudits.Any())
             {

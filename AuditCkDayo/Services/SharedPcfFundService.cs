@@ -103,25 +103,23 @@ namespace AuditCkDayo.Services
         }
 
         /// <summary>
-        /// If the fund's spendable balance is fully exhausted (0 or less) after a
-        /// surrender, collapse the daily starting float to 0 as well, since the
-        /// branch no longer holds any fund. On a partial surrender the float is kept.
+        /// After an approved surrender, the remaining spendable balance becomes the
+        /// branch/user starting float for the still-active PCF cycle. This handles
+        /// late expense audits where yesterday's carried cash is surrendered after
+        /// today's vault funding was already released.
         /// </summary>
         public async Task ResetFloatOnFullSurrenderAsync(Models.User user)
         {
             if (UsesSharedFund(user))
             {
                 var est = await ResolveEstablishmentAsync(user.EstablishmentId.Value);
-                if (est != null && est.PcfBalance <= 0m)
+                if (est != null)
                 {
-                    est.DailyStartingFloat = 0m;
+                    est.DailyStartingFloat = Math.Max(est.PcfBalance, 0m);
                 }
                 return;
             }
-            if (user.PcfBalance <= 0m)
-            {
-                user.DailyStartingFloat = 0m;
-            }
+            user.DailyStartingFloat = Math.Max(user.PcfBalance, 0m);
         }
 
         /// <summary>

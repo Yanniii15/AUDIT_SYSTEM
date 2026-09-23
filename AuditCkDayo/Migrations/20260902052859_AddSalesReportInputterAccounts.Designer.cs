@@ -4,6 +4,7 @@ using AuditCkDayo.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace AuditCkDayo.Migrations
 {
     [DbContext(typeof(AuditDbContext))]
-    partial class AuditDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260902052859_AddSalesReportInputterAccounts")]
+    partial class AddSalesReportInputterAccounts
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -113,13 +116,6 @@ namespace AuditCkDayo.Migrations
                     b.Property<int?>("CostCenterId")
                         .HasColumnType("int");
 
-                    b.Property<int?>("ExpenseSourceId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("ExpenseSourceName")
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
                     b.Property<string>("ItemName")
                         .IsRequired()
                         .HasMaxLength(150)
@@ -161,8 +157,6 @@ namespace AuditCkDayo.Migrations
                     b.HasIndex("AuditItemId");
 
                     b.HasIndex("CostCenterId");
-
-                    b.HasIndex("ExpenseSourceId");
 
                     b.HasIndex("PnlCategoryId");
 
@@ -492,32 +486,6 @@ namespace AuditCkDayo.Migrations
                         .IsUnique();
 
                     b.ToTable("Establishments");
-                });
-
-            modelBuilder.Entity("AuditCkDayo.Models.ExpenseSource", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<bool>("IsActive")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("tinyint(1)")
-                        .HasDefaultValue(true);
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("varchar(100)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Name")
-                        .IsUnique();
-
-                    b.ToTable("ExpenseSources");
                 });
 
             modelBuilder.Entity("AuditCkDayo.Models.ManagerCoverage", b =>
@@ -1232,11 +1200,6 @@ namespace AuditCkDayo.Migrations
                         .HasForeignKey("CostCenterId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("AuditCkDayo.Models.ExpenseSource", "ExpenseSource")
-                        .WithMany()
-                        .HasForeignKey("ExpenseSourceId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("AuditCkDayo.Models.PnlCategory", "PnlCategory")
                         .WithMany()
                         .HasForeignKey("PnlCategoryId")
@@ -1247,8 +1210,6 @@ namespace AuditCkDayo.Migrations
                     b.Navigation("AuditItem");
 
                     b.Navigation("CostCenter");
-
-                    b.Navigation("ExpenseSource");
 
                     b.Navigation("PnlCategory");
                 });

@@ -128,12 +128,14 @@ public class TreasuryAuditReportViewModel
 
         var preferredOrder = new[]
         {
-            "CKR MAIN RECEIVED",
-            "CKR MAIN CHANGE",
-            "CKR BRANCH 4 RECEIVED",
-            "CKR BRANCH 4 CHANGE",
-            "DAYO RECEIVED",
-            "DAYO CHANGE",
+            "M. BARBS",
+            "CHELSEA",
+            "DAYO",
+            "D.CHANGE",
+            "MAIN RECEIVED",
+            "M. CHANGE",
+            "B4 RECEIVED",
+            "B4 CHANGE",
             "OTHERS"
         };
 
@@ -157,7 +159,18 @@ public class TreasuryAuditReportViewModel
                 Date = group.Key,
                 Amounts = group
                     .GroupBy(item => item.Label)
-                    .ToDictionary(labelGroup => labelGroup.Key, labelGroup => labelGroup.Sum(item => item.Entry.Amount))
+                    .ToDictionary(labelGroup => labelGroup.Key, labelGroup => labelGroup.Sum(item => item.Entry.Amount)),
+                NotesByColumn = group
+                    .GroupBy(item => item.Label)
+                    .ToDictionary(
+                        labelGroup => labelGroup.Key,
+                        labelGroup => labelGroup
+                            .Select(item => item.Entry.Notes?.Trim())
+                            .Where(n => !string.IsNullOrWhiteSpace(n))
+                            .Select(n => n!)
+                            .Distinct()
+                            .ToList()
+                    )
             })
             .ToList();
 
@@ -186,37 +199,68 @@ public class TreasuryAuditReportViewModel
     {
         var est = entry.Establishment?.Name?.Trim() ?? string.Empty;
         var note = entry.Notes?.Trim() ?? string.Empty;
+        var relatedName = entry.RelatedUser?.Name?.Trim() ?? string.Empty;
+
+        // 1. Dedicated Owner: M. BARBS
+        if (entry.RelatedUserId == 4 || 
+            relatedName.Contains("Barbie", StringComparison.OrdinalIgnoreCase) ||
+            note.Contains("M.Barbs", StringComparison.OrdinalIgnoreCase) ||
+            note.Contains("M. Barbs", StringComparison.OrdinalIgnoreCase) ||
+            note.Contains("M.barbs", StringComparison.OrdinalIgnoreCase) ||
+            note.Contains("M.BARBS", StringComparison.OrdinalIgnoreCase) ||
+            note.Contains("Barbie", StringComparison.OrdinalIgnoreCase))
+        {
+            return "M. BARBS";
+        }
+
+        // 2. Dedicated Manager/Owner: CHELSEA
+        if (entry.RelatedUserId == 10 ||
+            relatedName.Contains("Chelsea", StringComparison.OrdinalIgnoreCase) ||
+            note.Contains("Chelsea", StringComparison.OrdinalIgnoreCase) ||
+            note.Contains("Chels", StringComparison.OrdinalIgnoreCase))
+        {
+            return "CHELSEA";
+        }
+
+        // 3. Beginning float / items with "Beginning" in notes are strictly OTHERS (e.g. Dayo Beginning)
+        if (note.Contains("Beginning", StringComparison.OrdinalIgnoreCase))
+        {
+            return "OTHERS";
+        }
+
         var isChange = entry.Category == CashFlowCategory.ChangePcf 
                     || note.Contains("Change", StringComparison.OrdinalIgnoreCase) 
                     || note.Contains("Sukli", StringComparison.OrdinalIgnoreCase);
 
-        // CKR Main
+        // 4. Dayo
+        if (est.Equals("Dayo", StringComparison.OrdinalIgnoreCase) ||
+            note.Contains("Dayo", StringComparison.OrdinalIgnoreCase))
+        {
+            return isChange ? "D.CHANGE" : "DAYO";
+        }
+
+        // 5. CKR Main
         if (est.Equals("CKR Main", StringComparison.OrdinalIgnoreCase) ||
             est.Equals("Main", StringComparison.OrdinalIgnoreCase) ||
             note.Contains("CKR Main", StringComparison.OrdinalIgnoreCase) ||
             note.Contains("Main Handover", StringComparison.OrdinalIgnoreCase) ||
             note.Contains("Sales - CKR Main", StringComparison.OrdinalIgnoreCase) ||
             note.Contains("CKR Main Change", StringComparison.OrdinalIgnoreCase) ||
-            note.Contains("Main Change", StringComparison.OrdinalIgnoreCase))
+            note.Contains("Main Change", StringComparison.OrdinalIgnoreCase) ||
+            note.Contains("MAIN RECEIVED", StringComparison.OrdinalIgnoreCase) ||
+            note.Contains("SALES MAIN", StringComparison.OrdinalIgnoreCase))
         {
-            return isChange ? "CKR MAIN CHANGE" : "CKR MAIN RECEIVED";
+            return isChange ? "M. CHANGE" : "MAIN RECEIVED";
         }
 
-        // CKR Branch 4
+        // 6. CKR Branch 4
         if (est.Equals("CKR Branch 4", StringComparison.OrdinalIgnoreCase) ||
             est.Equals("Branch 4", StringComparison.OrdinalIgnoreCase) ||
             note.Contains("CKR Branch 4", StringComparison.OrdinalIgnoreCase) ||
             note.Contains("Branch 4", StringComparison.OrdinalIgnoreCase) ||
             note.Contains("B4", StringComparison.OrdinalIgnoreCase))
         {
-            return isChange ? "CKR BRANCH 4 CHANGE" : "CKR BRANCH 4 RECEIVED";
-        }
-
-        // Dayo
-        if (est.Equals("Dayo", StringComparison.OrdinalIgnoreCase) ||
-            note.Contains("Dayo", StringComparison.OrdinalIgnoreCase))
-        {
-            return isChange ? "DAYO CHANGE" : "DAYO RECEIVED";
+            return isChange ? "B4 CHANGE" : "B4 RECEIVED";
         }
 
         return "OTHERS";
@@ -258,6 +302,7 @@ public class TreasuryAuditCashInRowViewModel
 {
     public DateTime Date { get; set; }
     public Dictionary<string, decimal> Amounts { get; set; } = new();
+    public Dictionary<string, List<string>> NotesByColumn { get; set; } = new();
 }
 
 public class TreasuryAuditCashOutRowViewModel
