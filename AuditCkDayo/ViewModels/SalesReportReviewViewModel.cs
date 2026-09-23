@@ -266,17 +266,45 @@ namespace AuditCkDayo.ViewModels
         public string ImageUrl { get; set; } = string.Empty;
         public List<string>? ImageUrls { get; set; }
         public List<string>? ClosingImageUrls { get; set; }
+        // Opening Deposit Slip fields
+        public string? OpeningDepositSlipImageUrl { get; set; }
+        public decimal? OpeningDepositedAmount { get; set; }
+        public string? OpeningDepositBankName { get; set; }
+        public string? OpeningDepositReferenceNumber { get; set; }
+        public DateTime? OpeningDepositDate { get; set; }
+        public string? OpeningDepositVarianceReason { get; set; }
+        public string? OpeningDepositUploadedByName { get; set; }
+        public DateTime? OpeningDepositUploadedAt { get; set; }
+        public bool HasOpeningDepositSlip { get; set; }
+        public decimal OpeningDepositVariance { get; set; }
+        public bool IsOpeningDepositMatched { get; set; }
+        public bool IsOpeningDepositDiscrepancy { get; set; }
+
+        // Closing Deposit Slip fields (and unified)
         public string? DepositSlipImageUrl { get; set; }
+        public string? ClosingDepositSlipImageUrl { get; set; }
         public decimal? DepositedAmount { get; set; }
+        public decimal? ClosingDepositedAmount { get; set; }
         public string? DepositBankName { get; set; }
+        public string? ClosingDepositBankName { get; set; }
         public string? DepositReferenceNumber { get; set; }
+        public string? ClosingDepositReferenceNumber { get; set; }
         public DateTime? DepositDate { get; set; }
+        public DateTime? ClosingDepositDate { get; set; }
         public string? DepositVarianceReason { get; set; }
+        public string? ClosingDepositVarianceReason { get; set; }
         public string? DepositUploadedByName { get; set; }
+        public string? ClosingDepositUploadedByName { get; set; }
         public DateTime? DepositUploadedAt { get; set; }
+        public DateTime? ClosingDepositUploadedAt { get; set; }
         public bool HasDepositSlip { get; set; }
+        public bool HasClosingDepositSlip { get; set; }
+        public bool HasBothDepositSlips { get; set; }
         public decimal DepositVariance { get; set; }
+        public decimal ClosingDepositVariance { get; set; }
         public bool IsDepositMatched { get; set; }
+        public bool IsClosingDepositMatched { get; set; }
+        public bool IsClosingDepositDiscrepancy { get; set; }
         public bool IsDepositDiscrepancy { get; set; }
         public SalesReportStatus Status { get; set; } = SalesReportStatus.Draft;
         public DocumentReviewStatus ReviewStatus { get; set; } = DocumentReviewStatus.Draft;
@@ -320,6 +348,9 @@ namespace AuditCkDayo.ViewModels
     public class UploadDepositSlipRequest
     {
         public int SalesReportId { get; set; }
+        [MaxLength(20)]
+        public string Section { get; set; } = "Closing";
+
 
         [Required]
         [Range(0, 999999999.99)]

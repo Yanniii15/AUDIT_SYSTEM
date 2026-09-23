@@ -110,6 +110,22 @@ using (var scope = app.Services.CreateScope())
         ("SalesReports", "DepositVarianceReason", "varchar(500) NULL"),
         ("SalesReports", "DepositUploadedByUserId", "int NULL"),
         ("SalesReports", "DepositUploadedAt", "datetime NULL"),
+        ("SalesReports", "OpeningDepositSlipImageUrl", "varchar(255) NULL"),
+        ("SalesReports", "OpeningDepositedAmount", "decimal(12,2) NULL"),
+        ("SalesReports", "OpeningDepositBankName", "varchar(100) NULL"),
+        ("SalesReports", "OpeningDepositReferenceNumber", "varchar(100) NULL"),
+        ("SalesReports", "OpeningDepositDate", "datetime NULL"),
+        ("SalesReports", "OpeningDepositVarianceReason", "varchar(500) NULL"),
+        ("SalesReports", "OpeningDepositUploadedByUserId", "int NULL"),
+        ("SalesReports", "OpeningDepositUploadedAt", "datetime NULL"),
+        ("SalesReports", "ClosingDepositSlipImageUrl", "varchar(255) NULL"),
+        ("SalesReports", "ClosingDepositedAmount", "decimal(12,2) NULL"),
+        ("SalesReports", "ClosingDepositBankName", "varchar(100) NULL"),
+        ("SalesReports", "ClosingDepositReferenceNumber", "varchar(100) NULL"),
+        ("SalesReports", "ClosingDepositDate", "datetime NULL"),
+        ("SalesReports", "ClosingDepositVarianceReason", "varchar(500) NULL"),
+        ("SalesReports", "ClosingDepositUploadedByUserId", "int NULL"),
+        ("SalesReports", "ClosingDepositUploadedAt", "datetime NULL"),
         ("CashFlowEntries", "SalesReportId", "int NULL")
     };
 

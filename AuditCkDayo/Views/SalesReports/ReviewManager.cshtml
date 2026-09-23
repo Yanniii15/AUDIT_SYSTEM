@@ -105,186 +105,6 @@
         </div>
     </div>
 
-    <!-- BANK DEPOSIT VERIFICATION CARD -->
-    <div class="bg-surface-container-lowest p-space-6 rounded-xl border border-surface-border shadow-sm space-y-4">
-        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-surface-border pb-3">
-            <div class="flex items-center gap-2">
-                <span class="material-symbols-outlined text-primary text-[22px]">account_balance</span>
-                <div>
-                    <h3 class="font-headline-sm text-sm font-bold text-on-surface">Bank Deposit Verification</h3>
-                    <span class="text-[11px] text-on-surface-variant">Verify branch bank deposit slip against cash handover.</span>
-                </div>
-            </div>
-            <div>
-                @if (Model.HasDepositSlip)
-                {
-                    if (Model.IsDepositMatched)
-                    {
-                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-                            <span class="material-symbols-outlined text-[16px]">check_circle</span>
-                            Deposit Matched (₱@Model.DepositedAmount?.ToString("N2"))
-                        </span>
-                    }
-                    else
-                    {
-                        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/30" title="@Model.DepositVarianceReason">
-                            <span class="material-symbols-outlined text-[16px]">warning</span>
-                            Deposit Variance (@(Model.DepositVariance > 0 ? "+" : "")₱@Model.DepositVariance.ToString("N2"))
-                        </span>
-                    }
-                }
-                else
-                {
-                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30">
-                        <span class="material-symbols-outlined text-[16px]">pending</span>
-                        Awaiting Deposit Slip
-                    </span>
-                }
-            </div>
-        </div>
-
-        <!-- Existing Deposit Slip Preview (if uploaded) -->
-        @if (Model.HasDepositSlip)
-        {
-            <div class="rounded-xl border border-surface-border bg-surface-container-low p-4">
-                <div class="flex flex-col md:flex-row gap-4 items-start">
-                    <div class="w-full md:w-48 h-36 bg-surface-container-highest rounded-lg overflow-hidden flex items-center justify-center relative border border-surface-border flex-shrink-0 cursor-pointer group" onclick="openLightbox('@Model.DepositSlipImageUrl')">
-                        <img src="@Model.DepositSlipImageUrl" class="max-w-full max-h-full object-contain group-hover:scale-105 transition-transform" alt="Deposit Slip" />
-                        <div class="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white text-xs font-semibold gap-1">
-                            <span class="material-symbols-outlined text-sm">zoom_in</span> Zoom
-                        </div>
-                    </div>
-                    <div class="flex-1 space-y-2 text-xs">
-                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                            <div>
-                                <span class="text-on-surface-variant block text-[10px] font-label-caps uppercase font-bold">Bank</span>
-                                <span class="text-on-surface font-semibold text-sm">@(string.IsNullOrWhiteSpace(Model.DepositBankName) ? "—" : Model.DepositBankName)</span>
-                            </div>
-                            <div>
-                                <span class="text-on-surface-variant block text-[10px] font-label-caps uppercase font-bold">Reference #</span>
-                                <span class="text-on-surface font-mono font-semibold text-sm">@(string.IsNullOrWhiteSpace(Model.DepositReferenceNumber) ? "—" : Model.DepositReferenceNumber)</span>
-                            </div>
-                            <div>
-                                <span class="text-on-surface-variant block text-[10px] font-label-caps uppercase font-bold">Deposited Amount</span>
-                                <span class="text-primary font-mono font-bold text-sm">₱@Model.DepositedAmount?.ToString("N2")</span>
-                            </div>
-                            <div>
-                                <span class="text-on-surface-variant block text-[10px] font-label-caps uppercase font-bold">Deposit Date</span>
-                                <span class="text-on-surface font-semibold text-sm">@(Model.DepositDate?.ToString("MMM d, yyyy") ?? "—")</span>
-                            </div>
-                        </div>
-                        @if (!string.IsNullOrWhiteSpace(Model.DepositVarianceReason))
-                        {
-                            <div class="p-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400">
-                                <span class="font-bold block text-[10px] uppercase font-label-caps">Variance Explanation:</span>
-                                <span>@Model.DepositVarianceReason</span>
-                            </div>
-                        }
-                        @if (!string.IsNullOrWhiteSpace(Model.DepositUploadedByName))
-                        {
-                            <div class="text-[11px] text-on-surface-variant">
-                                Uploaded by <strong class="text-on-surface">@Model.DepositUploadedByName</strong> @(Model.DepositUploadedAt.HasValue ? "on " + Model.DepositUploadedAt.Value.ToString("MMM d, yyyy h:mm tt") : "")
-                            </div>
-                        }
-                        <div class="pt-2">
-                            <button type="button" onclick="document.getElementById('mgrDepositUploadSection').classList.toggle('hidden')" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-surface-border text-on-surface-variant hover:text-on-surface hover:bg-surface-container font-label-caps uppercase text-[10px] font-bold transition">
-                                <span class="material-symbols-outlined text-[16px]">edit</span> Replace / Update Slip
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        }
-
-        <!-- Deposit Slip Upload & Verification Section -->
-        <div id="mgrDepositUploadSection" class="@(Model.HasDepositSlip ? "hidden" : "") rounded-xl border border-surface-border bg-surface-container-low/50 p-4 space-y-4">
-            <!-- Dynamic Comparison Banner -->
-            <div id="mgrDepositComparisonBanner" class="rounded-lg p-3 text-xs flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
-                <span class="material-symbols-outlined text-[18px]">check_circle</span>
-                <span id="mgrDepositComparisonText"><strong>Balanced:</strong> Deposited amount matches cash handover.</span>
-            </div>
-
-            <!-- Error message container -->
-            <div id="mgrDepositErrorBox" class="hidden rounded-lg bg-red-500/10 border border-red-500/30 p-3 text-xs text-red-500"></div>
-
-            <!-- Slip Dropzone and OCR Scan -->
-            <div class="space-y-2">
-                <label class="block text-xs font-semibold text-on-surface">Deposit Slip Image @(Model.HasDepositSlip ? "(Optional if keeping current)" : "*")</label>
-                <div id="mgrDepositDropzone" onclick="document.getElementById('mgrDepositFileInput').click()" class="border-2 border-dashed border-outline-variant hover:border-primary rounded-xl p-4 text-center cursor-pointer transition bg-surface-container-low/50 hover:bg-surface-container-low">
-                    <input type="file" id="mgrDepositFileInput" accept=".png,.jpg,.jpeg,.webp" class="hidden" onchange="handleMgrModalFileSelected(event)" />
-                    <div id="mgrDropzonePlaceholder" class="space-y-1">
-                        <span class="material-symbols-outlined text-primary text-3xl">cloud_upload</span>
-                        <div class="text-xs text-on-surface font-medium">Click or drag &amp; drop deposit slip image</div>
-                        <div class="text-[10px] text-on-surface-variant">PNG, JPG, JPEG, WEBP up to 10MB</div>
-                    </div>
-                    <div id="mgrFilePreviewContainer" class="hidden flex items-center justify-between gap-3 text-left">
-                        <div class="flex items-center gap-2 min-w-0">
-                            <img id="mgrFilePreviewImg" class="w-12 h-12 object-cover rounded-lg border border-surface-border flex-shrink-0" alt="Preview" />
-                            <div class="min-w-0">
-                                <span id="mgrFileNameText" class="text-xs font-semibold text-on-surface truncate block">filename.jpg</span>
-                                <span class="text-[10px] text-on-surface-variant">Click to choose another</span>
-                            </div>
-                        </div>
-                        <span class="material-symbols-outlined text-primary text-xl">check_circle</span>
-                    </div>
-                </div>
-
-                <!-- OCR Action Row -->
-                <div class="flex items-center justify-between gap-2 pt-1">
-                    <button type="button" id="btnMgrScanOcr" onclick="scanMgrDepositSlipOcr()" disabled class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container-high hover:bg-surface-container-highest border border-surface-border text-on-surface text-xs font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition shadow-sm">
-                        <span class="material-symbols-outlined text-sm">document_scanner</span>
-                        <span id="btnMgrScanOcrText">Scan with OCR</span>
-                        <span id="mgrScanOcrSpinner" class="hidden w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin"></span>
-                    </button>
-                    <div id="mgrOcrStatusNote" class="hidden text-[11px]"></div>
-                </div>
-            </div>
-
-            <!-- Deposit Fields -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                <div>
-                    <label for="mgrDepositBankName" class="block text-xs font-semibold text-on-surface mb-1">Bank Name *</label>
-                    <input type="text" id="mgrDepositBankName" list="mgrBankList" value="@Model.DepositBankName" placeholder="e.g. BDO, BPI" class="w-full rounded-lg border border-outline bg-surface px-3 py-2 text-xs text-on-surface focus:ring-1 focus:ring-primary" />
-                    <datalist id="mgrBankList">
-                        <option value="BDO" />
-                        <option value="BPI" />
-                        <option value="Metrobank" />
-                        <option value="Security Bank" />
-                        <option value="Landbank" />
-                        <option value="UnionBank" />
-                        <option value="RCBC" />
-                        <option value="PNB" />
-                        <option value="China Bank" />
-                    </datalist>
-                </div>
-                <div>
-                    <label for="mgrDepositRef" class="block text-xs font-semibold text-on-surface mb-1">Reference / Trans #</label>
-                    <input type="text" id="mgrDepositRef" value="@Model.DepositReferenceNumber" placeholder="e.g. TRN-12345" class="w-full rounded-lg border border-outline bg-surface px-3 py-2 text-xs text-on-surface focus:ring-1 focus:ring-primary" />
-                </div>
-                <div>
-                    <label for="mgrDepositAmount" class="block text-xs font-semibold text-on-surface mb-1">Deposited Amount (₱) *</label>
-                    <input type="number" step="0.01" min="0.01" id="mgrDepositAmount" value="@(Model.DepositedAmount.HasValue ? Model.DepositedAmount.Value.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) : Model.ConfirmedCashToHandover.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))" class="w-full rounded-lg border border-outline bg-surface px-3 py-2 text-xs text-on-surface font-data-mono font-bold focus:ring-1 focus:ring-primary" oninput="updateMgrDepositComparison()" />
-                </div>
-                <div>
-                    <label for="mgrDepositDate" class="block text-xs font-semibold text-on-surface mb-1">Deposit Date *</label>
-                    <input type="date" id="mgrDepositDate" value="@(Model.DepositDate.HasValue ? Model.DepositDate.Value.ToString("yyyy-MM-dd") : Model.BusinessDate.ToString("yyyy-MM-dd"))" class="w-full rounded-lg border border-outline bg-surface px-3 py-2 text-xs text-on-surface focus:ring-1 focus:ring-primary" />
-                </div>
-            </div>
-
-            <!-- Variance Explanation (Mandatory if amounts differ) -->
-            <div id="mgrVarianceGroup" class="hidden">
-                <label for="mgrDepositVarianceReason" class="block text-xs font-semibold text-red-500 mb-1">Variance Explanation *</label>
-                <textarea id="mgrDepositVarianceReason" rows="2" placeholder="Explain why deposited amount differs from cash handover..." class="w-full rounded-lg border border-red-500/50 bg-surface px-3 py-2 text-xs text-on-surface focus:ring-1 focus:ring-red-500">@Model.DepositVarianceReason</textarea>
-            </div>
-
-            <div class="pt-2 flex justify-end gap-2 border-t border-surface-border">
-                <button type="button" id="btnMgrDepositSubmit" onclick="handleMgrDepositSubmit(event)" class="px-4 py-2 text-xs font-semibold rounded-lg bg-primary text-on-primary hover:bg-primary/90 shadow-sm transition inline-flex items-center gap-1.5">
-                    <span class="material-symbols-outlined text-sm">cloud_upload</span>
-                    <span id="btnMgrDepositSubmitText">Save &amp; Record Deposit</span>
-                </button>
-            </div>
-        </div>
-    </div>
 
     <!-- Main post form wrap -->
     <form asp-controller="SalesReports" asp-action="Review" method="post" enctype="multipart/form-data" class="space-y-6" id="topActionForm">
@@ -317,8 +137,113 @@
         <!-- ROW 2: Forms Side-by-Side Comparison -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-space-8 items-start">
             
-            <!-- LEFT HALF: Opening Daily Sales (Readonly) -->
-            <div class="bg-surface-container-lowest rounded-xl shadow-sm border border-surface-border overflow-hidden space-y-space-6 pb-space-6">
+            <!-- LEFT COLUMN: Opening Shift & Opening Deposit -->
+            <div class="space-y-4">
+                <!-- OPENING DEPOSIT SLIP DROPDOWN (Above Opening Log) -->
+                <div class="rounded-xl border border-surface-border bg-surface-container-lowest shadow-sm overflow-hidden transition-all">
+                    <div class="px-4 py-2.5 bg-surface-container-low flex items-center justify-between cursor-pointer hover:bg-surface-container transition-colors select-none" onclick="toggleDepositDrawer('opening')">
+                        <div class="flex items-center gap-2 min-w-0">
+                            <span class="material-symbols-outlined text-primary text-[18px]">account_balance</span>
+                            <span class="text-xs font-bold text-on-surface truncate">Opening Deposit Slip:</span>
+                            @if (Model.HasOpeningDepositSlip)
+                            {
+                                if (Model.IsOpeningDepositMatched)
+                                {
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                                        ✓ ₱@Model.OpeningDepositedAmount?.ToString("N2") Matched
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/30" title="@Model.OpeningDepositVarianceReason">
+                                        ⚠️ ₱@Model.OpeningDepositedAmount?.ToString("N2") (@(Model.OpeningDepositVariance > 0 ? "+" : "")₱@Model.OpeningDepositVariance.ToString("N2"))
+                                    </span>
+                                }
+                            }
+                            else
+                            {
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                                    Awaiting Opening Slip
+                                </span>
+                            }
+                        </div>
+                        <div class="flex items-center gap-1 text-primary text-[11px] font-bold">
+                            <span id="openingDrawerToggleLabel">@(Model.HasOpeningDepositSlip ? "View / Edit" : "Upload Slip")</span>
+                            <span id="openingDrawerChevron" class="material-symbols-outlined text-[16px] transition-transform duration-200">expand_more</span>
+                        </div>
+                    </div>
+
+                    <!-- Opening Drawer Content -->
+                    <div id="openingDepositDrawer" class="hidden p-4 border-t border-surface-border bg-surface-container-lowest space-y-3 text-xs">
+                        @if (Model.HasOpeningDepositSlip)
+                        {
+                            <div class="flex items-start gap-3 p-3 bg-surface-container-low rounded-lg border border-surface-border">
+                                <img src="@Model.OpeningDepositSlipImageUrl" class="w-16 h-16 object-contain rounded border border-surface-border cursor-pointer hover:opacity-90" alt="Opening Deposit Slip" onclick="openLightbox(this.src)" />
+                                <div class="flex-1 text-[11px] space-y-0.5">
+                                    <div><b class="text-on-surface">Bank:</b> @(Model.OpeningDepositBankName ?? "—") | <b class="text-on-surface">Ref:</b> <span class="font-mono">@(Model.OpeningDepositReferenceNumber ?? "—")</span></div>
+                                    <div><b class="text-on-surface">Deposited:</b> <span class="text-primary font-mono font-bold">₱@Model.OpeningDepositedAmount?.ToString("N2")</span> vs <b class="text-on-surface">Sales:</b> <span class="font-mono">₱@Model.OpeningCashSales.ToString("N2")</span></div>
+                                    @if (!string.IsNullOrWhiteSpace(Model.OpeningDepositVarianceReason))
+                                    {
+                                        <div class="text-red-500"><b>Variance Reason:</b> @Model.OpeningDepositVarianceReason</div>
+                                    }
+                                </div>
+                            </div>
+                        }
+
+                        <!-- Opening Upload / Edit Form -->
+                        <div class="space-y-3 pt-1">
+                            <div id="openingDepositDropzone" onclick="document.getElementById('openingFileInput').click()" class="border-2 border-dashed border-outline-variant hover:border-primary rounded-xl p-3 text-center cursor-pointer transition bg-surface-container-low/50">
+                                <input type="file" id="openingFileInput" accept=".png,.jpg,.jpeg,.webp" class="hidden" onchange="handleDepositFileSelected('opening', event)" />
+                                <div id="openingDropzonePlaceholder" class="flex items-center justify-center gap-2 text-on-surface-variant text-[11px]">
+                                    <span class="material-symbols-outlined text-primary text-xl">cloud_upload</span>
+                                    <span>Click or drag deposit slip image</span>
+                                </div>
+                                <div id="openingFilePreviewContainer" class="hidden flex items-center justify-between gap-2 text-left">
+                                    <span id="openingFileNameText" class="font-mono text-[10px] text-on-surface truncate"></span>
+                                    <button type="button" id="btnOpeningScanOcr" onclick="event.stopPropagation(); scanDepositSlipOcr('opening')" class="px-2.5 py-1 bg-primary text-white rounded text-[10px] font-bold inline-flex items-center gap-1 shadow-sm">
+                                        <span class="material-symbols-outlined text-[13px]">document_scanner</span>
+                                        <span id="btnOpeningScanOcrText">Scan OCR</span>
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="openingOcrStatusNote" class="hidden"></div>
+
+                            <div class="grid grid-cols-2 gap-2 text-xs">
+                                <div>
+                                    <label class="block text-[10px] font-bold text-on-surface-variant mb-0.5">Bank</label>
+                                    <input type="text" id="openingDepositBankName" value="@Model.OpeningDepositBankName" placeholder="e.g. Metrobank" class="w-full rounded-lg border border-outline bg-surface px-2.5 py-1.5 text-xs text-on-surface" />
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-on-surface-variant mb-0.5">Reference #</label>
+                                    <input type="text" id="openingDepositRef" value="@Model.OpeningDepositReferenceNumber" placeholder="e.g. 262309-627-..." class="w-full rounded-lg border border-outline bg-surface px-2.5 py-1.5 text-xs text-on-surface font-mono" />
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-on-surface-variant mb-0.5">Deposited (₱) *</label>
+                                    <input type="number" step="0.01" min="0.01" id="openingDepositAmount" value="@(Model.OpeningDepositedAmount.HasValue ? Model.OpeningDepositedAmount.Value.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) : Model.OpeningCashSales.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))" class="w-full rounded-lg border border-outline bg-surface px-2.5 py-1.5 text-xs font-bold text-on-surface font-mono" oninput="updateDepositComparison('opening')" />
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-on-surface-variant mb-0.5">Deposit Date *</label>
+                                    <input type="date" id="openingDepositDate" value="@(Model.OpeningDepositDate.HasValue ? Model.OpeningDepositDate.Value.ToString("yyyy-MM-dd") : Model.BusinessDate.ToString("yyyy-MM-dd"))" class="w-full rounded-lg border border-outline bg-surface px-2.5 py-1.5 text-xs text-on-surface" />
+                                </div>
+                            </div>
+
+                            <div id="openingVarianceGroup" class="hidden">
+                                <label class="block text-[10px] font-bold text-red-500 mb-0.5">Opening Variance Explanation *</label>
+                                <textarea id="openingDepositVarianceReason" rows="2" placeholder="Explain difference from opening cash sales..." class="w-full rounded-lg border border-red-500/50 bg-surface px-2.5 py-1.5 text-xs text-on-surface">@Model.OpeningDepositVarianceReason</textarea>
+                            </div>
+
+                            <div class="flex items-center justify-between pt-1">
+                                <div id="openingDepositComparisonText" class="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">Opening Cash: ₱@Model.OpeningCashSales.ToString("N2")</div>
+                                <button type="button" onclick="handleDepositSubmit('opening', event)" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-primary text-on-primary hover:brightness-110 shadow-sm transition inline-flex items-center gap-1">
+                                    <span class="material-symbols-outlined text-[15px]">save</span> Save Opening Slip
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Opening Daily Sales Logbook Form Box -->
+                <div class="bg-surface-container-lowest rounded-xl shadow-sm border border-surface-border overflow-hidden space-y-space-6 pb-space-6">
                 <div class="bg-primary/95 px-space-6 py-space-4 flex justify-between items-center text-on-primary">
                     <span class="font-label-caps uppercase tracking-tighter text-[11px] font-bold">1. Opening Daily Sales Log</span>
                     <span class="text-[10px] font-data-mono bg-white/20 px-2 py-0.5 rounded text-white font-semibold">READONLY</span>
@@ -430,9 +355,115 @@
                     </div>
                 </div>
             </div>
+            </div> <!-- END LEFT COLUMN -->
 
-            <!-- RIGHT HALF: Closing Daily Sales -->
-            <div class="bg-surface-container-lowest rounded-xl shadow-sm border border-surface-border overflow-hidden space-y-space-6 pb-space-6">
+            <!-- RIGHT COLUMN: Closing Shift & Closing Deposit -->
+            <div class="space-y-4">
+                <!-- CLOSING DEPOSIT SLIP DROPDOWN (Above Closing Log) -->
+                <div class="rounded-xl border border-surface-border bg-surface-container-lowest shadow-sm overflow-hidden transition-all">
+                    <div class="px-4 py-2.5 bg-surface-container-low flex items-center justify-between cursor-pointer hover:bg-surface-container transition-colors select-none" onclick="toggleDepositDrawer('closing')">
+                        <div class="flex items-center gap-2 min-w-0">
+                            <span class="material-symbols-outlined text-primary text-[18px]">account_balance</span>
+                            <span class="text-xs font-bold text-on-surface truncate">Closing Deposit Slip:</span>
+                            @if (Model.HasClosingDepositSlip)
+                            {
+                                if (Model.IsClosingDepositMatched)
+                                {
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+                                        ✓ ₱@Model.ClosingDepositedAmount?.ToString("N2") Matched
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500/20 text-red-600 dark:text-red-400 border border-red-500/30" title="@Model.ClosingDepositVarianceReason">
+                                        ⚠️ ₱@Model.ClosingDepositedAmount?.ToString("N2") (@(Model.ClosingDepositVariance > 0 ? "+" : "")₱@Model.ClosingDepositVariance.ToString("N2"))
+                                    </span>
+                                }
+                            }
+                            else
+                            {
+                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                                    Awaiting Closing Slip
+                                </span>
+                            }
+                        </div>
+                        <div class="flex items-center gap-1 text-primary text-[11px] font-bold">
+                            <span id="closingDrawerToggleLabel">@(Model.HasClosingDepositSlip ? "View / Edit" : "Upload Slip")</span>
+                            <span id="closingDrawerChevron" class="material-symbols-outlined text-[16px] transition-transform duration-200">expand_more</span>
+                        </div>
+                    </div>
+
+                    <!-- Closing Drawer Content -->
+                    <div id="closingDepositDrawer" class="hidden p-4 border-t border-surface-border bg-surface-container-lowest space-y-3 text-xs">
+                        @if (Model.HasClosingDepositSlip)
+                        {
+                            <div class="flex items-start gap-3 p-3 bg-surface-container-low rounded-lg border border-surface-border">
+                                <img src="@Model.ClosingDepositSlipImageUrl" class="w-16 h-16 object-contain rounded border border-surface-border cursor-pointer hover:opacity-90" alt="Closing Deposit Slip" onclick="openLightbox(this.src)" />
+                                <div class="flex-1 text-[11px] space-y-0.5">
+                                    <div><b class="text-on-surface">Bank:</b> @(Model.ClosingDepositBankName ?? "—") | <b class="text-on-surface">Ref:</b> <span class="font-mono">@(Model.ClosingDepositReferenceNumber ?? "—")</span></div>
+                                    <div><b class="text-on-surface">Deposited:</b> <span class="text-primary font-mono font-bold">₱@Model.ClosingDepositedAmount?.ToString("N2")</span> vs <b class="text-on-surface">Sales:</b> <span class="font-mono">₱@Model.CashSales.ToString("N2")</span></div>
+                                    @if (!string.IsNullOrWhiteSpace(Model.ClosingDepositVarianceReason))
+                                    {
+                                        <div class="text-red-500"><b>Variance Reason:</b> @Model.ClosingDepositVarianceReason</div>
+                                    }
+                                </div>
+                            </div>
+                        }
+
+                        <!-- Closing Upload / Edit Form -->
+                        <div class="space-y-3 pt-1">
+                            <div id="closingDepositDropzone" onclick="document.getElementById('closingFileInput').click()" class="border-2 border-dashed border-outline-variant hover:border-primary rounded-xl p-3 text-center cursor-pointer transition bg-surface-container-low/50">
+                                <input type="file" id="closingFileInput" accept=".png,.jpg,.jpeg,.webp" class="hidden" onchange="handleDepositFileSelected('closing', event)" />
+                                <div id="closingDropzonePlaceholder" class="flex items-center justify-center gap-2 text-on-surface-variant text-[11px]">
+                                    <span class="material-symbols-outlined text-primary text-xl">cloud_upload</span>
+                                    <span>Click or drag deposit slip image</span>
+                                </div>
+                                <div id="closingFilePreviewContainer" class="hidden flex items-center justify-between gap-2 text-left">
+                                    <span id="closingFileNameText" class="font-mono text-[10px] text-on-surface truncate"></span>
+                                    <button type="button" id="btnClosingScanOcr" onclick="event.stopPropagation(); scanDepositSlipOcr('closing')" class="px-2.5 py-1 bg-primary text-white rounded text-[10px] font-bold inline-flex items-center gap-1 shadow-sm">
+                                        <span class="material-symbols-outlined text-[13px]">document_scanner</span>
+                                        <span id="btnClosingScanOcrText">Scan OCR</span>
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="closingOcrStatusNote" class="hidden"></div>
+
+                            <div class="grid grid-cols-2 gap-2 text-xs">
+                                <div>
+                                    <label class="block text-[10px] font-bold text-on-surface-variant mb-0.5">Bank</label>
+                                    <input type="text" id="closingDepositBankName" value="@Model.ClosingDepositBankName" placeholder="e.g. Metrobank" class="w-full rounded-lg border border-outline bg-surface px-2.5 py-1.5 text-xs text-on-surface" />
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-on-surface-variant mb-0.5">Reference #</label>
+                                    <input type="text" id="closingDepositRef" value="@Model.ClosingDepositReferenceNumber" placeholder="e.g. 262309-627-..." class="w-full rounded-lg border border-outline bg-surface px-2.5 py-1.5 text-xs text-on-surface font-mono" />
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-on-surface-variant mb-0.5">Deposited (₱) *</label>
+                                    <input type="number" step="0.01" min="0.01" id="closingDepositAmount" value="@(Model.ClosingDepositedAmount.HasValue ? Model.ClosingDepositedAmount.Value.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) : Model.CashSales.ToString("F2", System.Globalization.CultureInfo.InvariantCulture))" class="w-full rounded-lg border border-outline bg-surface px-2.5 py-1.5 text-xs font-bold text-on-surface font-mono" oninput="updateDepositComparison('closing')" />
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-on-surface-variant mb-0.5">Deposit Date *</label>
+                                    <input type="date" id="closingDepositDate" value="@(Model.ClosingDepositDate.HasValue ? Model.ClosingDepositDate.Value.ToString("yyyy-MM-dd") : Model.BusinessDate.ToString("yyyy-MM-dd"))" class="w-full rounded-lg border border-outline bg-surface px-2.5 py-1.5 text-xs text-on-surface" />
+                                </div>
+                            </div>
+
+                            <div id="closingVarianceGroup" class="hidden">
+                                <label class="block text-[10px] font-bold text-red-500 mb-0.5">Closing Variance Explanation *</label>
+                                <textarea id="closingDepositVarianceReason" rows="2" placeholder="Explain difference from closing cash sales..." class="w-full rounded-lg border border-red-500/50 bg-surface px-2.5 py-1.5 text-xs text-on-surface">@Model.ClosingDepositVarianceReason</textarea>
+                            </div>
+
+                            <div class="flex items-center justify-between pt-1">
+                                <div id="closingDepositComparisonText" class="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">Closing Cash: ₱@Model.CashSales.ToString("N2")</div>
+                                <button type="button" onclick="handleDepositSubmit('closing', event)" class="px-3 py-1.5 text-xs font-bold rounded-lg bg-primary text-on-primary hover:brightness-110 shadow-sm transition inline-flex items-center gap-1">
+                                <span class="material-symbols-outlined text-[15px]">save</span> Save Closing Slip
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- RIGHT HALF: Closing Daily Sales Log Card -->
+                <div class="bg-surface-container-lowest rounded-xl shadow-sm border border-surface-border overflow-hidden space-y-space-6 pb-space-6">
                 <div class="bg-primary px-space-6 py-space-4 flex justify-between items-center text-on-primary">
                     <span class="font-label-caps uppercase tracking-tighter text-[11px] font-bold">2. Closing Daily Sales Log</span>
                     <span class="text-[10px] font-data-mono bg-white/20 px-2 py-0.5 rounded text-white font-semibold">FORM INPUTS</span>
@@ -664,6 +695,7 @@
                     </div>
                 </div>
             </div>
+            </div> <!-- END RIGHT COLUMN -->
         </div>
     </form>
 </div>
@@ -713,94 +745,58 @@
         }
     }
 
-    function updateMgrDepositComparison() {
-        const handoverInput = document.getElementById('HandoverCashInput');
-        const handoverVal = parseFloat(handoverInput ? handoverInput.value : @(Model.ConfirmedCashToHandover.ToString(System.Globalization.CultureInfo.InvariantCulture))) || @(Model.CombinedCashSales.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        const depositInput = document.getElementById('mgrDepositAmount');
-        const banner = document.getElementById('mgrDepositComparisonBanner');
-        const bannerText = document.getElementById('mgrDepositComparisonText');
-        const varianceGroup = document.getElementById('mgrVarianceGroup');
-        const varianceInput = document.getElementById('mgrDepositVarianceReason');
-        if (!depositInput || !banner) return;
+    const depositFiles = {
+        opening: null,
+        closing: null
+    };
 
-        const entered = parseFloat(depositInput.value) || 0;
-        const diff = entered - handoverVal;
-        const absDiff = Math.abs(diff);
-
-        if (absDiff < 0.01) {
-            banner.className = 'rounded-lg p-3 text-xs flex items-center gap-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400';
-            if (bannerText) {
-                bannerText.innerHTML = `<strong>Balanced:</strong> Deposited amount matches cash handover (₱${handoverVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}).`;
-            }
-            if (varianceGroup) varianceGroup.classList.add('hidden');
-            if (varianceInput) varianceInput.required = false;
-        } else {
-            const sign = diff > 0 ? '+' : '-';
-            const statusType = diff > 0 ? 'Over' : 'Short';
-            banner.className = 'rounded-lg p-3 text-xs flex items-center gap-2 bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400';
-            if (bannerText) {
-                bannerText.innerHTML = `<strong>Discrepancy (${statusType}):</strong> Variance of ${sign}₱${absDiff.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} between deposited amount and cash handover. A variance explanation is mandatory.`;
-            }
-            if (varianceGroup) varianceGroup.classList.remove('hidden');
-            if (varianceInput) varianceInput.required = true;
-        }
-    }
-
-    let selectedMgrDepositFile = null;
-
-    window.handleMgrModalFileSelected = function(e) {
-        const files = e.target.files;
-        if (files && files.length > 0) {
-            setMgrDepositFile(files[0]);
+    window.toggleDepositDrawer = function(section) {
+        const drawer = document.getElementById(section + 'DepositDrawer');
+        const chevron = document.getElementById(section + 'DrawerChevron');
+        if (!drawer) return;
+        const isHidden = drawer.classList.contains('hidden');
+        drawer.classList.toggle('hidden');
+        if (chevron) {
+            chevron.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
         }
     };
 
-    function setMgrDepositFile(file) {
-        if (!file) return;
-        const allowed = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
-        if (!allowed.includes(file.type) && !file.name.match(/\.(png|jpe?g|webp)$/i)) {
-            alert('Please upload a valid image (PNG, JPG, JPEG, WEBP).');
+    window.handleDepositFileSelected = function(section, e) {
+        const files = e.target.files;
+        if (files && files.length > 0) {
+            const file = files[0];
+            const allowed = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+            if (!allowed.includes(file.type) && !file.name.match(/\.(png|jpe?g|webp)$/i)) {
+                alert('Please upload a valid image (PNG, JPG, JPEG, WEBP).');
+                return;
+            }
+            depositFiles[section] = file;
+            const previewContainer = document.getElementById(section + 'FilePreviewContainer');
+            const fileNameSpan = document.getElementById(section + 'FileNameText');
+            const dropzonePlaceholder = document.getElementById(section + 'DropzonePlaceholder');
+            if (fileNameSpan) fileNameSpan.textContent = file.name;
+            if (previewContainer) previewContainer.classList.remove('hidden');
+            if (dropzonePlaceholder) dropzonePlaceholder.classList.add('hidden');
+        }
+    };
+
+    window.scanDepositSlipOcr = async function(section) {
+        const file = depositFiles[section];
+        if (!file) {
+            alert('Please select a deposit slip image first.');
             return;
         }
-        selectedMgrDepositFile = file;
-        const previewContainer = document.getElementById('mgrFilePreviewContainer');
-        const previewImg = document.getElementById('mgrFilePreviewImg');
-        const fileNameSpan = document.getElementById('mgrFileNameText');
-        const dropzonePlaceholder = document.getElementById('mgrDropzonePlaceholder');
-        const scanOcrBtn = document.getElementById('btnMgrScanOcr');
-
-        if (fileNameSpan) fileNameSpan.textContent = file.name;
-        if (previewImg) {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                previewImg.src = e.target.result;
-                if (previewContainer) previewContainer.classList.remove('hidden');
-                if (dropzonePlaceholder) dropzonePlaceholder.classList.add('hidden');
-            };
-            reader.readAsDataURL(file);
-        }
-        if (scanOcrBtn) {
-            scanOcrBtn.disabled = false;
-        }
-    }
-
-    window.scanMgrDepositSlipOcr = async function() {
-        if (!selectedMgrDepositFile) {
-            alert('Please select or drop a deposit slip image first.');
-            return;
-        }
-        const scanBtn = document.getElementById('btnMgrScanOcr');
-        const scanBtnText = document.getElementById('btnMgrScanOcrText');
-        const scanOcrSpinner = document.getElementById('mgrScanOcrSpinner');
-        const statusNote = document.getElementById('mgrOcrStatusNote');
+        const cap = section.charAt(0).toUpperCase() + section.slice(1);
+        const scanBtn = document.getElementById('btn' + cap + 'ScanOcr');
+        const scanBtnText = document.getElementById('btn' + cap + 'ScanOcrText');
+        const statusNote = document.getElementById(section + 'OcrStatusNote');
 
         if (scanBtn) scanBtn.disabled = true;
-        if (scanOcrSpinner) scanOcrSpinner.classList.remove('hidden');
         if (scanBtnText) scanBtnText.textContent = 'Scanning...';
 
         try {
             const formData = new FormData();
-            formData.append('depositSlipImage', selectedMgrDepositFile);
+            formData.append('depositSlipImage', file);
             const res = await fetch('/SalesReports/ExtractDepositSlipOcr', {
                 method: 'POST',
                 body: formData
@@ -810,152 +806,124 @@
                 if (data.success) {
                     let filled = [];
                     if (data.detectedBank) {
-                        document.getElementById('mgrDepositBankName').value = data.detectedBank;
+                        document.getElementById(section + 'DepositBankName').value = data.detectedBank;
                         filled.push('Bank: ' + data.detectedBank);
                     }
                     if (data.detectedAmount) {
-                        document.getElementById('mgrDepositAmount').value = Number(data.detectedAmount).toFixed(2);
+                        document.getElementById(section + 'DepositAmount').value = Number(data.detectedAmount).toFixed(2);
                         filled.push('Amount: ₱' + Number(data.detectedAmount).toFixed(2));
-                        updateMgrDepositComparison();
+                        updateDepositComparison(section);
                     }
                     if (data.detectedReference) {
-                        document.getElementById('mgrDepositRef').value = data.detectedReference;
+                        document.getElementById(section + 'DepositRef').value = data.detectedReference;
                         filled.push('Ref: ' + data.detectedReference);
                     }
                     if (data.detectedDate) {
-                        document.getElementById('mgrDepositDate').value = data.detectedDate;
+                        document.getElementById(section + 'DepositDate').value = data.detectedDate;
                         filled.push('Date: ' + data.detectedDate);
                     }
                     if (statusNote) {
-                        statusNote.className = 'text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1';
+                        statusNote.className = 'text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1 mt-1';
                         statusNote.innerHTML = '<span class="material-symbols-outlined text-[14px]">check</span> <span></span>';
                         statusNote.querySelector('span:last-child').textContent = 'Auto-filled via OCR (' + (filled.join(', ') || 'Fields detected') + ')';
                         statusNote.classList.remove('hidden');
                     }
                 } else {
                     if (statusNote) {
-                        statusNote.className = 'text-[11px] text-amber-500 font-semibold flex items-center gap-1';
+                        statusNote.className = 'text-[11px] text-amber-500 font-semibold flex items-center gap-1 mt-1';
                         statusNote.innerHTML = '<span class="material-symbols-outlined text-[14px]">info</span> OCR could not read all fields clearly. Please verify inputs manually.';
                         statusNote.classList.remove('hidden');
                     }
                 }
-            } else {
-                if (statusNote) {
-                    statusNote.className = 'text-[11px] text-red-500 font-semibold';
-                    statusNote.textContent = 'OCR extraction failed. Please enter details manually.';
-                    statusNote.classList.remove('hidden');
-                }
             }
         } catch (err) {
             console.error('OCR Error:', err);
-            if (statusNote) {
-                statusNote.className = 'text-[11px] text-red-500 font-semibold';
-                statusNote.textContent = 'Error connecting to OCR service.';
-                statusNote.classList.remove('hidden');
-            }
         } finally {
             if (scanBtn) scanBtn.disabled = false;
-            if (scanOcrSpinner) scanOcrSpinner.classList.add('hidden');
-            if (scanBtnText) scanBtnText.textContent = 'Scan with OCR';
+            if (scanBtnText) scanBtnText.textContent = 'Scan OCR';
         }
     };
 
-    window.handleMgrDepositSubmit = async function(event) {
-        event.preventDefault();
-        const errorBox = document.getElementById('mgrDepositErrorBox');
-        const submitBtn = document.getElementById('btnMgrDepositSubmit');
-        const submitText = document.getElementById('btnMgrDepositSubmitText');
+    window.updateDepositComparison = function(section) {
+        const amountInput = document.getElementById(section + 'DepositAmount');
+        const varianceGroup = document.getElementById(section + 'VarianceGroup');
+        const comparisonText = document.getElementById(section + 'DepositComparisonText');
+        if (!amountInput) return;
 
-        const reportId = @(Model.SalesReportId ?? 0);
-        if (!reportId) {
-            alert('Missing Sales Report ID.');
-            return;
-        }
-
-        const bankName = document.getElementById('mgrDepositBankName')?.value || '';
-        const refNum = document.getElementById('mgrDepositRef')?.value || '';
-        const amountVal = parseFloat(document.getElementById('mgrDepositAmount')?.value) || 0;
-        const dateVal = document.getElementById('mgrDepositDate')?.value || '';
-        const varianceReason = document.getElementById('mgrDepositVarianceReason')?.value || '';
-
-        const handoverInput = document.getElementById('HandoverCashInput');
-        const handoverVal = parseFloat(handoverInput ? handoverInput.value : @(Model.ConfirmedCashToHandover.ToString(System.Globalization.CultureInfo.InvariantCulture))) || @(Model.CombinedCashSales.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        const absDiff = Math.abs(amountVal - handoverVal);
-
-        if (absDiff >= 0.01 && (!varianceReason || !varianceReason.trim())) {
-            if (errorBox) {
-                errorBox.textContent = 'A Deposit Variance explanation is required when the deposited amount differs from cash handover.';
-                errorBox.classList.remove('hidden');
+        const deposited = parseFloat(amountInput.value) || 0;
+        const expected = section === 'opening' 
+            ? @(Model.OpeningCashSales.ToString(System.Globalization.CultureInfo.InvariantCulture)) 
+            : (parseFloat(document.getElementById('HandoverCashInput')?.value) || @(Model.CashSales.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+        
+        const diff = deposited - expected;
+        if (Math.abs(diff) < 0.01) {
+            if (varianceGroup) varianceGroup.classList.add('hidden');
+            if (comparisonText) {
+                comparisonText.className = 'text-[11px] font-semibold text-emerald-600 dark:text-emerald-400';
+                comparisonText.textContent = (section === 'opening' ? 'Opening Cash: ' : 'Closing Cash: ') + '₱' + expected.toFixed(2) + ' (Matched)';
             }
-            document.getElementById('mgrDepositVarianceReason')?.focus();
+        } else {
+            if (varianceGroup) varianceGroup.classList.remove('hidden');
+            if (comparisonText) {
+                comparisonText.className = 'text-[11px] font-semibold text-red-500';
+                comparisonText.textContent = (section === 'opening' ? 'Opening Cash: ' : 'Closing Cash: ') + '₱' + expected.toFixed(2) + ' (Diff: ' + (diff > 0 ? '+' : '') + '₱' + diff.toFixed(2) + ')';
+            }
+        }
+    };
+
+    window.handleDepositSubmit = async function(section, event) {
+        event.preventDefault();
+        const reportId = @(Model.SalesReportId ?? 0);
+        if (!reportId) return;
+
+        const bankName = document.getElementById(section + 'DepositBankName')?.value || '';
+        const refNum = document.getElementById(section + 'DepositRef')?.value || '';
+        const amountVal = parseFloat(document.getElementById(section + 'DepositAmount')?.value) || 0;
+        const dateVal = document.getElementById(section + 'DepositDate')?.value || '';
+        const varianceReason = document.getElementById(section + 'DepositVarianceReason')?.value || '';
+
+        const expected = section === 'opening' 
+            ? @(Model.OpeningCashSales.ToString(System.Globalization.CultureInfo.InvariantCulture)) 
+            : (parseFloat(document.getElementById('HandoverCashInput')?.value) || @(Model.CashSales.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+        
+        const diff = Math.abs(amountVal - expected);
+        if (diff >= 0.01 && (!varianceReason || !varianceReason.trim())) {
+            alert('A Deposit Variance explanation is required when the deposited amount differs from cash sales.');
+            document.getElementById(section + 'DepositVarianceReason')?.focus();
             return;
         }
 
         const formData = new FormData();
         formData.append('SalesReportId', reportId);
+        formData.append('Section', section === 'opening' ? 'Opening' : 'Closing');
         formData.append('DepositedAmount', amountVal.toFixed(2));
         formData.append('DepositBankName', bankName);
         formData.append('DepositReferenceNumber', refNum);
         if (dateVal) formData.append('DepositDate', dateVal);
         if (varianceReason) formData.append('DepositVarianceReason', varianceReason);
 
-        if (selectedMgrDepositFile) {
-            formData.append('depositSlipFile', selectedMgrDepositFile);
-        } else if (!@((Model.HasDepositSlip).ToString().ToLowerInvariant())) {
-            if (errorBox) {
-                errorBox.textContent = 'Please choose a deposit slip image.';
-                errorBox.classList.remove('hidden');
-            }
-            return;
+        if (depositFiles[section]) {
+            formData.append('depositSlipFile', depositFiles[section]);
         }
-
-        if (errorBox) {
-            errorBox.classList.add('hidden');
-            errorBox.textContent = '';
-        }
-
-        if (submitBtn) submitBtn.disabled = true;
-        if (submitText) submitText.textContent = 'Saving...';
 
         try {
             const response = await fetch('/SalesReports/UploadDepositSlip', {
                 method: 'POST',
                 body: formData
             });
-
             if (response.ok) {
                 const data = await response.json();
-                alert(data.message || 'Deposit slip verified and recorded successfully!');
+                alert(data.message || 'Deposit slip saved successfully!');
                 window.location.reload();
             } else {
-                let errorMsg = 'Failed to record deposit slip.';
-                try {
-                    const data = await response.json();
-                    if (data && data.message) errorMsg = data.message;
-                    else if (typeof data === 'string') errorMsg = data;
-                } catch {
-                    const text = await response.text();
-                    if (text) errorMsg = text;
-                }
-                if (errorBox) {
-                    errorBox.textContent = errorMsg;
-                    errorBox.classList.remove('hidden');
-                } else {
-                    alert(errorMsg);
-                }
+                const text = await response.text();
+                alert('Error: ' + text);
             }
         } catch (err) {
-            console.error('Upload Error:', err);
-            if (errorBox) {
-                errorBox.textContent = 'Network or server error while saving deposit slip.';
-                errorBox.classList.remove('hidden');
-            }
-        } finally {
-            if (submitBtn) submitBtn.disabled = false;
-            if (submitText) submitText.textContent = 'Save & Record Deposit';
+            console.error(err);
+            alert('Network error saving deposit slip.');
         }
     };
-
     document.addEventListener('DOMContentLoaded', () => {
         const inputEl = document.getElementById('HandoverCashInput');
         if (inputEl) {

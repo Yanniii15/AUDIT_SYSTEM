@@ -822,6 +822,33 @@ namespace AuditCkDayo.Tests
             Assert.Equal("Bank transaction fee deducted at counter", model.DepositVarianceReason);
         }
 
+
+        [Fact]
+        public void SalesReport_SupportsSeparateOpeningAndClosingDepositSlips()
+        {
+            var report = new SalesReport
+            {
+                OpeningCashSales = 15050.00m,
+                CashSales = 5538.00m,
+                OpeningDepositedAmount = 15050.00m,
+                OpeningDepositSlipImageUrl = "/SalesReports/DepositSlip/slip_open.jpg",
+                OpeningDepositBankName = "Metrobank",
+                OpeningDepositReferenceNumber = "262309-627-00202730430-5057",
+                ClosingDepositedAmount = 5538.00m,
+                ClosingDepositSlipImageUrl = "/SalesReports/DepositSlip/slip_close.jpg",
+                ClosingDepositBankName = "Metrobank",
+                ClosingDepositReferenceNumber = "262309-627-00202731234-5058"
+            };
+
+            Assert.True(report.HasOpeningDepositSlip);
+            Assert.True(report.HasClosingDepositSlip);
+            Assert.True(report.HasBothDepositSlips);
+            Assert.Equal(0.00m, report.OpeningDepositVariance);
+            Assert.Equal(0.00m, report.ClosingDepositVariance);
+            Assert.True(report.IsOpeningDepositMatched);
+            Assert.True(report.IsClosingDepositMatched);
+            Assert.Equal(20588.00m, report.TotalDepositedAmount);
+        }
     }
 
     public class FakeDepositSlipOcrService : AuditCkDayo.Services.IDepositSlipOcrService

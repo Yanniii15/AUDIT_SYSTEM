@@ -950,15 +950,18 @@ namespace AuditCkDayo.Controllers
                 return Forbid();
             }
 
-            var expectedCash = report.ConfirmedCashToHandover != 0m
-                ? report.ConfirmedCashToHandover
-                : (report.CashSales + report.OpeningCashSales);
+            var isOpening = string.Equals(request.Section, "Opening", StringComparison.OrdinalIgnoreCase);
+            var expectedCash = isOpening 
+                ? report.OpeningCashSales 
+                : (report.CashSales > 0m ? report.CashSales : (report.ConfirmedCashToHandover != 0m ? report.ConfirmedCashToHandover : (report.CashSales + report.OpeningCashSales)));
+
             var variance = request.DepositedAmount - expectedCash;
             if (Math.Abs(variance) >= 0.01m && string.IsNullOrWhiteSpace(request.DepositVarianceReason))
             {
-                return BadRequest("A Deposit Variance explanation is required when the deposited amount differs from confirmed cash sales.");
+                return BadRequest($"A Deposit Variance explanation is required when the deposited amount differs from {(isOpening ? "opening" : "closing")} cash sales.");
             }
 
+            string? savedSlipUrl = null;
             if (depositSlipFile != null)
             {
                 var allowedExtensions = new[] { ".png", ".jpg", ".jpeg", ".webp" };
@@ -977,7 +980,8 @@ namespace AuditCkDayo.Controllers
                         Directory.CreateDirectory(uploadsDir);
                     }
 
-                    var uniqueName = $"slip_{report.Id}_{Guid.NewGuid():N}{extension}";
+                    var prefix = isOpening ? "slip_open" : "slip";
+                    var uniqueName = $"{prefix}_{report.Id}_{Guid.NewGuid():N}{extension}";
                     var filePath = Path.Combine(uploadsDir, uniqueName);
 
                     using (var fileStream = new FileStream(filePath, FileMode.Create))
@@ -985,24 +989,54 @@ namespace AuditCkDayo.Controllers
                         await depositSlipFile.CopyToAsync(fileStream);
                     }
 
-                    report.DepositSlipImageUrl = $"/SalesReports/DepositSlip/{uniqueName}";
+                    savedSlipUrl = $"/SalesReports/DepositSlip/{uniqueName}";
                 }
             }
 
-            report.DepositedAmount = request.DepositedAmount;
-            report.DepositBankName = request.DepositBankName;
-            report.DepositReferenceNumber = request.DepositReferenceNumber;
-            report.DepositDate = request.DepositDate ?? DateTime.Today;
-            report.DepositVarianceReason = request.DepositVarianceReason;
-            report.DepositUploadedByUserId = GetCurrentUserId();
-            report.DepositUploadedAt = DateTime.UtcNow;
+            var currentUserId = GetCurrentUserId();
+            var now = DateTime.UtcNow;
+
+            if (isOpening)
+            {
+                if (savedSlipUrl != null) report.OpeningDepositSlipImageUrl = savedSlipUrl;
+                report.OpeningDepositedAmount = request.DepositedAmount;
+                report.OpeningDepositBankName = request.DepositBankName;
+                report.OpeningDepositReferenceNumber = request.DepositReferenceNumber;
+                report.OpeningDepositDate = request.DepositDate ?? DateTime.Today;
+                report.OpeningDepositVarianceReason = request.DepositVarianceReason;
+                report.OpeningDepositUploadedByUserId = currentUserId;
+                report.OpeningDepositUploadedAt = now;
+            }
+            else
+            {
+                if (savedSlipUrl != null)
+                {
+                    report.ClosingDepositSlipImageUrl = savedSlipUrl;
+                    report.DepositSlipImageUrl = savedSlipUrl;
+                }
+                report.ClosingDepositedAmount = request.DepositedAmount;
+                report.DepositedAmount = request.DepositedAmount;
+                report.ClosingDepositBankName = request.DepositBankName;
+                report.DepositBankName = request.DepositBankName;
+                report.ClosingDepositReferenceNumber = request.DepositReferenceNumber;
+                report.DepositReferenceNumber = request.DepositReferenceNumber;
+                report.ClosingDepositDate = request.DepositDate ?? DateTime.Today;
+                report.DepositDate = request.DepositDate ?? DateTime.Today;
+                report.ClosingDepositVarianceReason = request.DepositVarianceReason;
+                report.DepositVarianceReason = request.DepositVarianceReason;
+                report.ClosingDepositUploadedByUserId = currentUserId;
+                report.DepositUploadedByUserId = currentUserId;
+                report.ClosingDepositUploadedAt = now;
+                report.DepositUploadedAt = now;
+            }
 
             await _context.SaveChangesAsync();
             return Ok(new
             {
                 success = true,
-                message = "Deposit slip uploaded and recorded successfully!",
-                depositSlipUrl = report.DepositSlipImageUrl
+                message = $"{(isOpening ? "Opening" : "Closing")} deposit slip uploaded and recorded successfully!",
+                depositSlipUrl = isOpening ? report.OpeningDepositSlipImageUrl : (report.ClosingDepositSlipImageUrl ?? report.DepositSlipImageUrl),
+                section = isOpening ? "Opening" : "Closing"
             });
         }
 
@@ -1117,20 +1151,49 @@ namespace AuditCkDayo.Controllers
                 ClosingImageUrls = report.ClosingImageUrls,
                 Status = report.Status,
                 ReviewStatus = report.DocumentRecord?.ReviewStatus ?? DocumentReviewStatus.Draft,
-                DepositSlipImageUrl = report.DepositSlipImageUrl,
-                DepositedAmount = report.DepositedAmount,
-                DepositBankName = report.DepositBankName,
-                DepositReferenceNumber = report.DepositReferenceNumber,
-                DepositDate = report.DepositDate,
-                DepositVarianceReason = report.DepositVarianceReason,
-                DepositUploadedByName = report.DepositUploadedByUser?.Name,
-                DepositUploadedAt = report.DepositUploadedAt,
+                // Opening Deposit Slip
+                OpeningDepositSlipImageUrl = report.OpeningDepositSlipImageUrl,
+                OpeningDepositedAmount = report.OpeningDepositedAmount,
+                OpeningDepositBankName = report.OpeningDepositBankName,
+                OpeningDepositReferenceNumber = report.OpeningDepositReferenceNumber,
+                OpeningDepositDate = report.OpeningDepositDate,
+                OpeningDepositVarianceReason = report.OpeningDepositVarianceReason,
+                OpeningDepositUploadedByName = report.OpeningDepositUploadedByUser?.Name,
+                OpeningDepositUploadedAt = report.OpeningDepositUploadedAt,
+                HasOpeningDepositSlip = report.HasOpeningDepositSlip,
+                OpeningDepositVariance = report.OpeningDepositVariance,
+                IsOpeningDepositMatched = report.IsOpeningDepositMatched,
+                IsOpeningDepositDiscrepancy = report.HasOpeningDepositSlip && !report.IsOpeningDepositMatched,
+
+                // Closing Deposit Slip
+                ClosingDepositSlipImageUrl = report.ClosingDepositSlipImageUrl ?? report.DepositSlipImageUrl,
+                ClosingDepositedAmount = report.ClosingDepositedAmount ?? report.DepositedAmount,
+                ClosingDepositBankName = report.ClosingDepositBankName ?? report.DepositBankName,
+                ClosingDepositReferenceNumber = report.ClosingDepositReferenceNumber ?? report.DepositReferenceNumber,
+                ClosingDepositDate = report.ClosingDepositDate ?? report.DepositDate,
+                ClosingDepositVarianceReason = report.ClosingDepositVarianceReason ?? report.DepositVarianceReason,
+                ClosingDepositUploadedByName = (report.ClosingDepositUploadedByUser ?? report.DepositUploadedByUser)?.Name,
+                ClosingDepositUploadedAt = report.ClosingDepositUploadedAt ?? report.DepositUploadedAt,
+                HasClosingDepositSlip = report.HasClosingDepositSlip,
+                ClosingDepositVariance = report.ClosingDepositVariance,
+                IsClosingDepositMatched = report.IsClosingDepositMatched,
+                IsClosingDepositDiscrepancy = report.HasClosingDepositSlip && !report.IsClosingDepositMatched,
+
+                // Overall / Unified
+                DepositSlipImageUrl = report.DepositSlipImageUrl ?? report.ClosingDepositSlipImageUrl ?? report.OpeningDepositSlipImageUrl,
+                DepositedAmount = report.TotalDepositedAmount > 0m ? report.TotalDepositedAmount : report.DepositedAmount,
+                DepositBankName = report.DepositBankName ?? report.ClosingDepositBankName ?? report.OpeningDepositBankName,
+                DepositReferenceNumber = report.DepositReferenceNumber ?? report.ClosingDepositReferenceNumber ?? report.OpeningDepositReferenceNumber,
+                DepositDate = report.DepositDate ?? report.ClosingDepositDate ?? report.OpeningDepositDate,
+                DepositVarianceReason = report.DepositVarianceReason ?? report.ClosingDepositVarianceReason ?? report.OpeningDepositVarianceReason,
+                DepositUploadedByName = (report.DepositUploadedByUser ?? report.ClosingDepositUploadedByUser ?? report.OpeningDepositUploadedByUser)?.Name,
+                DepositUploadedAt = report.DepositUploadedAt ?? report.ClosingDepositUploadedAt ?? report.OpeningDepositUploadedAt,
                 HasDepositSlip = report.HasDepositSlip,
+                HasBothDepositSlips = report.HasBothDepositSlips,
                 DepositVariance = report.DepositVariance,
                 IsDepositMatched = report.IsDepositMatched,
-                IsDepositDiscrepancy = report.IsDepositDiscrepancy,
+                IsDepositDiscrepancy = report.IsDepositDiscrepancy
             };
-
             if (report.Lines != null)
             {
                 foreach (var line in report.Lines)

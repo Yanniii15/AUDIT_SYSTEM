@@ -289,22 +289,64 @@ namespace AuditCkDayo.Models
         public string? OpeningNotes { get; set; }
 
         // --- Bank Deposit Slip Verification Fields ---
+        // Opening Shift Deposit Slip
+        [MaxLength(255)]
+        public string? OpeningDepositSlipImageUrl { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal? OpeningDepositedAmount { get; set; }
+
+        [MaxLength(100)]
+        public string? OpeningDepositBankName { get; set; }
+
+        [MaxLength(100)]
+        public string? OpeningDepositReferenceNumber { get; set; }
+
+        public DateTime? OpeningDepositDate { get; set; }
+
+        [MaxLength(500)]
+        public string? OpeningDepositVarianceReason { get; set; }
+
+        public int? OpeningDepositUploadedByUserId { get; set; }
+
+        [ForeignKey("OpeningDepositUploadedByUserId")]
+        public virtual User? OpeningDepositUploadedByUser { get; set; }
+
+        public DateTime? OpeningDepositUploadedAt { get; set; }
+
+        // Closing Shift Deposit Slip (and legacy single-slip fallback)
         [MaxLength(255)]
         public string? DepositSlipImageUrl { get; set; }
 
+        [MaxLength(255)]
+        public string? ClosingDepositSlipImageUrl { get; set; }
+
         [Column(TypeName = "decimal(12,2)")]
         public decimal? DepositedAmount { get; set; }
+
+        [Column(TypeName = "decimal(12,2)")]
+        public decimal? ClosingDepositedAmount { get; set; }
 
         [MaxLength(100)]
         public string? DepositBankName { get; set; }
 
         [MaxLength(100)]
+        public string? ClosingDepositBankName { get; set; }
+
+        [MaxLength(100)]
         public string? DepositReferenceNumber { get; set; }
 
+        [MaxLength(100)]
+        public string? ClosingDepositReferenceNumber { get; set; }
+
         public DateTime? DepositDate { get; set; }
+        public DateTime? ClosingDepositDate { get; set; }
 
         [MaxLength(500)]
         public string? DepositVarianceReason { get; set; }
+
+        [MaxLength(500)]
+        public string? ClosingDepositVarianceReason { get; set; }
 
         public int? DepositUploadedByUserId { get; set; }
 
@@ -313,17 +355,48 @@ namespace AuditCkDayo.Models
 
         public DateTime? DepositUploadedAt { get; set; }
 
-        [NotMapped]
-        public bool HasDepositSlip => !string.IsNullOrWhiteSpace(DepositSlipImageUrl);
+        public int? ClosingDepositUploadedByUserId { get; set; }
+
+        [ForeignKey("ClosingDepositUploadedByUserId")]
+        public virtual User? ClosingDepositUploadedByUser { get; set; }
+
+        public DateTime? ClosingDepositUploadedAt { get; set; }
 
         [NotMapped]
-        public decimal DepositVariance => (DepositedAmount ?? 0m) - ConfirmedCashToHandover;
+        public bool HasOpeningDepositSlip => !string.IsNullOrWhiteSpace(OpeningDepositSlipImageUrl);
+
+        [NotMapped]
+        public bool HasClosingDepositSlip => !string.IsNullOrWhiteSpace(ClosingDepositSlipImageUrl ?? DepositSlipImageUrl);
+
+        [NotMapped]
+        public bool HasDepositSlip => HasOpeningDepositSlip || HasClosingDepositSlip;
+
+        [NotMapped]
+        public bool HasBothDepositSlips => HasOpeningDepositSlip && HasClosingDepositSlip;
+
+        [NotMapped]
+        public decimal OpeningDepositVariance => (OpeningDepositedAmount ?? 0m) - OpeningCashSales;
+
+        [NotMapped]
+        public decimal ClosingDepositVariance => (ClosingDepositedAmount ?? DepositedAmount ?? 0m) - (CashSales > 0m ? CashSales : ConfirmedCashToHandover);
+
+        [NotMapped]
+        public decimal TotalDepositedAmount => (OpeningDepositedAmount ?? 0m) + (ClosingDepositedAmount ?? DepositedAmount ?? 0m);
+
+        [NotMapped]
+        public decimal DepositVariance => TotalDepositedAmount - (ConfirmedCashToHandover != 0m ? ConfirmedCashToHandover : (CashSales + OpeningCashSales));
+
+        [NotMapped]
+        public bool IsOpeningDepositMatched => HasOpeningDepositSlip && Math.Abs(OpeningDepositVariance) < 0.01m;
+
+        [NotMapped]
+        public bool IsClosingDepositMatched => HasClosingDepositSlip && Math.Abs(ClosingDepositVariance) < 0.01m;
 
         [NotMapped]
         public bool IsDepositMatched => HasDepositSlip && Math.Abs(DepositVariance) < 0.01m;
 
         [NotMapped]
-        public bool IsDepositDiscrepancy => HasDepositSlip && Math.Abs(DepositVariance) >= 0.01m;
+        public bool IsDepositDiscrepancy => HasDepositSlip && !IsDepositMatched;
 
         [NotMapped]
         public decimal TotalGrossSales => ClosingGrossSales > 0m ? OpeningGrossSales + ClosingGrossSales : GrossSales;
