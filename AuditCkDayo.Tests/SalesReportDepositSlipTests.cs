@@ -717,6 +717,111 @@ namespace AuditCkDayo.Tests
             Assert.Equal(18000.00m, updatedEntry.Amount);
         }
 
+        [Fact]
+        public async Task SalesReportReviewViewModel_CorrectlyMapsAndFormatsDepositSlipDataForViews()
+        {
+            var options = new DbContextOptionsBuilder<AuditDbContext>()
+                .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+                .Options;
+
+            using var context = new AuditDbContext(options);
+            var uploader = new User
+            {
+                Id = 15,
+                Name = "Reviewer Sarah",
+                Role = UserRole.Owner,
+                Email = "sarah@audit.com",
+                PasswordHash = "hash"
+            };
+            context.Users.Add(uploader);
+
+            var establishment = new Establishment { Id = 1, Name = "Branch 1" };
+            context.Establishments.Add(establishment);
+
+            var document = new DocumentRecord
+            {
+                Id = 105,
+                DocumentType = DocumentType.DailySalesReport,
+                UploadedByUserId = 15,
+                ImageUrl = "/sales/main.jpg",
+                OcrStatus = OcrStatus.Parsed,
+                ReviewStatus = DocumentReviewStatus.Confirmed
+            };
+            context.DocumentRecords.Add(document);
+
+            var depositDate = new DateTime(2026, 8, 25);
+            var uploadedAt = new DateTime(2026, 8, 25, 16, 45, 0, DateTimeKind.Utc);
+            var report = new SalesReport
+            {
+                Id = 105,
+                DocumentRecordId = 105,
+                EstablishmentId = 1,
+                BusinessDate = depositDate,
+                HandoverDate = depositDate,
+                ConfirmedCashToHandover = 65000.00m,
+                CashSales = 40000.00m,
+                OpeningCashSales = 25000.00m,
+                Status = SalesReportStatus.Confirmed,
+                DepositSlipImageUrl = "/SalesReports/DepositSlip/slip_105.jpg",
+                DepositedAmount = 65000.00m,
+                DepositBankName = "BDO",
+                DepositReferenceNumber = "REF-20260825-01",
+                DepositDate = depositDate,
+                DepositVarianceReason = null,
+                DepositUploadedByUserId = 15,
+                DepositUploadedByUser = uploader,
+                DepositUploadedAt = uploadedAt
+            };
+            context.SalesReports.Add(report);
+            await context.SaveChangesAsync();
+
+            var controller = new SalesReportsController(context, null!, null!);
+            var claims = new List<Claim>
+            {
+                new(ClaimTypes.NameIdentifier, "15"),
+                new(ClaimTypes.Role, "Owner")
+            };
+            controller.ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"))
+                }
+            };
+
+            var result = await controller.Review(105);
+            var viewResult = Assert.IsType<ViewResult>(result);
+            Assert.Equal("ReviewManager", viewResult.ViewName);
+
+            var model = Assert.IsType<SalesReportReviewViewModel>(viewResult.Model);
+            Assert.Equal(105, model.SalesReportId);
+            Assert.Equal("/SalesReports/DepositSlip/slip_105.jpg", model.DepositSlipImageUrl);
+            Assert.Equal(65000.00m, model.DepositedAmount);
+            Assert.Equal("BDO", model.DepositBankName);
+            Assert.Equal("REF-20260825-01", model.DepositReferenceNumber);
+            Assert.Equal(depositDate, model.DepositDate);
+            Assert.Null(model.DepositVarianceReason);
+            Assert.Equal("Reviewer Sarah", model.DepositUploadedByName);
+            Assert.Equal(uploadedAt, model.DepositUploadedAt);
+            Assert.True(model.HasDepositSlip);
+            Assert.Equal(0.00m, model.DepositVariance);
+            Assert.True(model.IsDepositMatched);
+            Assert.False(model.IsDepositDiscrepancy);
+            Assert.Equal(65000.00m, model.CombinedCashSales);
+
+            // Verify variance mappings when deposited amount has discrepancy
+            model.DepositedAmount = 64500.00m;
+            model.DepositVarianceReason = "Bank transaction fee deducted at counter";
+            model.DepositVariance = (model.DepositedAmount ?? 0m) - model.ConfirmedCashToHandover;
+            model.IsDepositMatched = model.HasDepositSlip && Math.Abs(model.DepositVariance) < 0.01m;
+            model.IsDepositDiscrepancy = model.HasDepositSlip && Math.Abs(model.DepositVariance) >= 0.01m;
+
+            Assert.Equal(-500.00m, model.DepositVariance);
+            Assert.False(model.IsDepositMatched);
+            Assert.True(model.IsDepositDiscrepancy);
+            Assert.Equal("Bank transaction fee deducted at counter", model.DepositVarianceReason);
+        }
+
     }
 
     public class FakeDepositSlipOcrService : AuditCkDayo.Services.IDepositSlipOcrService

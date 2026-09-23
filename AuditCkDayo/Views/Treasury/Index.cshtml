@@ -399,7 +399,7 @@
                                                                 <span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-red-600 text-white animate-pulse">● NO DEPOSIT SLIP</span>
                                                                 var reportId = entry.SalesReportId ?? entry.SalesReport?.Id ?? 0;
                                                                 <button type="button"
-                                                                        onclick="openDepositModal(@reportId, '@(entry.Establishment?.Name?.Replace("'", "\\'") ?? "Sales Handover")', @entry.Amount)"
+                                                                        onclick="openDepositModal(@reportId, '@(entry.Establishment?.Name?.Replace("'", "\\'") ?? "Sales Handover")', @entry.Amount.ToString(System.Globalization.CultureInfo.InvariantCulture))"
                                                                         class="px-2 py-0.5 text-[10px] font-semibold rounded bg-red-600 text-white hover:bg-red-700 shadow-sm transition"
                                                                         data-html2canvas-ignore="true">
                                                                     Upload Slip
