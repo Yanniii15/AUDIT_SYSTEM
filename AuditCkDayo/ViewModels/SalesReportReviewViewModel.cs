@@ -13,6 +13,8 @@ namespace AuditCkDayo.ViewModels
 
         [StringLength(100)]
         public string? CashierName { get; set; }
+        public string OpeningInputtedByName { get; set; } = "N/A";
+        public string ClosingInputtedByName { get; set; } = "N/A";
 
         [Required]
         [DataType(DataType.Date)]
@@ -54,6 +56,9 @@ namespace AuditCkDayo.ViewModels
 
         [Range(0, double.MaxValue)]
         public decimal BeverageSales { get; set; }
+
+        [Range(0, double.MaxValue)]
+        public decimal HardSales { get; set; }
 
         [Range(0, double.MaxValue)]
         public decimal OtherSales { get; set; }
@@ -115,6 +120,8 @@ namespace AuditCkDayo.ViewModels
         public decimal OpeningBeerSales { get; set; }
         [Range(0, double.MaxValue)]
         public decimal OpeningBeverageSales { get; set; }
+        [Range(0, double.MaxValue)]
+        public decimal OpeningHardSales { get; set; }
         [Range(0, double.MaxValue)]
         public decimal OpeningOtherSales { get; set; }
         [Range(0, double.MaxValue)]
@@ -209,10 +216,11 @@ namespace AuditCkDayo.ViewModels
         public decimal CombinedShortOverAmount => ConfirmedCashToHandover - CombinedExpectedCashToHandover;
         public string CombinedShortOverLabel => CombinedShortOverAmount < 0 ? "Short" : CombinedShortOverAmount > 0 ? "Over" : "Balanced";
 
-        public decimal CombinedGrossSales => GrossSales + OpeningGrossSales;
+        public decimal CombinedGrossSales => ClosingGrossSales > 0m ? OpeningGrossSales + ClosingGrossSales : GrossSales;
         public decimal CombinedFoodSales => FoodSales + OpeningFoodSales;
         public decimal CombinedBeerSales => BeerSales + OpeningBeerSales;
         public decimal CombinedBeverageSales => BeverageSales + OpeningBeverageSales;
+        public decimal CombinedHardSales => HardSales + OpeningHardSales;
         public decimal CombinedOtherSales => OtherSales + OpeningOtherSales;
         public decimal CombinedCashSales => CashSales + OpeningCashSales;
         public decimal CombinedSeniorDiscount => SeniorDiscount + OpeningSeniorDiscount;
@@ -258,6 +266,18 @@ namespace AuditCkDayo.ViewModels
         public string ImageUrl { get; set; } = string.Empty;
         public List<string>? ImageUrls { get; set; }
         public List<string>? ClosingImageUrls { get; set; }
+        public string? DepositSlipImageUrl { get; set; }
+        public decimal? DepositedAmount { get; set; }
+        public string? DepositBankName { get; set; }
+        public string? DepositReferenceNumber { get; set; }
+        public DateTime? DepositDate { get; set; }
+        public string? DepositVarianceReason { get; set; }
+        public string? DepositUploadedByName { get; set; }
+        public DateTime? DepositUploadedAt { get; set; }
+        public bool HasDepositSlip { get; set; }
+        public decimal DepositVariance { get; set; }
+        public bool IsDepositMatched { get; set; }
+        public bool IsDepositDiscrepancy { get; set; }
         public SalesReportStatus Status { get; set; } = SalesReportStatus.Draft;
         public DocumentReviewStatus ReviewStatus { get; set; } = DocumentReviewStatus.Draft;
         public bool CanConfirmToTreasury { get; set; }
@@ -296,4 +316,14 @@ namespace AuditCkDayo.ViewModels
         public int SortOrder { get; set; }
     }
 
+
+    public class UploadDepositSlipRequest
+    {
+        public int SalesReportId { get; set; }
+        public decimal DepositedAmount { get; set; }
+        public string? DepositBankName { get; set; }
+        public string? DepositReferenceNumber { get; set; }
+        public DateTime? DepositDate { get; set; }
+        public string? DepositVarianceReason { get; set; }
+    }
 }

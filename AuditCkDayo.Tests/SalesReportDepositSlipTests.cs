@@ -1,10 +1,16 @@
-using System.Linq;
-using AuditCkDayo.Data;
-using Microsoft.EntityFrameworkCore;
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Security.Claims;
+using System.Threading.Tasks;
+using AuditCkDayo.Controllers;
+using AuditCkDayo.Data;
 using AuditCkDayo.Models;
+using AuditCkDayo.ViewModels;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Xunit;
-
 namespace AuditCkDayo.Tests
 {
     public class SalesReportDepositSlipTests
@@ -173,6 +179,261 @@ namespace AuditCkDayo.Tests
             Assert.Equal(expectedBank, result.DetectedBank);
             Assert.Equal(expectedAmount, result.DetectedAmount);
             Assert.Contains(expectedRef, result.DetectedReference);
+        }
+
+        [Fact]
+        public async Task UploadDepositSlip_RequiresVarianceReason_WhenAmountsDoNotMatch()
+        {
+            var options = new DbContextOptionsBuilder<AuditDbContext>()
+                .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+                .Options;
+
+            using var context = new AuditDbContext(options);
+            var report = new SalesReport
+            {
+                Id = 10,
+                BusinessDate = DateTime.Today,
+                ConfirmedCashToHandover = 50000.00m,
+                Status = SalesReportStatus.Confirmed
+            };
+            context.SalesReports.Add(report);
+            context.SaveChanges();
+
+            var controller = new SalesReportsController(context, null!, null!);
+            var claims = new List<Claim>
+            {
+                new(ClaimTypes.NameIdentifier, "1"),
+                new(ClaimTypes.Role, "Manager")
+            };
+            controller.ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"))
+                }
+            };
+
+            var result = await controller.UploadDepositSlip(new UploadDepositSlipRequest
+            {
+                SalesReportId = 10,
+                DepositedAmount = 48000.00m,
+                DepositBankName = "BDO",
+                DepositReferenceNumber = "123",
+                DepositVarianceReason = ""
+            }, null);
+
+            var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+            Assert.Contains("Deposit Variance explanation is required", badRequest.Value?.ToString() ?? "");
+        }
+
+        [Fact]
+        public async Task UploadDepositSlip_SavesSuccessfully_WhenAmountsMatch()
+        {
+            var options = new DbContextOptionsBuilder<AuditDbContext>()
+                .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+                .Options;
+
+            using var context = new AuditDbContext(options);
+            var report = new SalesReport
+            {
+                Id = 20,
+                BusinessDate = DateTime.Today,
+                ConfirmedCashToHandover = 50000.00m,
+                Status = SalesReportStatus.Confirmed
+            };
+            context.SalesReports.Add(report);
+            context.SaveChanges();
+
+            var controller = new SalesReportsController(context, null!, null!);
+            var claims = new List<Claim>
+            {
+                new(ClaimTypes.NameIdentifier, "1"),
+                new(ClaimTypes.Role, "Manager")
+            };
+            controller.ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"))
+                }
+            };
+
+            var depositDate = new DateTime(2026, 9, 23);
+            var result = await controller.UploadDepositSlip(new UploadDepositSlipRequest
+            {
+                SalesReportId = 20,
+                DepositedAmount = 50000.00m,
+                DepositBankName = "BPI",
+                DepositReferenceNumber = "REF-9999",
+                DepositDate = depositDate,
+                DepositVarianceReason = null
+            }, null);
+
+            var okResult = Assert.IsType<OkObjectResult>(result);
+            Assert.NotNull(okResult.Value);
+
+            var updatedReport = await context.SalesReports.FindAsync(20);
+            Assert.NotNull(updatedReport);
+            Assert.Equal(50000.00m, updatedReport.DepositedAmount);
+            Assert.Equal("BPI", updatedReport.DepositBankName);
+            Assert.Equal("REF-9999", updatedReport.DepositReferenceNumber);
+            Assert.Equal(depositDate, updatedReport.DepositDate);
+            Assert.Equal(1, updatedReport.DepositUploadedByUserId);
+            Assert.NotNull(updatedReport.DepositUploadedAt);
+        }
+
+        [Theory]
+        [InlineData("../secret.jpg")]
+        [InlineData("..\\secret.jpg")]
+        [InlineData("../../etc/passwd")]
+        [InlineData("sub/folder/test.png")]
+        public void GetDepositSlipImage_RejectsPathTraversal(string maliciousFilename)
+        {
+            var options = new DbContextOptionsBuilder<AuditDbContext>()
+                .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+                .Options;
+
+            using var context = new AuditDbContext(options);
+            var controller = new SalesReportsController(context, null!, null!);
+            var claims = new List<Claim>
+            {
+                new(ClaimTypes.NameIdentifier, "1"),
+                new(ClaimTypes.Role, "Manager")
+            };
+            controller.ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"))
+                }
+            };
+
+            var result = controller.GetDepositSlipImage(maliciousFilename);
+
+            var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+            Assert.Equal("Invalid file name.", badRequest.Value);
+        }
+
+        [Fact]
+        public async Task UploadDepositSlip_SavesFile_WhenFileProvided()
+        {
+            var options = new DbContextOptionsBuilder<AuditDbContext>()
+                .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+                .Options;
+
+            using var context = new AuditDbContext(options);
+            var report = new SalesReport
+            {
+                Id = 30,
+                BusinessDate = DateTime.Today,
+                ConfirmedCashToHandover = 1000m,
+                Status = SalesReportStatus.Confirmed
+            };
+            context.SalesReports.Add(report);
+            context.SaveChanges();
+
+            var controller = new SalesReportsController(context, null!, null!);
+            controller.ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim(ClaimTypes.NameIdentifier, "1") }, "TestAuth"))
+                }
+            };
+
+            var content = "test content"u8.ToArray();
+            var formFile = new FormFile(new System.IO.MemoryStream(content), 0, content.Length, "depositSlipFile", "sample.jpg");
+
+            var result = await controller.UploadDepositSlip(new UploadDepositSlipRequest
+            {
+                SalesReportId = 30,
+                DepositedAmount = 1000m,
+                DepositBankName = "Metrobank",
+                DepositReferenceNumber = "REF-111"
+            }, formFile);
+
+            var okResult = Assert.IsType<OkObjectResult>(result);
+            var updatedReport = await context.SalesReports.FindAsync(30);
+            Assert.NotNull(updatedReport);
+            Assert.NotNull(updatedReport.DepositSlipImageUrl);
+            Assert.StartsWith("/SalesReports/DepositSlip/slip_30_", updatedReport.DepositSlipImageUrl);
+
+            // Clean up created file if exists
+            var fileName = System.IO.Path.GetFileName(updatedReport.DepositSlipImageUrl);
+            var filePath = System.IO.Path.Combine(Directory.GetCurrentDirectory(), "storage", "deposit_slips", fileName);
+            if (System.IO.File.Exists(filePath))
+            {
+                System.IO.File.Delete(filePath);
+            }
+        }
+
+        [Fact]
+        public async Task ExtractDepositSlipOcr_ReturnsBadRequest_WhenNoImageProvided()
+        {
+            var options = new DbContextOptionsBuilder<AuditDbContext>()
+                .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+                .Options;
+
+            using var context = new AuditDbContext(options);
+            var controller = new SalesReportsController(context, null!, null!);
+
+            var result = await controller.ExtractDepositSlipOcr(null, new FakeDepositSlipOcrService());
+            var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+            Assert.NotNull(badRequest.Value);
+        }
+
+        [Fact]
+        public async Task ExtractDepositSlipOcr_ReturnsJson_WhenImageProvided()
+        {
+            var options = new DbContextOptionsBuilder<AuditDbContext>()
+                .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+                .Options;
+
+            using var context = new AuditDbContext(options);
+            var controller = new SalesReportsController(context, null!, null!);
+
+            var content = "fake image"u8.ToArray();
+            var formFile = new FormFile(new System.IO.MemoryStream(content), 0, content.Length, "depositSlipImage", "slip.jpg");
+            var fakeOcr = new FakeDepositSlipOcrService
+            {
+                Result = new AuditCkDayo.Services.DepositSlipOcrResult
+                {
+                    Success = true,
+                    DetectedBank = "BDO",
+                    DetectedAmount = 15000m,
+                    DetectedReference = "TRN-999",
+                    DetectedDate = new DateTime(2026, 9, 23)
+                }
+            };
+
+            var result = await controller.ExtractDepositSlipOcr(formFile, fakeOcr);
+            var jsonResult = Assert.IsType<JsonResult>(result);
+            Assert.NotNull(jsonResult.Value);
+        }
+
+        [Fact]
+        public void GetDepositSlipImage_ReturnsNotFound_WhenFileDoesNotExist()
+        {
+            var options = new DbContextOptionsBuilder<AuditDbContext>()
+                .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+                .Options;
+
+            using var context = new AuditDbContext(options);
+            var controller = new SalesReportsController(context, null!, null!);
+
+            var result = controller.GetDepositSlipImage("nonexistent_safe_file.jpg");
+            Assert.IsType<NotFoundResult>(result);
+        }
+
+    }
+
+    public class FakeDepositSlipOcrService : AuditCkDayo.Services.IDepositSlipOcrService
+    {
+        public AuditCkDayo.Services.DepositSlipOcrResult Result { get; set; } = new() { Success = true };
+
+        public Task<AuditCkDayo.Services.DepositSlipOcrResult> ParseDepositSlipAsync(System.IO.Stream imageStream)
+        {
+            return Task.FromResult(Result);
         }
     }
 }

@@ -1,3 +1,4 @@
+using System.IO;
 using System.Security.Claims;
 using System.Text.Json;
 using AuditCkDayo.Data;
@@ -5,6 +6,8 @@ using AuditCkDayo.Models;
 using AuditCkDayo.Services;
 using AuditCkDayo.ViewModels;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -18,14 +21,15 @@ namespace AuditCkDayo.Controllers
 
         private readonly AuditDbContext _context;
         private readonly IOcrService _ocrService;
-
         private readonly CoverageService? _coverageService;
+        private readonly IWebHostEnvironment? _env;
 
-        public SalesReportsController(AuditDbContext context, IOcrService ocrService, CoverageService? coverageService = null)
+        public SalesReportsController(AuditDbContext context, IOcrService ocrService, CoverageService? coverageService = null, IWebHostEnvironment? env = null)
         {
             _context = context;
             _ocrService = ocrService;
             _coverageService = coverageService;
+            _env = env;
         }
 
         [HttpGet]
@@ -50,7 +54,9 @@ namespace AuditCkDayo.Controllers
 
                 var staffReports = await _context.SalesReports
                     .AsNoTracking()
-                    .Include(r => r.DocumentRecord)
+                    .Include(r => r.DocumentRecord).ThenInclude(d => d.UploadedByUser)
+                    .Include(r => r.OpeningInputtedByUser)
+                    .Include(r => r.ClosingInputtedByUser)
                     .Include(r => r.Establishment)
                     .Where(r => r.EstablishmentId == assignedEstablishmentId.Value)
                     .Where(r => r.BusinessDate >= DateTime.Today.AddDays(-30))
@@ -64,7 +70,9 @@ namespace AuditCkDayo.Controllers
 
             var query = _context.SalesReports
                 .AsNoTracking()
-                .Include(r => r.DocumentRecord)
+                .Include(r => r.DocumentRecord).ThenInclude(d => d.UploadedByUser)
+                .Include(r => r.OpeningInputtedByUser)
+                .Include(r => r.ClosingInputtedByUser)
                 .Include(r => r.Establishment)
                 .Where(r => r.Status == SalesReportStatus.PendingManagerVerification
                     || r.DocumentRecord.ReviewStatus == DocumentReviewStatus.PendingManagerVerification);
@@ -74,11 +82,13 @@ namespace AuditCkDayo.Controllers
 
             if (string.Equals(currentRole, UserRole.Manager.ToString(), StringComparison.OrdinalIgnoreCase) && currentUserId.HasValue)
             {
+                var visibleManagerIds = await GetVisibleSalesReportManagerIdsAsync(currentUserId.Value);
                 query = query.Where(r => _context.Users
                     .Any(u => !u.IsDeleted
                         && u.Role == UserRole.BranchStaff
-                        && u.ManagerId == currentUserId.Value
-                        && u.EstablishmentId == r.EstablishmentId));
+                        && u.EstablishmentId == r.EstablishmentId
+                        && u.ManagerId.HasValue
+                        && visibleManagerIds.Contains(u.ManagerId.Value)));
             }
 
             var pendingReports = await query
@@ -177,6 +187,7 @@ namespace AuditCkDayo.Controllers
             Directory.CreateDirectory(uploadsFolder);
 
             var savedUrls = new List<string>();
+            var savedFilePaths = new List<string>();
             foreach (var reportImage in reportImages)
             {
                 var ext = Path.GetExtension(reportImage.FileName).ToLowerInvariant();
@@ -188,11 +199,13 @@ namespace AuditCkDayo.Controllers
                     await reportImage.CopyToAsync(fileStream);
                 }
                 savedUrls.Add($"/SalesReports/Image/{generatedFileName}");
+                savedFilePaths.Add(filePath);
             }
 
             // Check if there is an existing report for this branch and date
             var existingReport = await _context.SalesReports
                 .Include(r => r.DocumentRecord)
+                .Include(r => r.Lines)
                 .FirstOrDefaultAsync(r => r.EstablishmentId == establishmentId && r.BusinessDate.Date == businessDate.Date);
 
             if (reportSection == 0 && existingReport != null)
@@ -207,6 +220,7 @@ namespace AuditCkDayo.Controllers
                     }
                 }
                 existingReport.ClosingImageUrls = currentUrls;
+                existingReport.ClosingInputtedByUserId = currentUserId.Value;
                 await _context.SaveChangesAsync();
 
                 TempData["Message"] = "Closing log books uploaded successfully. Fill in closing daily sales.";
@@ -233,10 +247,12 @@ namespace AuditCkDayo.Controllers
                 {
                     DocumentRecordId = document.Id,
                     EstablishmentId = establishmentId,
-                    CashierName = cashierName,
+                    CashierName = null,
                     BusinessDate = businessDate.Date,
                     HandoverDate = handoverDate.Date,
-                    Status = SalesReportStatus.Draft
+                    Status = SalesReportStatus.Draft,
+                    OpeningInputtedByUserId = reportSection == (int)SalesReportSection.Opening ? currentUserId.Value : null,
+                    ClosingInputtedByUserId = reportSection == (int)SalesReportSection.Closing ? currentUserId.Value : null
                 };
                 _context.SalesReports.Add(report);
             }
@@ -244,9 +260,13 @@ namespace AuditCkDayo.Controllers
             {
                 report.DocumentRecordId = document.Id;
                 report.HandoverDate = handoverDate.Date;
-                if (!string.IsNullOrEmpty(cashierName))
+                if (reportSection == (int)SalesReportSection.Opening)
                 {
-                    report.CashierName = cashierName;
+                    report.OpeningInputtedByUserId = currentUserId.Value;
+                }
+                else
+                {
+                    report.ClosingInputtedByUserId = currentUserId.Value;
                 }
             }
 
@@ -275,7 +295,10 @@ namespace AuditCkDayo.Controllers
         {
             var report = await _context.SalesReports
                 .AsNoTracking()
-                .Include(r => r.DocumentRecord)
+                .Include(r => r.DocumentRecord).ThenInclude(d => d.UploadedByUser)
+                .Include(r => r.OpeningInputtedByUser)
+                .Include(r => r.ClosingInputtedByUser)
+                .Include(r => r.DepositUploadedByUser)
                 .Include(r => r.CashBreakdownLines)
                 .Include(r => r.Lines)
                 .FirstOrDefaultAsync(r => r.Id == id);
@@ -309,7 +332,10 @@ namespace AuditCkDayo.Controllers
         {
             var report = await _context.SalesReports
                 .AsNoTracking()
-                .Include(r => r.DocumentRecord)
+                .Include(r => r.DocumentRecord).ThenInclude(d => d.UploadedByUser)
+                .Include(r => r.OpeningInputtedByUser)
+                .Include(r => r.ClosingInputtedByUser)
+                .Include(r => r.DepositUploadedByUser)
                 .Include(r => r.CashBreakdownLines)
                 .Include(r => r.Lines)
                 .FirstOrDefaultAsync(r => r.Id == id);
@@ -361,7 +387,7 @@ namespace AuditCkDayo.Controllers
             {
                 var uploadsFolder = GetUploadsFolder();
                 Directory.CreateDirectory(uploadsFolder);
-                var currentUrls = report.ImageUrls ?? new List<string>();
+                var currentUrls = report.ClosingImageUrls ?? new List<string>();
 
                 foreach (var file in closingLogBookImages)
                 {
@@ -389,7 +415,7 @@ namespace AuditCkDayo.Controllers
                         }
                     }
                 }
-                report.ImageUrls = currentUrls;
+                report.ClosingImageUrls = currentUrls;
             }
 
             if (!await IsValidOperatingBranchAsync(model.EstablishmentId))
@@ -429,6 +455,12 @@ namespace AuditCkDayo.Controllers
                 return View(errorModel);
             }
 
+            var closingInputtedByUserId = GetCurrentUserId();
+            if (!closingInputtedByUserId.HasValue)
+            {
+                return Challenge();
+            }
+            report.ClosingInputtedByUserId = closingInputtedByUserId.Value;
             ApplyReviewModel(report, model);
 
             _context.CashBreakdownLines.RemoveRange(report.CashBreakdownLines.Where(b => b.Section == SalesReportSection.Closing).ToList());
@@ -685,6 +717,12 @@ namespace AuditCkDayo.Controllers
                 return View("OpeningReview", BuildReviewModel(report));
             }
 
+            var openingInputtedByUserId = GetCurrentUserId();
+            if (!openingInputtedByUserId.HasValue)
+            {
+                return Challenge();
+            }
+            report.OpeningInputtedByUserId = openingInputtedByUserId.Value;
             ApplyOpeningModel(report, model);
             ApplyOpeningLines(report, model);
 
@@ -860,6 +898,120 @@ namespace AuditCkDayo.Controllers
             }
         }
 
+        [HttpPost]
+        [Authorize(Roles = "Owner,Manager,Admin")]
+        public async Task<IActionResult> ExtractDepositSlipOcr(IFormFile? depositSlipImage, [FromServices] IDepositSlipOcrService ocrService)
+        {
+            if (depositSlipImage == null || depositSlipImage.Length == 0)
+            {
+                return BadRequest(new { success = false, message = "Please upload an image file." });
+            }
+
+            using var stream = depositSlipImage.OpenReadStream();
+            var ocr = await ocrService.ParseDepositSlipAsync(stream);
+
+            return Json(new
+            {
+                success = ocr.Success,
+                detectedBank = ocr.DetectedBank,
+                detectedAmount = ocr.DetectedAmount,
+                detectedReference = ocr.DetectedReference,
+                detectedDate = ocr.DetectedDate?.ToString("yyyy-MM-dd")
+            });
+        }
+
+        [HttpPost]
+        [Authorize(Roles = "Owner,Manager,Admin")]
+        public async Task<IActionResult> UploadDepositSlip([FromForm] UploadDepositSlipRequest request, IFormFile? depositSlipFile)
+        {
+            var report = await _context.SalesReports.FindAsync(request.SalesReportId);
+            if (report == null)
+            {
+                return NotFound("Sales report not found.");
+            }
+
+            var expectedCash = report.ConfirmedCashToHandover != 0m
+                ? report.ConfirmedCashToHandover
+                : (report.CashSales + report.OpeningCashSales);
+            var variance = request.DepositedAmount - expectedCash;
+            if (Math.Abs(variance) >= 0.01m && string.IsNullOrWhiteSpace(request.DepositVarianceReason))
+            {
+                return BadRequest("A Deposit Variance explanation is required when the deposited amount differs from confirmed cash sales.");
+            }
+
+            if (depositSlipFile != null && depositSlipFile.Length > 0)
+            {
+                var contentRoot = _env?.ContentRootPath ?? Directory.GetCurrentDirectory();
+                var uploadsDir = Path.Combine(contentRoot, "storage", "deposit_slips");
+                if (!Directory.Exists(uploadsDir))
+                {
+                    Directory.CreateDirectory(uploadsDir);
+                }
+
+                var extension = Path.GetExtension(depositSlipFile.FileName).ToLowerInvariant();
+                var uniqueName = $"slip_{report.Id}_{Guid.NewGuid():N}{extension}";
+                var filePath = Path.Combine(uploadsDir, uniqueName);
+
+                using (var fileStream = new FileStream(filePath, FileMode.Create))
+                {
+                    await depositSlipFile.CopyToAsync(fileStream);
+                }
+
+                report.DepositSlipImageUrl = $"/SalesReports/DepositSlip/{uniqueName}";
+            }
+
+            report.DepositedAmount = request.DepositedAmount;
+            report.DepositBankName = request.DepositBankName;
+            report.DepositReferenceNumber = request.DepositReferenceNumber;
+            report.DepositDate = request.DepositDate ?? DateTime.Today;
+            report.DepositVarianceReason = request.DepositVarianceReason;
+            report.DepositUploadedByUserId = GetCurrentUserId();
+            report.DepositUploadedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+            return Ok(new
+            {
+                success = true,
+                message = "Deposit slip uploaded and recorded successfully!",
+                depositSlipUrl = report.DepositSlipImageUrl
+            });
+        }
+
+        [HttpGet("SalesReports/DepositSlip/{fileName}")]
+        [Authorize(Roles = "Owner,Manager,Admin,Auditor")]
+        public IActionResult GetDepositSlipImage(string fileName)
+        {
+            if (string.IsNullOrWhiteSpace(fileName) || fileName.Contains("..") || fileName.Contains('/') || fileName.Contains('\\'))
+            {
+                return BadRequest("Invalid file name.");
+            }
+
+            var safeName = Path.GetFileName(fileName);
+            var contentRoot = _env?.ContentRootPath ?? Directory.GetCurrentDirectory();
+            var filePath = Path.Combine(contentRoot, "storage", "deposit_slips", safeName);
+
+            if (!System.IO.File.Exists(filePath))
+            {
+                return NotFound();
+            }
+
+            var contentType = GetMimeType(filePath);
+            return PhysicalFile(Path.GetFullPath(filePath), contentType);
+        }
+
+        private static string ResolveInputtedByName(User? sectionInputter, User? documentUploader, string? legacyCashierName)
+        {
+            if (!string.IsNullOrWhiteSpace(sectionInputter?.Name))
+            {
+                return sectionInputter.Name;
+            }
+            if (!string.IsNullOrWhiteSpace(documentUploader?.Name))
+            {
+                return documentUploader.Name;
+            }
+            return string.IsNullOrWhiteSpace(legacyCashierName) ? "N/A" : legacyCashierName;
+        }
+
         private static SalesReportReviewViewModel ToReviewModel(SalesReport report)
         {
             var model = new SalesReportReviewViewModel
@@ -868,6 +1020,8 @@ namespace AuditCkDayo.Controllers
                 DocumentRecordId = report.DocumentRecordId,
                 EstablishmentId = report.EstablishmentId,
                 CashierName = report.CashierName,
+                OpeningInputtedByName = ResolveInputtedByName(report.OpeningInputtedByUser, report.DocumentRecord?.UploadedByUser, report.CashierName),
+                ClosingInputtedByName = ResolveInputtedByName(report.ClosingInputtedByUser, report.DocumentRecord?.UploadedByUser, report.CashierName),
                 BusinessDate = report.BusinessDate.Date,
                 HandoverDate = report.HandoverDate.Date,
                 GrossSales = report.GrossSales,
@@ -882,6 +1036,7 @@ namespace AuditCkDayo.Controllers
                 FoodSales = report.FoodSales,
                 BeerSales = report.BeerSales,
                 BeverageSales = report.BeverageSales,
+                HardSales = report.HardSales,
                 OtherSales = report.OtherSales,
                 CashSales = report.CashSales,
                 SeniorDiscount = report.SeniorDiscount,
@@ -903,6 +1058,7 @@ namespace AuditCkDayo.Controllers
                 OpeningFoodSales = report.OpeningFoodSales,
                 OpeningBeerSales = report.OpeningBeerSales,
                 OpeningBeverageSales = report.OpeningBeverageSales,
+                OpeningHardSales = report.OpeningHardSales,
                 OpeningOtherSales = report.OpeningOtherSales,
                 OpeningSeniorDiscount = report.OpeningSeniorDiscount,
                 OpeningPwdDiscount = report.OpeningPwdDiscount,
@@ -932,6 +1088,18 @@ namespace AuditCkDayo.Controllers
                 ClosingImageUrls = report.ClosingImageUrls,
                 Status = report.Status,
                 ReviewStatus = report.DocumentRecord?.ReviewStatus ?? DocumentReviewStatus.Draft,
+                DepositSlipImageUrl = report.DepositSlipImageUrl,
+                DepositedAmount = report.DepositedAmount,
+                DepositBankName = report.DepositBankName,
+                DepositReferenceNumber = report.DepositReferenceNumber,
+                DepositDate = report.DepositDate,
+                DepositVarianceReason = report.DepositVarianceReason,
+                DepositUploadedByName = report.DepositUploadedByUser?.Name,
+                DepositUploadedAt = report.DepositUploadedAt,
+                HasDepositSlip = report.HasDepositSlip,
+                DepositVariance = report.DepositVariance,
+                IsDepositMatched = report.IsDepositMatched,
+                IsDepositDiscrepancy = report.IsDepositDiscrepancy,
             };
 
             if (report.Lines != null)
@@ -1033,20 +1201,34 @@ namespace AuditCkDayo.Controllers
             model.Status = report.Status;
             model.ReviewStatus = report.DocumentRecord?.ReviewStatus ?? DocumentReviewStatus.Draft;
             model.CanConfirmToTreasury = CanConfirmSalesReportToTreasury();
+            model.DepositSlipImageUrl = report.DepositSlipImageUrl;
+            model.DepositedAmount = report.DepositedAmount;
+            model.DepositBankName = report.DepositBankName;
+            model.DepositReferenceNumber = report.DepositReferenceNumber;
+            model.DepositDate = report.DepositDate;
+            model.DepositVarianceReason = report.DepositVarianceReason;
+            model.DepositUploadedByName = report.DepositUploadedByUser?.Name;
+            model.DepositUploadedAt = report.DepositUploadedAt;
+            model.HasDepositSlip = report.HasDepositSlip;
+            model.DepositVariance = report.DepositVariance;
+            model.IsDepositMatched = report.IsDepositMatched;
+            model.IsDepositDiscrepancy = report.IsDepositDiscrepancy;
         }
 
         private static void ApplyReviewModel(SalesReport report, SalesReportReviewViewModel model)
         {
             report.EstablishmentId = model.EstablishmentId;
-            report.CashierName = model.CashierName;
+            report.CashierName ??= model.CashierName;
             report.BusinessDate = model.BusinessDate.Date;
             report.HandoverDate = model.HandoverDate.Date;
-            report.GrossSales = model.GrossSales;
-
             report.ClosingGrossSales = model.ClosingGrossSales;
+            report.GrossSales = report.OpeningGrossSales > 0m || report.ClosingGrossSales > 0m
+                ? report.OpeningGrossSales + report.ClosingGrossSales
+                : model.GrossSales;
             report.FoodSales = model.FoodSales;
             report.BeerSales = model.BeerSales;
             report.BeverageSales = model.BeverageSales;
+            report.HardSales = model.HardSales;
             report.OtherSales = model.OtherSales;
             report.CashSales = model.CashSales;
             report.SeniorDiscount = model.SeniorDiscount;
@@ -1082,7 +1264,7 @@ namespace AuditCkDayo.Controllers
         private static void ApplyOpeningModel(SalesReport report, SalesReportReviewViewModel model)
         {
             report.EstablishmentId = model.EstablishmentId;
-            report.CashierName = model.CashierName;
+            report.CashierName ??= model.CashierName;
             report.BusinessDate = model.BusinessDate.Date;
             report.HandoverDate = model.HandoverDate.Date;
             report.OpeningGrossSales = model.OpeningGrossSales;
@@ -1090,6 +1272,7 @@ namespace AuditCkDayo.Controllers
             report.OpeningFoodSales = model.OpeningFoodSales;
             report.OpeningBeerSales = model.OpeningBeerSales;
             report.OpeningBeverageSales = model.OpeningBeverageSales;
+            report.OpeningHardSales = model.OpeningHardSales;
             report.OpeningOtherSales = model.OpeningOtherSales;
             report.OpeningSeniorDiscount = model.OpeningSeniorDiscount;
             report.OpeningPwdDiscount = model.OpeningPwdDiscount;
@@ -1165,6 +1348,7 @@ namespace AuditCkDayo.Controllers
                 }
             }
         }
+
 
         private int? GetCurrentUserId()
         {
@@ -1304,11 +1488,13 @@ namespace AuditCkDayo.Controllers
                 return true;
             }
 
+            var visibleManagerIds = await GetVisibleSalesReportManagerIdsAsync(currentUserId.Value);
+
             return !await _context.Users
                 .AnyAsync(u => !u.IsDeleted
                     && u.Role == UserRole.BranchStaff
                     && u.EstablishmentId == establishmentId
-                    && (u.ManagerId == currentUserId.Value || u.ManagerId == null));
+                    && (u.ManagerId == null || visibleManagerIds.Contains(u.ManagerId.Value)));
         }
 
         private bool CurrentManagerCannotAccess(int establishmentId)
@@ -1325,11 +1511,35 @@ namespace AuditCkDayo.Controllers
                 return true;
             }
 
+            var visibleManagerIds = GetVisibleSalesReportManagerIds(currentUserId.Value);
+
             return !_context.Users
                 .Any(u => !u.IsDeleted
                     && u.Role == UserRole.BranchStaff
                     && u.EstablishmentId == establishmentId
-                    && (u.ManagerId == currentUserId.Value || u.ManagerId == null));
+                    && (u.ManagerId == null || visibleManagerIds.Contains(u.ManagerId.Value)));
+        }
+
+        private async Task<List<int>> GetVisibleSalesReportManagerIdsAsync(int managerId)
+        {
+            var managerIds = new List<int> { managerId };
+            if (_coverageService != null)
+            {
+                managerIds.AddRange(await _coverageService.GetCoveredManagerIdsAsync(managerId, DateTime.Today, CoverageScope.SalesReports));
+            }
+
+            return managerIds.Distinct().ToList();
+        }
+
+        private List<int> GetVisibleSalesReportManagerIds(int managerId)
+        {
+            var managerIds = new List<int> { managerId };
+            if (_coverageService != null)
+            {
+                managerIds.AddRange(_coverageService.GetCoveredManagerIds(managerId, DateTime.Today, CoverageScope.SalesReports));
+            }
+
+            return managerIds.Distinct().ToList();
         }
 
         private static string GetUploadsFolder()
